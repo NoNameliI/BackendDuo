@@ -162,7 +162,7 @@ const themeOptions: { id: ThemePreference; title: string }[] = [
 ];
 
 function Settings() {
-  const { theme, setTheme, setView } = useUi();
+  const { theme, setTheme, setView, reminders, setReminders } = useUi();
   const resetAll = useProgress((s) => s.resetAll);
   const [confirming, setConfirming] = useState(false);
 
@@ -182,6 +182,30 @@ function Settings() {
             ))}
           </div>
         </fieldset>
+        <div className="flex items-center gap-3 text-[13px]">
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={reminders.enabled}
+              onChange={(e) => setReminders({ ...reminders, enabled: e.target.checked })}
+              className="h-4 w-4 accent-[var(--ok)]"
+            />
+            <span className="text-dim">Напоминать о серии после</span>
+          </label>
+          <select
+            aria-label="Час напоминания"
+            value={reminders.hour}
+            disabled={!reminders.enabled}
+            onChange={(e) => setReminders({ ...reminders, hour: Number(e.target.value) })}
+            className="rounded border border-line bg-well px-1.5 py-1 text-[13px] disabled:opacity-50"
+          >
+            {[17, 18, 19, 20, 21, 22].map((h) => (
+              <option key={h} value={h}>
+                {h}:00
+              </option>
+            ))}
+          </select>
+        </div>
         {course.onboarding && (
           <Button variant="outline" onClick={() => setView('onboarding')}>
             Пройти вступление заново

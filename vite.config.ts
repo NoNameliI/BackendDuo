@@ -21,7 +21,9 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   clearScreen: false,
-  server: { port: 1420, strictPort: true },
+  // Fixed port and env prefix expected by the Tauri shell (src-tauri/tauri.conf.json).
+  server: { port: 1420, strictPort: true, watch: { ignored: ['**/src-tauri/**'] } },
+  envPrefix: ['VITE_', 'TAURI_ENV_'],
   // PGlite ships its own WASM and data files; pre-bundling would break their relative URLs.
   optimizeDeps: { exclude: ['@electric-sql/pglite'] },
   worker: {

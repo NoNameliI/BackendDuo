@@ -22,7 +22,7 @@ export function QuizPanel({ task }: { task: ChoiceTask }) {
       <div className="h-full overflow-y-auto p-5">
         <div className="mx-auto max-w-2xl">
           <Markdown source={task.prompt} className="mb-5 text-[16px]" />
-          {task.type === 'review' && <CodeBlock code={task.code} language={task.codeLanguage} />}
+          {task.type === 'review' && <CodeBlock code={task.code} language={task.codeLanguage} highlight={verdict ? task.lines : []} />}
           <OptionList
             options={task.options}
             selected={selected}
@@ -36,7 +36,7 @@ export function QuizPanel({ task }: { task: ChoiceTask }) {
   );
 }
 
-export function CodeBlock({ code, language }: { code: string; language: string }) {
+export function CodeBlock({ code, language, highlight = [] }: { code: string; language: string; highlight?: number[] }) {
   const html = language === 'sql' ? highlightSql(code) : escapeHtml(code);
   const lines = html.split('\n');
   return (
@@ -46,7 +46,7 @@ export function CodeBlock({ code, language }: { code: string; language: string }
       </figcaption>
       <pre className="overflow-x-auto py-2 font-mono text-[13px] leading-[1.7]">
         {lines.map((line, i) => (
-          <div key={i} className="flex">
+          <div key={i} className={`flex ${highlight.includes(i + 1) ? 'bg-err/15 shadow-[inset_2px_0_0_var(--err)]' : ''}`}>
             <span className="w-10 shrink-0 select-none pr-3 text-right text-faint">{i + 1}</span>
             <code dangerouslySetInnerHTML={{ __html: line || ' ' }} />
           </div>

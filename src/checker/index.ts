@@ -14,6 +14,8 @@ export interface CheckResult {
   expected?: StatementResult;
   actual?: StatementResult;
   plan?: QueryPlan;
+  /** Planner cost of the untouched query, for plan tasks. */
+  baselineCost?: number;
 }
 
 /** Raised when the reference solution itself fails: a content bug, not a learner mistake. */
@@ -144,7 +146,7 @@ export function createChecker(engine: SandboxEngine) {
       }
     }
     problems.push(...evaluatePlan(explained.plan, ref.baselineCost, task.check));
-    return verdict(problems, { plan: explained.plan, expected: ref.result, actual });
+    return verdict(problems, { plan: explained.plan, expected: ref.result, actual, baselineCost: ref.baselineCost });
   }
 
 

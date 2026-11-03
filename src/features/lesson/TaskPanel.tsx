@@ -143,6 +143,18 @@ function TaskView({ task }: { task: Task }) {
   );
 }
 
+function CostLine({ verdict }: { verdict: Verdict }) {
+  if (!verdict.plan || verdict.baselineCost === undefined) return null;
+  const now = verdict.plan.root.totalCost;
+  const change = Math.round((1 - now / verdict.baselineCost) * 100);
+  return (
+    <p className="mt-1.5 font-mono text-[12px] text-dim">
+      стоимость плана: {verdict.baselineCost.toFixed(0)} → <span className="text-fg">{now.toFixed(0)}</span>
+      {change > 0 && <span className="text-ok"> (−{change}%)</span>}
+    </p>
+  );
+}
+
 function VerdictCard({ verdict, task }: { verdict: Verdict; task: Task }) {
   const { goRelative } = useWorkspace();
   const tasks = allTasks(course);
@@ -156,6 +168,7 @@ function VerdictCard({ verdict, task }: { verdict: Verdict; task: Task }) {
           <CheckIcon width={16} height={16} /> Верно!
           {verdict.reward && <span className="ml-auto font-mono text-[13px]">+{verdict.reward.xp} XP</span>}
         </p>
+        <CostLine verdict={verdict} />
         {(task.type === 'choice' || task.type === 'review') && (
           <Markdown source={task.explanation} className="mt-2 text-[13px]" />
         )}
@@ -171,6 +184,7 @@ function VerdictCard({ verdict, task }: { verdict: Verdict; task: Task }) {
   return (
     <section key={verdict.at} role="alert" className="animate-rise rounded-md border border-err/40 bg-err/10 p-3 text-[13px]">
       <p className="mb-1.5 font-semibold text-err">Пока не то</p>
+      <CostLine verdict={verdict} />
       {verdict.error && (
         <>
           <p className="font-mono text-[12px] text-fg">

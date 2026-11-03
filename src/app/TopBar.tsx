@@ -2,7 +2,7 @@ import { course } from '@/content/course';
 import { useWorkspace } from '@/features/lesson/workspace';
 import { levelInfo, localDay, resumeTask, streakInfo, totalXp } from '@/progress/gamification';
 import { selectCourse, useProgress } from '@/progress/store';
-import { Button } from '@/ui/Button';
+import { Button, Kbd } from '@/ui/Button';
 import { plural } from '@/ui/format';
 import { FlameIcon, MonitorIcon, MoonIcon, SunIcon } from '@/ui/icons';
 import { useUi, type View } from './store';
@@ -57,7 +57,18 @@ export function TopBar() {
       </nav>
       )}
       <div className="ml-auto flex items-center gap-2">
-        {view !== 'onboarding' && <Stats onOpenProfile={() => go('profile')} />}
+        {view !== 'onboarding' && (
+          <>
+            <button
+              type="button"
+              onClick={() => useUi.getState().setPaletteOpen(true)}
+              className="flex items-center gap-2 rounded border border-line px-2 py-1 text-[12px] text-faint hover:border-line-strong hover:text-dim"
+            >
+              Поиск <Kbd>Ctrl K</Kbd>
+            </button>
+            <Stats onOpenProfile={() => go('profile')} />
+          </>
+        )}
         <Button
           aria-label={`${themeLabels[theme]}. Переключить`}
           title={themeLabels[theme]}

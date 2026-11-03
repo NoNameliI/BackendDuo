@@ -88,6 +88,8 @@ const reviewTask = z.object({
   type: z.literal('review'),
   code: sqlText,
   codeLanguage: z.string().default('sql'),
+  /** 1-based lines highlighted once the learner has answered. */
+  lines: z.array(z.number().int().positive()).default([]),
 });
 
 export const taskSchema = z

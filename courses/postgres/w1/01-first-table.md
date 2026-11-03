@@ -149,3 +149,35 @@ ORDER BY price;
 }
 ```
 Какой тип колонки подходит для цены товара в рублях с копейками?
+
+## task w1-erd-catalog
+```json
+{
+  "type": "schema",
+  "ui": "erd",
+  "title": "Категории и товары",
+  "xp": 20,
+  "check": { "tables": ["categories", "products"] },
+  "hints": [
+    "Добавьте две таблицы кнопкой «+ Таблица». Колонку `id` с PK конструктор создаёт сам.",
+    "Для связи нажмите FK у `products.category_id`, а затем выберите `categories.id`. Не забудьте NN."
+  ]
+}
+```
+Каталог растёт, и товарам нужны категории. Соберите схему в конструкторе:
+
+- `categories`: `id` — первичный ключ; `name` — текст, обязательный и уникальный;
+- `products`: `id` — первичный ключ; `name` — текст, обязательный; `price` — `numeric(10, 2)`, обязательная; `category_id` — обязательная ссылка на `categories.id`.
+
+```sql solution
+CREATE TABLE categories (
+  id serial PRIMARY KEY,
+  name text NOT NULL UNIQUE
+);
+CREATE TABLE products (
+  id serial PRIMARY KEY,
+  name text NOT NULL,
+  price numeric(10, 2) NOT NULL,
+  category_id integer NOT NULL REFERENCES categories (id)
+);
+```

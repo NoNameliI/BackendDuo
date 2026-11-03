@@ -27,7 +27,9 @@ export function useHotkeys(bindings: HotkeyMap): void {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable="true"]');
       for (const [combo, handler] of Object.entries(ref.current)) {
+        if (typing && !combo.includes('+')) continue;
         if (matchesHotkey(e, combo)) {
           e.preventDefault();
           e.stopPropagation();

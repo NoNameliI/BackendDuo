@@ -7,6 +7,8 @@ import { Button } from '@/ui/Button';
 import { CheckIcon, PlanIcon, PlayIcon, ResetIcon, TrashIcon } from '@/ui/icons';
 import { Panel } from '@/ui/Panel';
 import { Split } from '@/ui/Split';
+import { DdlPanel } from '@/features/erd/DdlPanel';
+import { ErdCanvas } from '@/features/erd/ErdCanvas';
 import { QuizPanel } from './QuizPanel';
 import { ResultPanel } from './ResultPanel';
 import { TaskPanel } from './TaskPanel';
@@ -36,6 +38,21 @@ export function LessonScreen() {
     'Alt+ArrowRight': () => goRelative(1),
     ...optionKeys,
   });
+
+  if (task?.type === 'schema' && task.ui === 'erd') {
+    return (
+      <Split direction="row" storageKey="erd-columns" initial={[26, 50, 24]} min={16}>
+        <TaskPanel />
+        <ErdCanvas key={task.id} />
+        <Split direction="column" storageKey="erd-right" initial={[58, 42]} min={20}>
+          <DdlPanel />
+          <Panel title="Терминал" actions={<Button aria-label="Очистить терминал" icon={<TrashIcon />} onClick={clearLog} />}>
+            <Terminal />
+          </Panel>
+        </Split>
+      </Split>
+    );
+  }
 
   if (quiz) {
     return (
