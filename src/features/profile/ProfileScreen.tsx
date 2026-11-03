@@ -162,7 +162,7 @@ const themeOptions: { id: ThemePreference; title: string }[] = [
 ];
 
 function Settings() {
-  const { theme, setTheme } = useUi();
+  const { theme, setTheme, setView } = useUi();
   const resetAll = useProgress((s) => s.resetAll);
   const [confirming, setConfirming] = useState(false);
 
@@ -182,6 +182,11 @@ function Settings() {
             ))}
           </div>
         </fieldset>
+        {course.onboarding && (
+          <Button variant="outline" onClick={() => setView('onboarding')}>
+            Пройти вступление заново
+          </Button>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {confirming ? (
             <>

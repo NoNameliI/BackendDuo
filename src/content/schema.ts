@@ -154,6 +154,53 @@ export const manifestSchema = z.object({
   worlds: z.array(worldSchema).min(1),
   levels: levelsSchema,
   badges: z.array(badgeSchema).default([]),
+  placement: z.string().regex(/\.json$/).optional(),
+  onboarding: z.string().regex(/\.json$/).optional(),
+});
+
+export const placementSchema = z
+  .object({
+    /** Lesson-format Markdown file with the questions. */
+    questions: z.string().regex(/\.md$/),
+    /** Correct answers needed to pass a block. */
+    passThreshold: z.number().int().positive(),
+    blocks: z
+      .array(z.object({ id: slug, title: z.string().min(1), questions: z.array(slug).min(1), unlocks: z.array(slug) }))
+      .min(1),
+  })
+  .refine((p) => p.blocks.every((b) => b.questions.length >= p.passThreshold), {
+    message: 'в каждом блоке должно быть не меньше вопросов, чем passThreshold',
+  });
+
+const cell = z.union([z.string(), z.number(), z.null()]);
+const titled = { title: z.string().min(1), text: z.string().min(1) };
+const stepBase = { id: slug, ...titled, explanation: z.string().min(1) };
+
+export const onboardingSchema = z.object({
+  welcome: z.object({
+    title: z.string().min(1),
+    subtitle: z.string().min(1),
+    beginner: z.object(titled),
+    experienced: z.object(titled),
+  }),
+  intro: z.object({ title: z.string().min(1), paragraphs: z.array(z.string().min(1)).min(1) }),
+  tables: z.record(z.string(), z.object({ columns: z.array(z.string().min(1)).min(1), rows: z.array(z.array(cell)).min(1) })),
+  steps: z
+    .array(
+      z.discriminatedUnion('kind', [
+        z.object({ ...stepBase, kind: z.literal('pickRow'), table: z.string(), answer: z.number().int().nonnegative() }),
+        z.object({ ...stepBase, kind: z.literal('pickColumn'), table: z.string(), answer: z.string().min(1) }),
+        z.object({
+          ...stepBase,
+          kind: z.literal('link'),
+          orders: z.array(z.object({ id: z.number().int(), story: z.string().min(1), customer: z.number().int() })).min(1),
+        }),
+      ]),
+    )
+    .min(1),
+  /** The first typed query; a result task. */
+  firstQuery: z.record(z.string(), z.unknown()),
+  outro: z.object(titled),
 });
 
 /** SQLSTATE (or its two-character class) → hint shown under PostgreSQL's own message. */
@@ -165,3 +212,5 @@ export type Manifest = z.output<typeof manifestSchema>;
 export type Badge = z.output<typeof badgeSchema>;
 export type BadgeRule = z.output<typeof badgeRuleSchema>;
 export type Level = Manifest['levels'][number];
+export type OnboardingData = z.output<typeof onboardingSchema>;
+export type OnboardingStep = OnboardingData['steps'][number];

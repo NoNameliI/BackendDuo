@@ -35,6 +35,8 @@ const course: Course = {
     { xp: 120, title: 'Architect' },
   ],
   badges: [],
+  placement: null,
+  onboarding: null,
   worlds: [
     { id: 'w1', title: '', summary: '', requires: [], lessons: [lesson('a', [task('a1'), task('a2', 'plan')]), lesson('b', [task('b1')], ['a'])] },
     { id: 'w2', title: '', summary: '', requires: ['w1'], lessons: [lesson('c', [task('c1')])] },

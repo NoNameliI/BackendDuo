@@ -3,7 +3,11 @@
   "title": "PostgreSQL",
   "engine": "postgres",
   "errors": "errors.json",
-  "datasets": {},
+  "placement": "placement.json",
+  "onboarding": "onboarding.json",
+  "datasets": {
+    "shop": "datasets/shop.sql"
+  },
   "worlds": [
     {
       "id": "w1",

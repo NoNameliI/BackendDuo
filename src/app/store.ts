@@ -6,7 +6,7 @@ interface Settings {
   theme: ThemePreference;
 }
 
-export type View = 'map' | 'lesson' | 'profile';
+export type View = 'onboarding' | 'map' | 'lesson' | 'profile';
 
 interface UiState extends Settings {
   view: View;

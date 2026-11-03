@@ -1,0 +1,30 @@
+{
+  "questions": "placement.md",
+  "passThreshold": 2,
+  "blocks": [
+    {
+      "id": "crud",
+      "title": "Основы CRUD и фильтрация",
+      "questions": ["p-crud-where", "p-crud-update", "p-crud-sql"],
+      "unlocks": ["w1-first-table"]
+    },
+    {
+      "id": "aggregation",
+      "title": "Агрегация и группировка",
+      "questions": ["p-agg-having", "p-agg-count", "p-agg-sql"],
+      "unlocks": []
+    },
+    {
+      "id": "joins",
+      "title": "Соединения таблиц",
+      "questions": ["p-join-left", "p-join-dup", "p-join-sql"],
+      "unlocks": []
+    },
+    {
+      "id": "advanced",
+      "title": "Подзапросы, окна и индексы",
+      "questions": ["p-adv-window", "p-adv-index", "p-adv-sql"],
+      "unlocks": ["w5-btree-index"]
+    }
+  ]
+}

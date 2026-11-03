@@ -40,6 +40,7 @@ export function TopBar() {
   return (
     <header className="flex h-11 shrink-0 items-center gap-6 border-b border-line px-3">
       <Brand />
+      {view !== 'onboarding' && (
       <nav aria-label="Разделы" className="flex h-full items-stretch gap-5">
         {nav.map((item) => (
           <button
@@ -54,8 +55,9 @@ export function TopBar() {
           </button>
         ))}
       </nav>
+      )}
       <div className="ml-auto flex items-center gap-2">
-        <Stats onOpenProfile={() => go('profile')} />
+        {view !== 'onboarding' && <Stats onOpenProfile={() => go('profile')} />}
         <Button
           aria-label={`${themeLabels[theme]}. Переключить`}
           title={themeLabels[theme]}

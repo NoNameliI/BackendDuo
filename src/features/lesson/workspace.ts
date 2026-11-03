@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { checkChoice, createChecker, SolutionError, type Checker, type CheckResult } from '@/checker';
+import { checkChoice, createChecker, SolutionError, type Answer, type Checker, type CheckResult } from '@/checker';
 import { course } from '@/content/course';
 import { allTasks, errorHint, type Lesson, type Task } from '@/content/loadCourse';
 import {
@@ -64,6 +64,10 @@ interface WorkspaceState {
   check: () => Promise<void>;
   revealHint: () => void;
   revealSolution: () => void;
+  /** Resets the sandbox to a task outside the lesson player (onboarding, placement). */
+  prepare: (task: Task) => Promise<void>;
+  /** Checks an answer to such a task through the same sandbox queue. */
+  verify: (task: Task, answer: Answer) => Promise<CheckResult>;
 }
 
 const LOG_LIMIT = 300;
@@ -306,6 +310,21 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     revealSolution: () => {
       const { task } = get();
       if (task) useProgress.getState().revealSolution(task);
+    },
+
+    prepare: (task) =>
+      withSandbox(async ({ engine }) => {
+        await engine.reset(task.setupSql);
+        await refreshSchema(engine);
+      }),
+
+    verify: async (task, answer) => {
+      let result: CheckResult = { passed: false, problems: ['Песочница недоступна'] };
+      await withSandbox(async ({ engine, checker }) => {
+        result = await checker.check(task, answer);
+        await refreshSchema(engine);
+      });
+      return result;
     },
   };
 });
