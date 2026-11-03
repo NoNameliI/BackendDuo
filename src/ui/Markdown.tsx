@@ -7,7 +7,7 @@ const markdown = new Marked({
   gfm: true,
   renderer: {
     code({ text, lang }) {
-      const body = lang === 'sql' ? highlightSql(text) : escapeHtml(text);
+      const body = lang?.split(/\s/)[0] === 'sql' ? highlightSql(text) : escapeHtml(text);
       return `<pre class="md-code"><code>${body}</code></pre>`;
     },
   },

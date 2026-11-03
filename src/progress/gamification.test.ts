@@ -20,6 +20,7 @@ const lesson = (id: string, tasks: Task[], requires: string[] = []): Lesson => (
   worldId: '',
   title: id,
   theory: '',
+  exampleSetup: '',
   requires,
   tasks,
 });

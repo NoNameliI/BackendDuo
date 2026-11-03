@@ -53,7 +53,7 @@ describe('loadCourse', () => {
       ['w2', ['w1']],
     ]);
     const [l1, l2] = course.worlds[0].lessons;
-    expect(l1).toMatchObject({ title: 'Урок 1', theory: 'Теория', requires: [] });
+    expect(l1).toMatchObject({ title: 'Урок 1', theory: 'Теория', requires: [], exampleSetup: 'CREATE TABLE shop (id int);' });
     expect(l2.requires).toEqual(['l1']);
     expect(l1.tasks[0]).toMatchObject({ id: 't1', xp: 20, lessonId: 'l1', worldId: 'w1', setupSql: 'CREATE TABLE shop (id int);' });
     expect(l2.tasks[0]).toMatchObject({ xp: 10, setupSql: '', check: { ordered: false, columnNames: true } });

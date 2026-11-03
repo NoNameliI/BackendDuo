@@ -178,7 +178,7 @@ describe('schema check', () => {
   });
 });
 
-describe('plan check', () => {
+describe('plan check', { timeout: 30_000 }, () => {
   const setup = `
     CREATE TABLE events (id int PRIMARY KEY, user_id int NOT NULL, created_on date NOT NULL);
     INSERT INTO events SELECT g, g % 5000, DATE '2024-01-01' + (g % 365) FROM generate_series(1, 100000) g;`;

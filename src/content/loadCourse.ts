@@ -27,6 +27,8 @@ export interface Lesson {
   worldId: string;
   title: string;
   theory: string;
+  /** Database the theory examples run on: the setup of the lesson's first SQL task. */
+  exampleSetup: string;
   requires: string[];
   tasks: Task[];
 }
@@ -167,6 +169,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
         worldId: w.id,
         title: ref.id,
         theory: '',
+        exampleSetup: '',
         requires: ref.requires ?? (li > 0 ? [w.lessons[li - 1].id] : []),
         tasks: [],
       };
@@ -184,6 +187,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
         const task = buildTask(rawTask, `${path} › ${String(rawTask.id)}`, ref.id, w.id);
         if (task) lesson.tasks.push(task);
       }
+      lesson.exampleSetup = lesson.tasks.find((t) => 'solution' in t)?.setupSql ?? '';
       return lesson;
     });
     return {

@@ -8,6 +8,7 @@ import { Markdown } from '@/ui/Markdown';
 import { Panel } from '@/ui/Panel';
 import { Tabs } from '@/ui/Tabs';
 import { highlightSql } from '@/ui/highlightSql';
+import { TheoryView } from './TheoryView';
 import { useWorkspace, type Verdict } from './workspace';
 
 export const TASK_KIND: Record<Task['type'], string> = {
@@ -52,7 +53,7 @@ export function TaskPanel() {
               {course.worlds.find((w) => w.id === lesson.worldId)?.title}
             </p>
             <h1 className="mb-3 text-[22px] font-semibold leading-tight tracking-tight">{lesson.title}</h1>
-            <Markdown source={lesson.theory} />
+            <TheoryView lesson={lesson} />
             <Button variant="run" className="mt-5" onClick={() => setTaskTab('task')}>
               К заданию →
             </Button>

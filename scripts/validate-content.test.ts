@@ -5,6 +5,7 @@ import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
 import { loadCourse, type Course, type Task } from '@/content/loadCourse';
+import { theoryExamples } from '@/content/theory';
 import { PostgresEngine } from '@/engine/postgres/PostgresEngine';
 
 const COURSES = ['postgres'];
@@ -57,6 +58,17 @@ for (const id of COURSES) {
     for (const world of course?.worlds ?? []) {
       for (const lesson of world.lessons) {
         describe(`${world.id} › ${lesson.id}`, () => {
+          const examples = theoryExamples(lesson.theory);
+          if (examples.length > 0) {
+            it('theory examples run in order without errors', async () => {
+              await engine.reset(lesson.exampleSetup);
+              for (const sql of examples) {
+                const out = await engine.execute(sql);
+                expect(out.error?.message, `example failed:
+${sql}`).toBeUndefined();
+              }
+            });
+          }
           for (const task of lesson.tasks) {
             it(`${task.id} (${task.type})`, () => validateTask(task));
           }
