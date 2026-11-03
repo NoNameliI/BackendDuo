@@ -27,7 +27,7 @@ export interface ErdTable {
   name: string;
   x: number;
   y: number;
-  /** Tables that already exist in the task database: shown and referenceable, not regenerated. */
+  /** Tables that already exist in the task database: shown and referenceable, never recreated. */
   locked: boolean;
   columns: ErdColumn[];
 }
@@ -76,7 +76,7 @@ const columnOf = (model: ErdModel, ref: { table: string; column: string }) => {
   return { table, column: table?.columns.find((c) => c.id === ref.column) };
 };
 
-/** Problems that make the generated DDL meaningless; shown next to the canvas. */
+/** Problems that make the resulting DDL meaningless; shown next to the canvas. */
 export function validateModel(model: ErdModel): string[] {
   const problems: string[] = [];
   const names = new Set<string>();
@@ -108,7 +108,7 @@ export function validateModel(model: ErdModel): string[] {
 const referenceType = (type: string) => (type === 'serial' ? 'integer' : type === 'bigserial' ? 'bigint' : type);
 
 /**
- * Generates CREATE TABLE statements for the new (unlocked) tables. Tables are ordered so that referenced
+ * Builds CREATE TABLE statements for the new (unlocked) tables. Tables are ordered so that referenced
  * tables come first; references that close a cycle are added afterwards with ALTER TABLE.
  */
 export function toDdl(model: ErdModel): string {

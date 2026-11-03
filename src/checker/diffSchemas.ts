@@ -130,8 +130,8 @@ function diffTable(e: TableInfo, a: TableInfo, o: SchemaCheckOptions): string[] 
   }
 
   if (o.indexes) {
-    const ai = plainIndexes(a);
-    plainIndexes(e).forEach((label, k) => !ai.has(k) && p.push(`${name}: нет индекса ${label}`));
+    const actualIndexes = plainIndexes(a);
+    plainIndexes(e).forEach((label, k) => !actualIndexes.has(k) && p.push(`${name}: нет индекса ${label}`));
   }
   return p;
 }

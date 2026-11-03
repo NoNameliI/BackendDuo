@@ -5,26 +5,59 @@
     {
       "id": "crud",
       "title": "Основы CRUD и фильтрация",
-      "questions": ["p-crud-where", "p-crud-update", "p-crud-sql"],
-      "unlocks": ["w1-first-table"]
+      "questions": [
+        "p-crud-where",
+        "p-crud-update",
+        "p-crud-sql"
+      ],
+      "unlocks": [
+        "w1-first-table",
+        "w1-constraints",
+        "w1-update-delete",
+        "w2-filtering"
+      ]
     },
     {
       "id": "aggregation",
       "title": "Агрегация и группировка",
-      "questions": ["p-agg-having", "p-agg-count", "p-agg-sql"],
-      "unlocks": []
+      "questions": [
+        "p-agg-having",
+        "p-agg-count",
+        "p-agg-sql"
+      ],
+      "unlocks": [
+        "w2-aggregates",
+        "w2-group-by"
+      ]
     },
     {
       "id": "joins",
       "title": "Соединения таблиц",
-      "questions": ["p-join-left", "p-join-dup", "p-join-sql"],
-      "unlocks": []
+      "questions": [
+        "p-join-left",
+        "p-join-dup",
+        "p-join-sql"
+      ],
+      "unlocks": [
+        "w3-inner-join",
+        "w3-outer-join",
+        "w3-many-to-many"
+      ]
     },
     {
       "id": "advanced",
       "title": "Подзапросы, окна и индексы",
-      "questions": ["p-adv-window", "p-adv-index", "p-adv-sql"],
-      "unlocks": ["w5-btree-index"]
+      "questions": [
+        "p-adv-window",
+        "p-adv-index",
+        "p-adv-sql"
+      ],
+      "unlocks": [
+        "w4-subqueries",
+        "w4-window-ranking",
+        "w4-window-offsets",
+        "w5-btree-index"
+      ]
     }
   ]
 }

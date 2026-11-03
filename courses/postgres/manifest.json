@@ -6,7 +6,8 @@
   "placement": "placement.json",
   "onboarding": "onboarding.json",
   "datasets": {
-    "shop": "datasets/shop.sql"
+    "shop": "datasets/shop.sql",
+    "hr": "datasets/hr.sql"
   },
   "worlds": [
     {
@@ -17,6 +18,14 @@
         {
           "id": "w1-first-table",
           "file": "w1/01-first-table.md"
+        },
+        {
+          "id": "w1-constraints",
+          "file": "w1/02-constraints.md"
+        },
+        {
+          "id": "w1-update-delete",
+          "file": "w1/03-update-delete.md"
         }
       ]
     },
@@ -24,19 +33,58 @@
       "id": "w2",
       "title": "Фильтрация и агрегация",
       "summary": "Сложные условия, агрегатные функции, GROUP BY и HAVING.",
-      "lessons": []
+      "lessons": [
+        {
+          "id": "w2-filtering",
+          "file": "w2/01-filtering.md"
+        },
+        {
+          "id": "w2-aggregates",
+          "file": "w2/02-aggregates.md"
+        },
+        {
+          "id": "w2-group-by",
+          "file": "w2/03-group-by.md"
+        }
+      ]
     },
     {
       "id": "w3",
       "title": "Соединения и связи",
       "summary": "Связи один-к-одному, один-ко-многим, многие-ко-многим и все виды JOIN.",
-      "lessons": []
+      "lessons": [
+        {
+          "id": "w3-inner-join",
+          "file": "w3/01-inner-join.md"
+        },
+        {
+          "id": "w3-outer-join",
+          "file": "w3/02-outer-join.md"
+        },
+        {
+          "id": "w3-many-to-many",
+          "file": "w3/03-many-to-many.md"
+        }
+      ]
     },
     {
       "id": "w4",
       "title": "Продвинутая аналитика",
       "summary": "Коррелированные подзапросы и оконные функции.",
-      "lessons": []
+      "lessons": [
+        {
+          "id": "w4-subqueries",
+          "file": "w4/01-subqueries.md"
+        },
+        {
+          "id": "w4-window-ranking",
+          "file": "w4/02-window-ranking.md"
+        },
+        {
+          "id": "w4-window-offsets",
+          "file": "w4/03-window-offsets.md"
+        }
+      ]
     },
     {
       "id": "w5",
@@ -44,8 +92,20 @@
       "summary": "Нормализация, индексы и планы выполнения, транзакции и уровни изоляции.",
       "lessons": [
         {
+          "id": "w5-normalization",
+          "file": "w5/01-normalization.md"
+        },
+        {
           "id": "w5-btree-index",
-          "file": "w5/03-btree-index.md"
+          "file": "w5/02-btree-index.md"
+        },
+        {
+          "id": "w5-index-types",
+          "file": "w5/03-index-types.md"
+        },
+        {
+          "id": "w5-transactions",
+          "file": "w5/04-transactions.md"
         }
       ]
     }
