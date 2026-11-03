@@ -51,6 +51,18 @@ export const MonitorIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const PlanIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 3h4M5 3v4.5h4M9 7.5h4M9 7.5v5.5h4" />
+  </Svg>
+);
+
+export const ResetIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 8a5 5 0 109.1-2.9M12.5 2.5v3h-3" />
+  </Svg>
+);
+
 export const TrashIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />

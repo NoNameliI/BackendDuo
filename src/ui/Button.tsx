@@ -22,14 +22,17 @@ export function Button({ variant = 'ghost', icon, shortcut, children, className 
       {...rest}
     >
       {icon}
-      {children}
-      {shortcut && <Kbd>{shortcut}</Kbd>}
+      {/* Inside a narrow panel buttons collapse to icons; the label stays as the accessible name. */}
+      {children && <span className={icon ? '@max-[24rem]:sr-only' : undefined}>{children}</span>}
+      {shortcut && <Kbd className="@max-[38rem]:hidden">{shortcut}</Kbd>}
     </button>
   );
 }
 
-export function Kbd({ children }: { children: ReactNode }) {
+export function Kbd({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <kbd className="rounded-sm border border-current/25 px-1 font-mono text-[10px] leading-4 font-normal opacity-75">{children}</kbd>
+    <kbd className={`rounded-sm border border-current/25 px-1 font-mono text-[10px] leading-4 font-normal opacity-75 ${className}`}>
+      {children}
+    </kbd>
   );
 }
