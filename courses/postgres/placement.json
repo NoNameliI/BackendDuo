@@ -11,6 +11,7 @@
         "p-crud-sql"
       ],
       "unlocks": [
+        "w1-select",
         "w1-first-table",
         "w1-constraints",
         "w1-update-delete",

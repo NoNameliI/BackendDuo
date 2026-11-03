@@ -16,16 +16,20 @@
       "summary": "Таблицы, типы данных и ограничения. Добавляем, читаем, меняем и удаляем строки.",
       "lessons": [
         {
+          "id": "w1-select",
+          "file": "w1/01-select.md"
+        },
+        {
           "id": "w1-first-table",
-          "file": "w1/01-first-table.md"
+          "file": "w1/02-first-table.md"
         },
         {
           "id": "w1-constraints",
-          "file": "w1/02-constraints.md"
+          "file": "w1/03-constraints.md"
         },
         {
           "id": "w1-update-delete",
-          "file": "w1/03-update-delete.md"
+          "file": "w1/04-update-delete.md"
         }
       ]
     },
