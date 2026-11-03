@@ -1,0 +1,135 @@
+import { z } from 'zod';
+
+const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'ожидается kebab-case идентификатор');
+const sqlText = z.string().trim().min(1);
+
+const taskBase = {
+  id: slug,
+  title: z.string().min(1),
+  prompt: z.string().min(1),
+  xp: z.number().int().positive().default(10),
+  hints: z.array(z.string().min(1)).min(1).max(3),
+};
+
+const sqlTaskBase = {
+  ...taskBase,
+  dataset: slug.optional(),
+  setup: z.string().default(''),
+  starter: z.string().default(''),
+  solution: sqlText,
+};
+
+/** How two result sets are compared. Row order matters only when the task asks for ORDER BY. */
+const compareOptions = z
+  .object({
+    ordered: z.boolean().default(false),
+    columnNames: z.boolean().default(true),
+  })
+  .prefault({});
+
+const resultTask = z.object({
+  ...sqlTaskBase,
+  type: z.literal('result'),
+  check: compareOptions,
+});
+
+const stateTask = z.object({
+  ...sqlTaskBase,
+  type: z.literal('state'),
+  /** Read-only queries whose output must match after the solution and after the learner's code. */
+  checkSql: sqlText,
+  check: compareOptions,
+});
+
+const schemaTask = z.object({
+  ...sqlTaskBase,
+  type: z.literal('schema'),
+  ui: z.enum(['editor', 'erd']).default('editor'),
+  check: z
+    .object({
+      tables: z.array(z.string().min(1)).optional(),
+      types: z.enum(['exact', 'family', 'ignore']).default('family'),
+      defaults: z.boolean().default(true),
+      checks: z.boolean().default(true),
+      indexes: z.boolean().default(true),
+    })
+    .prefault({}),
+});
+
+const planTask = z.object({
+  ...sqlTaskBase,
+  type: z.literal('plan'),
+  /** ddl mode: the query to speed up; query mode: the original slow query the learner rewrites. */
+  query: sqlText,
+  check: z
+    .object({
+      mode: z.enum(['ddl', 'query']).default('ddl'),
+      forbidSeqScan: z.array(z.string().min(1)).default([]),
+      requireIndexOn: z.array(z.string().min(1)).default([]),
+      maxCostRatio: z.number().positive().max(1).optional(),
+    })
+    .refine((c) => c.forbidSeqScan.length > 0 || c.requireIndexOn.length > 0 || c.maxCostRatio !== undefined, {
+      message: 'нужно хотя бы одно условие: forbidSeqScan, requireIndexOn или maxCostRatio',
+    }),
+});
+
+const choiceBase = {
+  ...taskBase,
+  options: z.array(z.string().min(1)).min(2).max(6),
+  /** Indexes of correct options; this is the task's reference solution. */
+  answer: z.array(z.number().int().nonnegative()).min(1),
+  explanation: z.string().min(1),
+};
+
+const choiceTask = z.object({ ...choiceBase, type: z.literal('choice') });
+
+const reviewTask = z.object({
+  ...choiceBase,
+  type: z.literal('review'),
+  code: sqlText,
+  codeLanguage: z.string().default('sql'),
+});
+
+export const taskSchema = z
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask])
+  .superRefine((task, ctx) => {
+    if (task.type !== 'choice' && task.type !== 'review') return;
+    if (task.answer.some((i) => i >= task.options.length)) {
+      ctx.addIssue({ code: 'custom', path: ['answer'], message: 'индекс ответа вне списка вариантов' });
+    }
+    if (new Set(task.options).size !== task.options.length) {
+      ctx.addIssue({ code: 'custom', path: ['options'], message: 'варианты ответа повторяются' });
+    }
+  });
+
+export const lessonRefSchema = z.object({
+  id: slug,
+  file: z.string().regex(/\.md$/),
+  /** Lesson ids that must be completed first. Defaults to the previous lesson of the world. */
+  requires: z.array(slug).optional(),
+});
+
+export const worldSchema = z.object({
+  id: slug,
+  title: z.string().min(1),
+  summary: z.string().min(1),
+  /** World ids that must be completed first. Defaults to the previous world. */
+  requires: z.array(slug).optional(),
+  lessons: z.array(lessonRefSchema),
+});
+
+export const manifestSchema = z.object({
+  id: slug,
+  title: z.string().min(1),
+  engine: z.literal('postgres'),
+  datasets: z.record(slug, z.string().regex(/\.sql$/)).default({}),
+  errors: z.string().regex(/\.json$/),
+  worlds: z.array(worldSchema).min(1),
+});
+
+/** SQLSTATE (or its two-character class) → hint shown under PostgreSQL's own message. */
+export const errorHintsSchema = z.record(z.string().regex(/^[0-9A-Z]{2}([0-9A-Z]{3})?$/), z.string().min(1));
+
+export type TaskInput = z.input<typeof taskSchema>;
+export type ParsedTask = z.output<typeof taskSchema>;
+export type Manifest = z.output<typeof manifestSchema>;

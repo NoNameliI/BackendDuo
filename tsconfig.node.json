@@ -1,8 +1,16 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["node", "vite/client"]
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
-  "include": ["vite.config.ts", "src/**/*.test.ts"],
+  "include": [
+    "vite.config.ts",
+    "vitest.content.config.ts",
+    "src/**/*.test.ts",
+    "scripts/**/*.ts"
+  ],
   "exclude": []
 }
