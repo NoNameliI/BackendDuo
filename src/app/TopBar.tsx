@@ -1,6 +1,11 @@
+import { course } from '@/content/course';
+import { useWorkspace } from '@/features/lesson/workspace';
+import { levelInfo, localDay, resumeTask, streakInfo, totalXp } from '@/progress/gamification';
+import { selectCourse, useProgress } from '@/progress/store';
 import { Button } from '@/ui/Button';
-import { MonitorIcon, MoonIcon, SunIcon } from '@/ui/icons';
-import { useUi } from './store';
+import { plural } from '@/ui/format';
+import { FlameIcon, MonitorIcon, MoonIcon, SunIcon } from '@/ui/icons';
+import { useUi, type View } from './store';
 import { nextThemePreference, type ThemePreference } from './theme';
 
 const themeLabels: Record<ThemePreference, string> = {
@@ -15,14 +20,42 @@ const themeIcons: Record<ThemePreference, typeof MoonIcon> = {
   system: MonitorIcon,
 };
 
+const nav: { id: View; title: string }[] = [
+  { id: 'map', title: 'Карта' },
+  { id: 'lesson', title: 'Урок' },
+  { id: 'profile', title: 'Профиль' },
+];
+
 export function TopBar() {
-  const { theme, setTheme } = useUi();
+  const { theme, setTheme, view, setView } = useUi();
   const ThemeIcon = themeIcons[theme];
 
+  const go = (target: View) => {
+    if (target === 'lesson' && !useWorkspace.getState().task) {
+      void useWorkspace.getState().openTask(resumeTask(course, selectCourse(useProgress.getState())));
+    }
+    setView(target);
+  };
+
   return (
-    <header className="flex h-11 shrink-0 items-center gap-4 border-b border-line px-3">
+    <header className="flex h-11 shrink-0 items-center gap-6 border-b border-line px-3">
       <Brand />
-      <div className="ml-auto flex items-center gap-1">
+      <nav aria-label="Разделы" className="flex h-full items-stretch gap-5">
+        {nav.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            aria-current={view === item.id ? 'page' : undefined}
+            onClick={() => go(item.id)}
+            className={`relative text-[13px] font-medium transition-colors ${view === item.id ? 'text-fg' : 'text-faint hover:text-dim'}`}
+          >
+            {item.title}
+            <span className={`absolute inset-x-0 bottom-0 h-0.5 rounded-full ${view === item.id ? 'bg-amber' : 'bg-transparent'}`} />
+          </button>
+        ))}
+      </nav>
+      <div className="ml-auto flex items-center gap-2">
+        <Stats onOpenProfile={() => go('profile')} />
         <Button
           aria-label={`${themeLabels[theme]}. Переключить`}
           title={themeLabels[theme]}
@@ -31,6 +64,41 @@ export function TopBar() {
         />
       </div>
     </header>
+  );
+}
+
+function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
+  const cp = useProgress(selectCourse);
+  const activity = useProgress((s) => s.doc.activity);
+  const xp = totalXp(course, cp);
+  const level = levelInfo(xp, course.levels);
+  const streak = streakInfo(activity, localDay());
+
+  return (
+    <button
+      type="button"
+      onClick={onOpenProfile}
+      className="flex items-center gap-3 rounded px-2 py-1 font-mono text-[12px] hover:bg-raised"
+      aria-label={`Серия ${streak.current} ${plural(streak.current, 'день', 'дня', 'дней')}, уровень ${level.index + 1}, ${xp} XP`}
+    >
+      <span
+        title={streak.activeToday ? 'Серия продлена сегодня' : 'Решите задание сегодня, чтобы продлить серию'}
+        className={`flex items-center gap-1 ${streak.activeToday ? 'text-amber' : 'text-faint'}`}
+      >
+        <FlameIcon />
+        {streak.current}
+      </span>
+      <span className="flex flex-col items-end gap-0.5">
+        <span key={xp} className="animate-pop leading-none">
+          <span className="text-faint">ур.{level.index + 1} · </span>
+          <span className="text-ok">{xp}</span>
+          <span className="text-faint"> XP</span>
+        </span>
+        <span className="block h-[3px] w-full overflow-hidden rounded-full bg-line">
+          <span className="block h-full bg-ok transition-[width] duration-500" style={{ width: `${Math.round(level.progress * 100)}%` }} />
+        </span>
+      </span>
+    </button>
   );
 }
 

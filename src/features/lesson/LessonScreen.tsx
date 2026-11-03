@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { useHotkeys, type HotkeyMap } from '@/app/hotkeys';
 import { course } from '@/content/course';
-import { allTasks } from '@/content/loadCourse';
+import { resumeTask } from '@/progress/gamification';
+import { selectCourse, useProgress } from '@/progress/store';
 import { Button } from '@/ui/Button';
 import { CheckIcon, PlanIcon, PlayIcon, ResetIcon, TrashIcon } from '@/ui/icons';
 import { Panel } from '@/ui/Panel';
@@ -20,7 +21,7 @@ export function LessonScreen() {
   const busy = status === 'busy' || status === 'starting';
 
   useEffect(() => {
-    if (!useWorkspace.getState().task) void openTask(allTasks(course)[0]);
+    if (!useWorkspace.getState().task) void openTask(resumeTask(course, selectCourse(useProgress.getState())));
   }, [openTask]);
 
   const quiz = task?.type === 'choice' || task?.type === 'review' ? task : null;

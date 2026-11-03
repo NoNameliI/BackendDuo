@@ -9,7 +9,12 @@
       "id": "w1",
       "title": "Реляционная модель и CRUD",
       "summary": "Таблицы, типы данных и ограничения. Добавляем, читаем, меняем и удаляем строки.",
-      "lessons": [{ "id": "w1-first-table", "file": "w1/01-first-table.md" }]
+      "lessons": [
+        {
+          "id": "w1-first-table",
+          "file": "w1/01-first-table.md"
+        }
+      ]
     },
     {
       "id": "w2",
@@ -33,7 +38,153 @@
       "id": "w5",
       "title": "Архитектура, оптимизация и транзакции",
       "summary": "Нормализация, индексы и планы выполнения, транзакции и уровни изоляции.",
-      "lessons": [{ "id": "w5-btree-index", "file": "w5/03-btree-index.md" }]
+      "lessons": [
+        {
+          "id": "w5-btree-index",
+          "file": "w5/03-btree-index.md"
+        }
+      ]
+    }
+  ],
+  "levels": [
+    {
+      "xp": 0,
+      "title": "SQL Trainee"
+    },
+    {
+      "xp": 60,
+      "title": "Query Writer"
+    },
+    {
+      "xp": 160,
+      "title": "Data Wrangler"
+    },
+    {
+      "xp": 300,
+      "title": "Schema Designer"
+    },
+    {
+      "xp": 480,
+      "title": "Performance Tuner"
+    },
+    {
+      "xp": 700,
+      "title": "Database Architect"
+    }
+  ],
+  "badges": [
+    {
+      "id": "first-query",
+      "title": "Первый запрос",
+      "description": "Решите первое задание.",
+      "glyph": "1st",
+      "rule": {
+        "kind": "tasksSolved",
+        "count": 1
+      }
+    },
+    {
+      "id": "foundation",
+      "title": "Фундамент",
+      "description": "Пройдите мир «Реляционная модель и CRUD».",
+      "glyph": "CRUD",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "w1"
+      }
+    },
+    {
+      "id": "analyst",
+      "title": "Аналитик",
+      "description": "Пройдите мир «Фильтрация и агрегация».",
+      "glyph": "SUM",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "w2"
+      }
+    },
+    {
+      "id": "join-master",
+      "title": "Мастер JOIN'ов",
+      "description": "Пройдите мир «Соединения и связи».",
+      "glyph": "JOIN",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "w3"
+      }
+    },
+    {
+      "id": "window-wizard",
+      "title": "Оконный маг",
+      "description": "Пройдите мир «Продвинутая аналитика».",
+      "glyph": "OVER",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "w4"
+      }
+    },
+    {
+      "id": "index-maniac",
+      "title": "Индексный маньяк",
+      "description": "Решите 3 задания «Оптимизируй запрос».",
+      "glyph": "IDX",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "plan",
+        "count": 3
+      }
+    },
+    {
+      "id": "schema-builder",
+      "title": "Архитектор схем",
+      "description": "Спроектируйте 5 схем.",
+      "glyph": "ERD",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "schema",
+        "count": 5
+      }
+    },
+    {
+      "id": "bug-hunter",
+      "title": "Охотник за багами",
+      "description": "Найдите 3 бага на код-ревью.",
+      "glyph": "BUG",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "review",
+        "count": 3
+      }
+    },
+    {
+      "id": "clean-run",
+      "title": "Чистая работа",
+      "description": "Решите 10 заданий с первой попытки и без подсказок.",
+      "glyph": "x10",
+      "rule": {
+        "kind": "firstTry",
+        "count": 10
+      }
+    },
+    {
+      "id": "streak-3",
+      "title": "Разгон",
+      "description": "Занимайтесь 3 дня подряд.",
+      "glyph": "3d",
+      "rule": {
+        "kind": "streak",
+        "days": 3
+      }
+    },
+    {
+      "id": "streak-7",
+      "title": "Неделя в строю",
+      "description": "Занимайтесь 7 дней подряд.",
+      "glyph": "7d",
+      "rule": {
+        "kind": "streak",
+        "days": 7
+      }
     }
   ]
 }

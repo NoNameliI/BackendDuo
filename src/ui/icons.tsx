@@ -63,6 +63,19 @@ export const ResetIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const LockIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3.5" y="7" width="9" height="6.5" rx="1.2" />
+    <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
+  </Svg>
+);
+
+export const FlameIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M8 14.5c2.6 0 4.5-1.8 4.5-4.3 0-2.9-2.4-4.4-3-7.2-1.6 1-2.4 2.6-2.4 4.1-.9-.4-1.4-1.2-1.6-2C4.3 6.4 3.5 7.9 3.5 10.2c0 2.5 1.9 4.3 4.5 4.3z" />
+  </Svg>
+);
+
 export const TrashIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />

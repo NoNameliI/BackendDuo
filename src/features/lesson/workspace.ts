@@ -10,7 +10,9 @@ import {
   type SqlError,
   type StatementResult,
 } from '@/engine';
-import { taskProgress, useProgress } from '@/progress/store';
+import { lessonStatuses } from '@/progress/gamification';
+import { selectCourse, selectTask, useProgress, type SolveReward } from '@/progress/store';
+import { useToasts } from '@/ui/toasts';
 import { formatMs } from '@/ui/format';
 import { formatSqlError, summarizeStatement } from './format';
 
@@ -29,6 +31,7 @@ export type TaskTab = 'theory' | 'task';
 
 export interface Verdict extends CheckResult {
   at: number;
+  reward: SolveReward | null;
 }
 
 interface WorkspaceState {
@@ -129,7 +132,9 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
 
   const saveDraft = () => {
     const { task, code } = get();
-    if (task && isSqlTask(task)) useProgress.getState().saveDraft(task.id, code);
+    if (task && 'solution' in task && code !== (selectTask(task.id)(useProgress.getState()).draft ?? task.starter)) {
+      useProgress.getState().saveDraft(task, code);
+    }
   };
 
   return {
@@ -157,7 +162,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     openTask: async (task) => {
       saveDraft();
       const lesson = lessonOf(task);
-      const progress = taskProgress(useProgress.getState(), task.id);
+      const progress = selectTask(task.id)(useProgress.getState());
       set({
         task,
         lesson,
@@ -185,7 +190,12 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       if (!task) return;
       const tasks = allTasks(course);
       const next = tasks[tasks.findIndex((t) => t.id === task.id) + delta];
-      if (next) void get().openTask(next);
+      if (!next) return;
+      if (lessonStatuses(course, selectCourse(useProgress.getState())).get(next.lessonId) === 'locked') {
+        useToasts.getState().push({ tone: 'info', title: 'Следующий урок пока закрыт', body: 'Решите задания текущего урока' });
+        return;
+      }
+      void get().openTask(next);
     },
 
     toggleOption: (index) => {
@@ -258,8 +268,9 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       if (task.type === 'choice' || task.type === 'review') {
         if (selected.length === 0) return;
         const verdict = checkChoice(task, selected);
-        progress.recordAttempt(task.id, verdict.passed);
-        set({ verdict: { ...verdict, at: Date.now() } });
+        const reward = progress.recordAttempt(task, verdict.passed);
+        set({ verdict: { ...verdict, at: Date.now(), reward } });
+        announce(reward);
         return;
       }
 
@@ -267,11 +278,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         if (get().task?.id !== task.id) return;
         print('cmd', 'Проверка решения…');
         const verdict = await checker.check(task, { kind: 'sql', code });
-        progress.recordAttempt(task.id, verdict.passed);
-        progress.saveDraft(task.id, code);
+        const reward = progress.recordAttempt(task, verdict.passed);
+        progress.saveDraft(task, code);
         await refreshSchema(engine);
         set({
-          verdict: { ...verdict, at: Date.now() },
+          verdict: { ...verdict, at: Date.now(), reward },
           error: verdict.error ?? null,
           result: verdict.actual ?? get().result,
           plan: verdict.plan ?? get().plan,
@@ -280,23 +291,32 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         });
         if (verdict.error) printError(verdict.error);
         verdict.problems.forEach((p) => print('error', p));
-        if (verdict.passed) print('ok', 'Решение принято');
+        if (verdict.passed) print('ok', reward ? `Решение принято: +${reward.xp} XP` : 'Решение принято');
+        announce(reward);
       });
     },
 
     revealHint: () => {
       const { task } = get();
-      if (!task || taskProgress(useProgress.getState(), task.id).hintsUsed >= task.hints.length) return;
-      useProgress.getState().useHint(task.id);
+      if (!task || selectTask(task.id)(useProgress.getState()).hintsUsed >= task.hints.length) return;
+      useProgress.getState().useHint(task);
       set({ taskTab: 'task' });
     },
 
     revealSolution: () => {
       const { task } = get();
-      if (task) useProgress.getState().revealSolution(task.id);
+      if (task) useProgress.getState().revealSolution(task);
     },
   };
 });
+
+function announce(reward: SolveReward | null): void {
+  if (!reward) return;
+  const { push } = useToasts.getState();
+  push({ tone: 'xp', title: `+${reward.xp} XP`, body: 'Задание решено' });
+  if (reward.levelUp) push({ tone: 'level', title: `Новый уровень: ${reward.levelUp}` });
+  reward.badges.forEach((b) => push({ tone: 'badge', title: `Бейдж «${b.title}»`, body: b.description, glyph: b.glyph }));
+}
 
 function firstLine(code: string): string {
   const line = code.trim().split('\n')[0] ?? '';

@@ -6,12 +6,18 @@ interface Settings {
   theme: ThemePreference;
 }
 
+export type View = 'map' | 'lesson' | 'profile';
+
 interface UiState extends Settings {
+  view: View;
+  setView: (view: View) => void;
   setTheme: (theme: ThemePreference) => void;
   loadSettings: () => Promise<void>;
 }
 
 export const useUi = create<UiState>((set, get) => ({
+  view: 'map',
+  setView: (view) => set({ view }),
   theme: 'dark',
   setTheme: (theme) => {
     set({ theme });

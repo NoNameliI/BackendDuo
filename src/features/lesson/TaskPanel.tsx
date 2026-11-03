@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { course } from '@/content/course';
 import { allTasks, errorHint, type Task } from '@/content/loadCourse';
-import { taskProgress, useProgress } from '@/progress/store';
+import { selectCourse, selectTask, useProgress } from '@/progress/store';
 import { Button, Kbd } from '@/ui/Button';
 import { CheckIcon } from '@/ui/icons';
 import { Markdown } from '@/ui/Markdown';
@@ -67,7 +67,7 @@ export function TaskPanel() {
 
 function TaskView({ task }: { task: Task }) {
   const { verdict, schema, explainTarget, revealHint, revealSolution, setCode, status } = useWorkspace();
-  const progress = useProgress((s) => taskProgress(s, task.id));
+  const progress = useProgress(selectTask(task.id));
   const canShowSolution = 'solution' in task && (progress.attempts > 0 || progress.hintsUsed >= task.hints.length);
 
   return (
@@ -154,6 +154,7 @@ function VerdictCard({ verdict, task }: { verdict: Verdict; task: Task }) {
       <section key={verdict.at} role="status" className="animate-pop rounded-md border border-ok/40 bg-ok/10 p-3">
         <p className="flex items-center gap-2 font-semibold text-ok">
           <CheckIcon width={16} height={16} /> Верно!
+          {verdict.reward && <span className="ml-auto font-mono text-[13px]">+{verdict.reward.xp} XP</span>}
         </p>
         {(task.type === 'choice' || task.type === 'review') && (
           <Markdown source={task.explanation} className="mt-2 text-[13px]" />
@@ -197,13 +198,13 @@ function SectionLabel({ children }: { children: string }) {
 
 function TaskStepper() {
   const { task, lesson, openTask } = useWorkspace();
-  const tasks = useProgress((s) => s.tasks);
+  const cp = useProgress(selectCourse);
   if (!lesson || !task) return null;
   return (
     <nav aria-label="Задания урока" className="flex items-center gap-1">
       {lesson.tasks.map((t, i) => {
         const current = t.id === task.id;
-        const solved = tasks[t.id]?.solved;
+        const solved = cp.tasks[t.id]?.solved;
         return (
           <button
             key={t.id}

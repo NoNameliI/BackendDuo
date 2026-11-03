@@ -25,6 +25,11 @@ const manifest = (lessons: object[], extra: object = {}) =>
       { id: 'w1', title: 'W1', summary: 'S', lessons },
       { id: 'w2', title: 'W2', summary: 'S', lessons: [] },
     ],
+    levels: [
+      { xp: 0, title: 'Trainee' },
+      { xp: 50, title: 'Pro' },
+    ],
+    badges: [{ id: 'b1', title: 'B', description: 'D', glyph: 'W1', rule: { kind: 'worldCompleted', world: 'w1' } }],
     ...extra,
   });
 

@@ -1,6 +1,6 @@
 import type { EngineKind } from '@/engine';
 import { LessonParseError, parseLesson } from './parseLesson';
-import { errorHintsSchema, manifestSchema, taskSchema, type ParsedTask } from './schema';
+import { errorHintsSchema, manifestSchema, taskSchema, type Badge, type Level, type ParsedTask } from './schema';
 
 export type Task = ParsedTask & {
   lessonId: string;
@@ -34,6 +34,8 @@ export interface Course {
   title: string;
   engine: EngineKind;
   worlds: World[];
+  levels: Level[];
+  badges: Badge[];
   errorHints: Record<string, string>;
 }
 
@@ -160,12 +162,21 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     }
   }
 
+  for (const b of manifest.badges) {
+    unique('бейдж', b.id);
+    if (b.rule.kind === 'worldCompleted' && !worldIds.has(b.rule.world)) {
+      problems.push(`бейдж ${b.id}: неизвестный мир «${b.rule.world}»`);
+    }
+  }
+
   if (problems.length > 0) throw new CourseError(problems);
   return {
     id: manifest.id,
     title: manifest.title,
     engine: manifest.engine,
     worlds,
+    levels: manifest.levels,
+    badges: manifest.badges,
     errorHints: hints.success ? hints.data : {},
   };
 }

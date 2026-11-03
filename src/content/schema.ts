@@ -118,6 +118,33 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review']);
+
+export const badgeRuleSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),
+  z.object({ kind: z.literal('tasksOfType'), type: taskType, count: z.number().int().positive() }),
+  z.object({ kind: z.literal('worldCompleted'), world: slug }),
+  z.object({ kind: z.literal('streak'), days: z.number().int().min(2) }),
+  z.object({ kind: z.literal('firstTry'), count: z.number().int().positive() }),
+]);
+
+export const badgeSchema = z.object({
+  id: slug,
+  title: z.string().min(1),
+  description: z.string().min(1),
+  /** Up to four characters drawn on the badge. */
+  glyph: z.string().min(1).max(4),
+  rule: badgeRuleSchema,
+});
+
+export const levelsSchema = z
+  .array(z.object({ xp: z.number().int().nonnegative(), title: z.string().min(1) }))
+  .min(2)
+  .refine((levels) => levels[0].xp === 0, { message: 'первый уровень начинается с 0 XP' })
+  .refine((levels) => levels.every((l, i) => i === 0 || l.xp > levels[i - 1].xp), {
+    message: 'пороги уровней должны возрастать',
+  });
+
 export const manifestSchema = z.object({
   id: slug,
   title: z.string().min(1),
@@ -125,6 +152,8 @@ export const manifestSchema = z.object({
   datasets: z.record(slug, z.string().regex(/\.sql$/)).default({}),
   errors: z.string().regex(/\.json$/),
   worlds: z.array(worldSchema).min(1),
+  levels: levelsSchema,
+  badges: z.array(badgeSchema).default([]),
 });
 
 /** SQLSTATE (or its two-character class) → hint shown under PostgreSQL's own message. */
@@ -133,3 +162,6 @@ export const errorHintsSchema = z.record(z.string().regex(/^[0-9A-Z]{2}([0-9A-Z]
 export type TaskInput = z.input<typeof taskSchema>;
 export type ParsedTask = z.output<typeof taskSchema>;
 export type Manifest = z.output<typeof manifestSchema>;
+export type Badge = z.output<typeof badgeSchema>;
+export type BadgeRule = z.output<typeof badgeRuleSchema>;
+export type Level = Manifest['levels'][number];
