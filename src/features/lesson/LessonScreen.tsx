@@ -1,33 +1,53 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { useHotkeys } from '@/app/hotkeys';
+import { useHotkeys, type HotkeyMap } from '@/app/hotkeys';
+import { course } from '@/content/course';
+import { allTasks } from '@/content/loadCourse';
 import { Button } from '@/ui/Button';
 import { CheckIcon, PlanIcon, PlayIcon, ResetIcon, TrashIcon } from '@/ui/icons';
-import { EmptyState, Panel } from '@/ui/Panel';
+import { Panel } from '@/ui/Panel';
 import { Split } from '@/ui/Split';
+import { QuizPanel } from './QuizPanel';
 import { ResultPanel } from './ResultPanel';
+import { TaskPanel } from './TaskPanel';
 import { Terminal } from './Terminal';
 import { useWorkspace, type EngineStatus } from './workspace';
 
 const SqlEditor = lazy(() => import('./SqlEditor'));
 
 export function LessonScreen() {
-  const { code, error, status, setCode, run, check, explain, resetDatabase, clearLog, boot } = useWorkspace();
+  const { task, code, error, status, setCode, run, check, explain, resetDatabase, clearLog, openTask, goRelative, toggleOption } =
+    useWorkspace();
   const busy = status === 'busy' || status === 'starting';
 
   useEffect(() => {
-    void boot();
-  }, [boot]);
+    if (!useWorkspace.getState().task) void openTask(allTasks(course)[0]);
+  }, [openTask]);
+
+  const quiz = task?.type === 'choice' || task?.type === 'review' ? task : null;
+  const optionKeys: HotkeyMap = quiz
+    ? Object.fromEntries(quiz.options.map((_, i) => [`${i + 1}`, () => toggleOption(i)]))
+    : {};
 
   useHotkeys({
     'Ctrl+Enter': () => void run(),
-    'Ctrl+Shift+Enter': check,
+    'Ctrl+Shift+Enter': () => void check(),
+    'Alt+ArrowLeft': () => goRelative(-1),
+    'Alt+ArrowRight': () => goRelative(1),
+    ...optionKeys,
   });
+
+  if (quiz) {
+    return (
+      <Split direction="row" storageKey="quiz-columns" initial={[36, 64]} min={25}>
+        <TaskPanel />
+        <QuizPanel task={quiz} />
+      </Split>
+    );
+  }
 
   return (
     <Split direction="row" storageKey="columns" initial={[28, 42, 30]} min={18}>
-      <Panel title="Задание">
-        <EmptyState>Здесь появятся теория, бизнес-кейс и условие задания.</EmptyState>
-      </Panel>
+      <TaskPanel />
 
       <Split direction="column" storageKey="center" initial={[68, 32]} min={15}>
         <Panel
@@ -42,7 +62,7 @@ export function LessonScreen() {
               <Button variant="run" icon={<PlayIcon />} shortcut="Ctrl ↵" onClick={() => void run()} disabled={busy}>
                 Выполнить
               </Button>
-              <Button variant="check" icon={<CheckIcon />} shortcut="Ctrl ⇧ ↵" onClick={check} disabled={busy}>
+              <Button variant="check" icon={<CheckIcon />} shortcut="Ctrl ⇧ ↵" onClick={() => void check()} disabled={busy}>
                 Проверить
               </Button>
             </>

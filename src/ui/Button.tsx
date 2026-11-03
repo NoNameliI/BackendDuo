@@ -1,10 +1,11 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-type Variant = 'run' | 'check' | 'ghost';
+type Variant = 'run' | 'check' | 'outline' | 'ghost';
 
 const variants: Record<Variant, string> = {
   run: 'border border-nav/50 bg-nav/10 text-nav hover:bg-nav/20',
   check: 'border border-ok bg-ok text-on-accent hover:brightness-110',
+  outline: 'border border-line-strong text-dim hover:border-faint hover:text-fg',
   ghost: 'border border-transparent text-dim hover:bg-raised hover:text-fg',
 };
 

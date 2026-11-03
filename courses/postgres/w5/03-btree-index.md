@@ -30,16 +30,7 @@ EXPLAIN SELECT * FROM orders WHERE status = 'new';
   ]
 }
 ```
-Карточка клиента выполняет этот запрос, и менять его нельзя:
-
-```sql
-SELECT id, total, created_at
-FROM orders
-WHERE customer_id = 4242
-ORDER BY created_at DESC;
-```
-
-Создайте индекс, после которого PostgreSQL перестанет читать таблицу `orders` целиком, а стоимость плана упадёт хотя бы в 20 раз.
+Карточка клиента выполняет запрос ниже, и менять его нельзя. Создайте индекс, после которого PostgreSQL перестанет читать таблицу `orders` целиком, а стоимость плана упадёт хотя бы в 20 раз.
 
 ```sql setup
 CREATE TABLE orders (

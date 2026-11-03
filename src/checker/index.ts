@@ -27,6 +27,13 @@ const verdict = (problems: string[], extra: Partial<CheckResult> = {}) =>
 
 const NO_TABLE = 'Код не вернул таблицу результата — нужен запрос SELECT';
 
+/** Choice and review tasks need no sandbox: the selected set must equal the answer set. */
+export function checkChoice(task: ChoiceTask, selected: number[]): CheckResult {
+  const want = [...task.answer].sort().join();
+  const got = [...new Set(selected)].sort().join();
+  return want === got ? pass() : fail(['Ответ неверный']);
+}
+
 interface PlanReference {
   baselineCost: number;
   result: StatementResult;
@@ -140,11 +147,6 @@ export function createChecker(engine: SandboxEngine) {
     return verdict(problems, { plan: explained.plan, expected: ref.result, actual });
   }
 
-  function checkChoice(task: ChoiceTask, selected: number[]): CheckResult {
-    const want = [...task.answer].sort().join();
-    const got = [...new Set(selected)].sort().join();
-    return want === got ? pass() : fail(['Ответ неверный']);
-  }
 
   return {
     async check(task: Task, answer: Answer): Promise<CheckResult> {

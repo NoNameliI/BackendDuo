@@ -6,6 +6,7 @@ const marks: Record<LogKind, { sign: string; className: string }> = {
   info: { sign: '·', className: 'text-dim' },
   ok: { sign: '✓', className: 'text-ok' },
   error: { sign: '✗', className: 'text-err' },
+  hint: { sign: '?', className: 'text-amber' },
 };
 
 const timeFormat = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -34,7 +35,7 @@ export function Terminal() {
           <div key={entry.id} className="flex gap-2 animate-rise">
             <span className="shrink-0 text-faint tabular-nums">{timeFormat.format(entry.at)}</span>
             <span className={`shrink-0 ${mark.className}`}>{mark.sign}</span>
-            <span className={`whitespace-pre-wrap break-words ${entry.kind === 'info' ? 'text-dim' : mark.className === 'text-nav' ? 'text-fg' : mark.className}`}>
+            <span className={`whitespace-pre-wrap break-words ${entry.kind === 'cmd' ? 'text-fg' : entry.kind === 'info' || entry.kind === 'hint' ? 'text-dim' : mark.className}`}>
               {entry.text}
             </span>
           </div>

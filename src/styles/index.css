@@ -116,3 +116,62 @@
     }
   }
 }
+
+/* Lesson Markdown; in the components layer so utilities can override it. */
+@layer components {
+  .md {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--fg);
+  }
+  .md > * + * { margin-top: 0.75em; }
+  .md h2, .md h3 { font-weight: 600; letter-spacing: -0.01em; margin-top: 1.4em; }
+  .md h2 { font-size: 16px; }
+  .md h3 { font-size: 14px; }
+  .md strong { font-weight: 600; }
+  .md ul, .md ol { padding-left: 1.25em; }
+  .md ul { list-style: none; }
+  .md ul > li { position: relative; }
+  .md ul > li::before {
+    content: "";
+    position: absolute;
+    left: -0.95em;
+    top: 0.68em;
+    width: 5px;
+    height: 5px;
+    border-radius: 1px;
+    background: var(--amber);
+  }
+  .md ol { list-style: decimal; }
+  .md li + li { margin-top: 0.3em; }
+  .md a { color: var(--nav); text-decoration: underline; text-underline-offset: 2px; }
+  .md blockquote { border-left: 2px solid var(--line-strong); padding-left: 0.9em; color: var(--dim); }
+  .md :not(pre) > code,
+  .md-inline code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    background: var(--raised);
+    border: 1px solid var(--line);
+  }
+  .md table { border-collapse: collapse; font-size: 13px; }
+  .md th, .md td { border: 1px solid var(--line); padding: 0.3em 0.7em; text-align: left; }
+  .md th { background: var(--raised); font-weight: 600; }
+  .md-code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    padding: 0.8em 1em;
+    border-radius: 6px;
+    background: var(--well);
+    border: 1px solid var(--line);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .tok-keyword { color: var(--nav); }
+  .tok-string { color: var(--amber); }
+  .tok-number { color: #c9a8ff; }
+  [data-theme="light"] .tok-number { color: #7036c9; }
+  .tok-comment { color: var(--faint); font-style: italic; }
+}
