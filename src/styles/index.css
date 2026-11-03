@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-
 @theme {
   --color-*: initial;
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
@@ -39,7 +37,7 @@
   --line-strong: #3b3b44;
   --fg: #e8e6e1;
   --dim: #a3a2ab;
-  --faint: #85848e;
+  --faint: #8c8b95;
   --ok: #39f28a;
   --nav: #5cb8ff;
   --amber: #ffb648;
@@ -58,9 +56,9 @@
   --fg: #19191c;
   --dim: #514f58;
   --faint: #6c6a73;
-  --ok: #0a8546;
+  --ok: #07743d;
   --nav: #0a64be;
-  --amber: #a45c00;
+  --amber: #985500;
   --err: #c2283a;
   --on-accent: #ffffff;
 }
@@ -103,6 +101,11 @@
   :focus-visible {
     outline: 2px solid var(--nav);
     outline-offset: 2px;
+  }
+
+  /* Headings receive focus programmatically when a flow changes screens. */
+  h1[tabindex='-1']:focus {
+    outline: none;
   }
 
   ::selection {

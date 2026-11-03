@@ -9,6 +9,7 @@ import { useWorkspace } from '@/features/lesson/workspace';
 import { Button } from '@/ui/Button';
 import { CheckIcon, PlayIcon } from '@/ui/icons';
 import { Markdown } from '@/ui/Markdown';
+import { useFocusHeading } from '@/ui/useFocusHeading';
 import { useLatestState } from './useLatest';
 import { VisualTable } from './VisualTable';
 
@@ -18,6 +19,7 @@ type Screen = { kind: 'intro' } | { kind: 'step'; index: number } | { kind: 'que
 
 export function BeginnerFlow({ data, onFinish }: { data: Onboarding; onFinish: () => void }) {
   const [screen, setScreen] = useState<Screen>({ kind: 'intro' });
+  const rootRef = useFocusHeading<HTMLDivElement>(screen.kind === 'step' ? `step-${screen.index}` : screen.kind);
   const total = data.steps.length + 2;
   const position = screen.kind === 'intro' ? 0 : screen.kind === 'step' ? screen.index + 1 : screen.kind === 'query' ? total - 1 : total;
 
@@ -33,7 +35,7 @@ export function BeginnerFlow({ data, onFinish }: { data: Onboarding; onFinish: (
     );
 
   return (
-    <div className="space-y-6">
+    <div ref={rootRef} className="space-y-6">
       <ol aria-label="Шаги" className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <li key={i} className={`h-1 flex-1 rounded-full ${i < position ? 'bg-ok' : i === position ? 'bg-amber' : 'bg-line'}`} />

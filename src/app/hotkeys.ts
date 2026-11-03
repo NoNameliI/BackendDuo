@@ -20,13 +20,20 @@ export function matchesHotkey(e: KeyInfo, combo: string): boolean {
 
 export type HotkeyMap = Record<string, () => void>;
 
+interface HotkeyOptions {
+  /** Keep working while a modal dialog (e.g. the command palette) is open. */
+  inModal?: boolean;
+}
+
 /** Window-level shortcuts handled in the capture phase, so they win over focused widgets such as the editor. */
-export function useHotkeys(bindings: HotkeyMap): void {
+export function useHotkeys(bindings: HotkeyMap, options: HotkeyOptions = {}): void {
   const ref = useRef(bindings);
   ref.current = bindings;
+  const inModal = options.inModal ?? false;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!inModal && document.querySelector('[aria-modal="true"]')) return;
       const typing = e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable="true"]');
       for (const [combo, handler] of Object.entries(ref.current)) {
         if (typing && !combo.includes('+')) continue;
@@ -40,5 +47,5 @@ export function useHotkeys(bindings: HotkeyMap): void {
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, []);
+  }, [inModal]);
 }

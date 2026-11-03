@@ -30,7 +30,7 @@ const progressDocSchema = z.object({
   /** Badge id → ISO time it was earned. */
   badges: z.record(z.string(), z.string()).default({}),
   onboarding: z
-    .object({ path: z.enum(['beginner', 'experienced']), completedAt: z.string(), startLesson: z.string().optional() })
+    .object({ path: z.enum(['beginner', 'experienced']), completedAt: z.string() })
     .optional(),
 });
 

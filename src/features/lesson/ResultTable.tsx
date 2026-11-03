@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Cell, StatementResult } from '@/engine';
 import { plural } from '@/ui/format';
-import { BOOLEAN_TYPE_ID, NUMERIC_TYPE_IDS } from './format';
+import { BOOLEAN_TYPE_ID, NUMERIC_TYPE_IDS } from '@/engine/postgres/typeIds';
 
 const MAX_ROWS = 500;
 

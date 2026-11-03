@@ -17,7 +17,7 @@ export function Terminal() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
-  }, [log.length]);
+  }, [log.at(-1)?.id]);
 
   return (
     <div

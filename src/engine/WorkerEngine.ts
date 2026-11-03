@@ -43,6 +43,8 @@ export class WorkerEngine implements SandboxEngine {
   private nextId = 1;
   private setupSql = '';
   private ready: Promise<void> | null = null;
+  /** Set when the worker died: the next start re-applies the last setup so the task database is back. */
+  private lost = false;
 
   constructor(
     private readonly spawn: () => WorkerLike,
@@ -50,7 +52,18 @@ export class WorkerEngine implements SandboxEngine {
   ) {}
 
   init(): Promise<void> {
-    this.ready ??= this.start();
+    this.ready ??= this.start().then(
+      async () => {
+        if (this.lost) await this.call('reset', [this.setupSql], this.limits.setupMs);
+        this.lost = false;
+      },
+      (e: unknown) => {
+        // A failed start must not leave a half-alive worker or a permanently rejected promise behind.
+        this.stop(e instanceof Error ? e : new Error(String(e)));
+        this.ready = null;
+        throw e;
+      },
+    );
     return this.ready;
   }
 
@@ -99,6 +112,7 @@ export class WorkerEngine implements SandboxEngine {
       event.preventDefault?.();
       this.stop(new Error(event.message || 'sandbox worker crashed'));
       this.ready = null;
+      this.lost = true;
     };
     this.worker = worker;
     await this.call('init', [], this.limits.setupMs);
@@ -106,9 +120,9 @@ export class WorkerEngine implements SandboxEngine {
 
   private async restart(): Promise<void> {
     this.stop(new Error('sandbox restarted'));
-    this.ready = this.start();
-    await this.ready;
-    await this.call('reset', [this.setupSql], this.limits.setupMs);
+    this.ready = null;
+    this.lost = true;
+    await this.init();
   }
 
   private stop(reason: Error): void {

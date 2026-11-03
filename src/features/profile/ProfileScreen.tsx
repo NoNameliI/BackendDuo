@@ -4,6 +4,7 @@ import type { ThemePreference } from '@/app/theme';
 import { course } from '@/content/course';
 import { allTasks } from '@/content/loadCourse';
 import { TASK_KIND } from '@/features/lesson/TaskPanel';
+import { useWorkspace } from '@/features/lesson/workspace';
 import { isLessonComplete, levelInfo, localDay, progressOf, streakInfo, totalXp } from '@/progress/gamification';
 import { selectCourse, useProgress } from '@/progress/store';
 import { Button } from '@/ui/Button';
@@ -219,6 +220,7 @@ function Settings() {
                 className="border-err text-err"
                 variant="outline"
                 onClick={() => {
+                  useWorkspace.getState().closeTask();
                   resetAll();
                   setConfirming(false);
                 }}

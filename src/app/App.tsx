@@ -20,7 +20,7 @@ export function App() {
       const ui = useUi.getState();
       if (ui.view !== 'onboarding') ui.setPaletteOpen(!ui.paletteOpen);
     },
-  });
+  }, { inModal: true });
   useEffect(() => {
     applyTheme(theme);
     void setWindowTheme(theme);

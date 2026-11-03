@@ -102,6 +102,9 @@ function Palette({ onClose }: { onClose: () => void }) {
     if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
+    } else if (e.key === 'Tab') {
+      // The input is the only focus stop; options are reached with the arrow keys.
+      e.preventDefault();
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const step = e.key === 'ArrowDown' ? 1 : -1;

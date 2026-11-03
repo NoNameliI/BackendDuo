@@ -39,11 +39,11 @@ export function ErdCanvas() {
   useEffect(() => {
     if (seeded.current || !schema) return;
     seeded.current = true;
-    setModel(fromSchema(schema));
+    setModel((m) => ({ tables: [...fromSchema(schema).tables, ...m.tables.filter((t) => !t.locked)] }));
   }, [schema]);
 
   useEffect(() => {
-    models.set(taskId, model);
+    if (seeded.current) models.set(taskId, model);
     setCode(toDdl(model));
   }, [model, taskId, setCode]);
 
@@ -296,6 +296,7 @@ function ColumnEditor({
     <button
       type="button"
       aria-pressed={column[key]}
+      aria-label={`${title}: ${column.name}`}
       title={title}
       onClick={() => onChange({ [key]: !column[key] })}
       className={`h-5 shrink-0 rounded px-1 text-[10px] font-semibold ${column[key] ? (key === 'pk' ? 'bg-amber text-on-accent' : 'bg-nav/20 text-nav') : 'text-faint hover:text-dim'}`}
@@ -331,6 +332,7 @@ function ColumnEditor({
       <button
         type="button"
         aria-pressed={Boolean(column.ref) || linkingThis}
+        aria-label={`${column.ref ? 'Убрать связь' : 'Создать связь (FOREIGN KEY)'}: ${column.name}`}
         title={column.ref ? 'Убрать связь' : 'Создать связь (FOREIGN KEY)'}
         onClick={onLink}
         className={`h-5 shrink-0 rounded px-1 text-[10px] font-semibold ${column.ref ? 'bg-nav text-on-accent' : linkingThis ? 'bg-amber text-on-accent' : 'text-faint hover:text-nav'}`}

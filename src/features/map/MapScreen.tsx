@@ -73,8 +73,9 @@ function WorldColumn({ world, index, cp, statuses, nextId, onOpen }: WorldColumn
       <header className="border-b border-line p-3.5">
         <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-faint">
           Мир {index + 1}
-          {locked && <LockIcon aria-label="закрыт" />}
-          {complete && <CheckIcon className="text-ok" aria-label="пройден" />}
+          {locked && <LockIcon />}
+          {complete && <CheckIcon className="text-ok" />}
+          <span className="sr-only">{locked ? 'закрыт' : complete ? 'пройден' : 'открыт'}</span>
         </p>
         <h2 className="mt-1 text-[15px] font-semibold leading-snug">{world.title}</h2>
         <p className="mt-1 text-[12.5px] leading-snug text-dim">{world.summary}</p>

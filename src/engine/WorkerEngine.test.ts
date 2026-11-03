@@ -48,7 +48,7 @@ describe('WorkerEngine', () => {
   it('rejects pending calls when the worker crashes and starts a new one on next use', async () => {
     FakeWorker.spawned = [];
     const engine = new WorkerEngine(() => new FakeWorker(), { queryMs: 1000, setupMs: 1000 });
-    await engine.init();
+    await engine.reset('CREATE TABLE t (id int)');
     const pending = engine.introspect();
     await vi.waitFor(() => expect(FakeWorker.spawned[0].calls.at(-1)?.method).toBe('introspect'));
     FakeWorker.spawned[0].onerror?.({ message: 'out of memory', preventDefault() {} } as ErrorEvent);
@@ -56,5 +56,22 @@ describe('WorkerEngine', () => {
 
     await engine.execute('SELECT 1');
     expect(FakeWorker.spawned).toHaveLength(2);
+    expect(FakeWorker.spawned[1].calls.map((c) => [c.method, c.args[0]])).toEqual([
+      ['init', undefined],
+      ['reset', 'CREATE TABLE t (id int)'],
+      ['execute', 'SELECT 1'],
+    ]);
+  });
+
+  it('recovers when starting a worker fails', async () => {
+    let attempt = 0;
+    const engine = new WorkerEngine(() => {
+      const worker = new FakeWorker();
+      if (attempt++ === 0) worker.postMessage = () => {};
+      return worker;
+    }, { queryMs: 1000, setupMs: 30 });
+    await expect(engine.init()).rejects.toThrow('exceeded');
+    expect(FakeWorker.spawned.at(-1)?.terminated).toBe(true);
+    await expect(engine.init()).resolves.toBeUndefined();
   });
 });

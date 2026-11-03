@@ -12,6 +12,7 @@ import {
 } from '@/engine';
 import { lessonStatuses } from '@/progress/gamification';
 import { selectCourse, selectTask, useProgress, type SolveReward } from '@/progress/store';
+import { toggleSelection } from '@/ui/OptionList';
 import { useToasts } from '@/ui/toasts';
 import { formatMs } from '@/ui/format';
 import { formatSqlError, summarizeStatement } from './format';
@@ -63,6 +64,8 @@ interface WorkspaceState {
   explainTarget: () => Promise<void>;
   check: () => Promise<void>;
   revealHint: () => void;
+  /** Forgets the open task; the next visit to the lesson view opens a task afresh. */
+  closeTask: () => void;
   revealSolution: () => void;
   /** Resets the sandbox to a task outside the lesson player (onboarding, placement). */
   prepare: (task: Task) => Promise<void>;
@@ -205,13 +208,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     toggleOption: (index) => {
       const { task, selected, verdict } = get();
       if (!task || (task.type !== 'choice' && task.type !== 'review') || verdict?.passed) return;
-      const multiple = task.answer.length > 1;
-      const next = multiple
-        ? selected.includes(index)
-          ? selected.filter((i) => i !== index)
-          : [...selected, index]
-        : [index];
-      set({ selected: next, verdict: null });
+      set({ selected: toggleSelection(selected, index, task.answer.length > 1), verdict: null });
     },
 
     resetDatabase: () =>
@@ -312,13 +309,22 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       if (task) useProgress.getState().revealSolution(task);
     },
 
-    prepare: (task) =>
-      withSandbox(async ({ engine }) => {
+    closeTask: () => {
+      saveDraft();
+      set({ task: null, lesson: null, verdict: null, result: null, plan: null, error: null, schema: null });
+    },
+
+    prepare: (task) => {
+      // The sandbox is about to hold another database, so the lesson task (if any) must be reopened later.
+      get().closeTask();
+      return withSandbox(async ({ engine }) => {
         await engine.reset(task.setupSql);
         await refreshSchema(engine);
-      }),
+      });
+    },
 
     verify: async (task, answer) => {
+      get().closeTask();
       let result: CheckResult = { passed: false, problems: ['Песочница недоступна'] };
       await withSandbox(async ({ engine, checker }) => {
         result = await checker.check(task, answer);

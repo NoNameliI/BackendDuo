@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { walkPlan } from './plan';
+import { planNodes } from './plan';
 import { PostgresEngine } from './PostgresEngine';
 
 const engine = new PostgresEngine();
@@ -99,9 +99,7 @@ describe('PostgresEngine.explain', () => {
     await engine.reset(`CREATE TABLE big AS SELECT g AS id, md5(g::text) AS note FROM generate_series(1, 50000) g;`);
     const before = await engine.explain('SELECT * FROM big WHERE id = 42');
     const types = (outcome: typeof before) => {
-      const found: string[] = [];
-      if (outcome.plan) walkPlan(outcome.plan.root, (n) => found.push(n.type));
-      return found;
+      return outcome.plan ? planNodes(outcome.plan.root).map((n) => n.type) : [];
     };
     expect(types(before)).toContain('Seq Scan');
 

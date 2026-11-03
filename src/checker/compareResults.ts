@@ -1,4 +1,5 @@
 import type { Cell, StatementResult } from '@/engine';
+import { NUMERIC_TYPE_IDS } from '@/engine/postgres/typeIds';
 import { plural } from '@/ui/format';
 
 export interface CompareOptions {
@@ -6,14 +7,19 @@ export interface CompareOptions {
   columnNames: boolean;
 }
 
-const NUMERIC_TYPE_IDS = new Set([20, 21, 23, 26, 700, 701, 790, 1700]);
 const MAX_EXAMPLES = 3;
 
-/** Numbers compare by value with 10 significant digits: 10.50 = 10.5, numeric avg = float avg. */
-function canonical(cell: Cell, numeric: boolean): Cell {
+/**
+ * Integers compare exactly (any size); 3.00 equals 3; other fractions compare with 10 significant digits,
+ * so numeric avg equals float avg.
+ */
+export function canonical(cell: Cell, numeric: boolean): Cell {
   if (cell === null || !numeric) return cell;
+  if (/^-?\d+$/.test(cell)) return cell.replace(/^(-?)0+(?=\d)/, '$1');
   const n = Number(cell);
-  return Number.isFinite(n) ? String(Number(n.toPrecision(10))) : cell;
+  if (!Number.isFinite(n)) return cell;
+  if (Number.isInteger(n) && Math.abs(n) < Number.MAX_SAFE_INTEGER) return String(n);
+  return String(Number(n.toPrecision(10)));
 }
 
 export function formatRow(row: Cell[]): string {

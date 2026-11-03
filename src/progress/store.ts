@@ -24,7 +24,7 @@ interface ProgressState {
   /** Returns the reward when this attempt solves the task for the first time. */
   recordAttempt: (task: Task, passed: boolean) => SolveReward | null;
   passLessons: (lessonIds: string[]) => void;
-  completeOnboarding: (path: 'beginner' | 'experienced', startLesson?: string) => void;
+  completeOnboarding: (path: 'beginner' | 'experienced') => void;
   resetAll: () => void;
 }
 
@@ -95,8 +95,7 @@ export const useProgress = create<ProgressState>((set, get) => {
     passLessons: (lessonIds) =>
       update((d) => withCourse(d, (cp) => ({ ...cp, passedLessons: [...new Set([...cp.passedLessons, ...lessonIds])] }))),
 
-    completeOnboarding: (path, startLesson) =>
-      update((d) => ({ ...d, onboarding: { path, startLesson, completedAt: new Date().toISOString() } })),
+    completeOnboarding: (path) => update((d) => ({ ...d, onboarding: { path, completedAt: new Date().toISOString() } })),
 
     resetAll: () => set({ doc: emptyProgress() }),
   };

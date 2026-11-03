@@ -210,9 +210,7 @@ export const errorHintsSchema = z.record(z.string().regex(/^[0-9A-Z]{2}([0-9A-Z]
 
 export type TaskInput = z.input<typeof taskSchema>;
 export type ParsedTask = z.output<typeof taskSchema>;
-export type Manifest = z.output<typeof manifestSchema>;
 export type Badge = z.output<typeof badgeSchema>;
-export type BadgeRule = z.output<typeof badgeRuleSchema>;
-export type Level = Manifest['levels'][number];
+export type Level = z.output<typeof manifestSchema>['levels'][number];
 export type OnboardingData = z.output<typeof onboardingSchema>;
 export type OnboardingStep = OnboardingData['steps'][number];

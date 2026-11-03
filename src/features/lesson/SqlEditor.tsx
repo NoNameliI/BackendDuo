@@ -10,7 +10,6 @@ interface SqlEditorProps {
   value: string;
   onChange: (value: string) => void;
   error?: SqlError | null;
-  readOnly?: boolean;
 }
 
 const KIND = {
@@ -41,7 +40,7 @@ monaco.languages.registerCompletionItemProvider('pgsql', {
   },
 });
 
-export default function SqlEditor({ value, onChange, error, readOnly = false }: SqlEditorProps) {
+export default function SqlEditor({ value, onChange, error }: SqlEditorProps) {
   const theme = useResolvedTheme();
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 
@@ -78,7 +77,6 @@ export default function SqlEditor({ value, onChange, error, readOnly = false }: 
       loading={null}
       options={{
         ariaLabel: 'Редактор SQL',
-        readOnly,
         fontFamily: '"JetBrains Mono", "Fira Code", Consolas, monospace',
         fontSize: 14,
         lineHeight: 22,

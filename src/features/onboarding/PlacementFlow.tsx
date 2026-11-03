@@ -8,7 +8,8 @@ import { useWorkspace } from '@/features/lesson/workspace';
 import { Button } from '@/ui/Button';
 import { CheckIcon } from '@/ui/icons';
 import { Markdown } from '@/ui/Markdown';
-import { OptionList } from '@/ui/OptionList';
+import { OptionList, toggleSelection } from '@/ui/OptionList';
+import { useFocusHeading } from '@/ui/useFocusHeading';
 import { placementStep } from './placement';
 import { useLatestState } from './useLatest';
 
@@ -23,9 +24,11 @@ export function PlacementFlow({ placement, onFinish }: PlacementFlowProps) {
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
   const step = placementStep(placement, answers);
+  const rootRef = useFocusHeading<HTMLDivElement>(!started ? 'intro' : step.kind === 'question' ? step.question.id : 'done');
 
   if (!started) {
     return (
+      <div ref={rootRef}>
       <section className="animate-rise space-y-4">
         <h1 className="text-[26px] font-semibold tracking-tight">{placement.title}</h1>
         <Markdown source={placement.intro} className="text-[15px] text-dim" />
@@ -41,6 +44,7 @@ export function PlacementFlow({ placement, onFinish }: PlacementFlowProps) {
           Начать тест →
         </Button>
       </section>
+      </div>
     );
   }
 
@@ -60,7 +64,7 @@ export function PlacementFlow({ placement, onFinish }: PlacementFlowProps) {
   const tones = { passed: 'bg-ok', failed: 'bg-err', current: 'bg-amber', pending: 'bg-line', skipped: 'bg-line' };
 
   return (
-    <div className="space-y-6">
+    <div ref={rootRef} className="space-y-6">
       <ol aria-label="Блоки теста" className="grid grid-cols-4 gap-2">
         {placement.blocks.map((b, i) => {
           const state = blockState(i, b.id);
@@ -130,8 +134,7 @@ function Question({ task, label, onAnswer }: { task: Task; label: string; onAnsw
 
   const toggle = (i: number) => {
     if (result || !(task.type === 'choice' || task.type === 'review')) return;
-    const s = latestSelected();
-    setSelected(task.answer.length > 1 ? (s.includes(i) ? s.filter((x) => x !== i) : [...s, i]) : [i]);
+    setSelected(toggleSelection(latestSelected(), i, task.answer.length > 1));
   };
 
   const optionKeys: HotkeyMap =

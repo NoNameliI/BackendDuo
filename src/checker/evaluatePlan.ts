@@ -1,4 +1,5 @@
-import type { PlanNode, QueryPlan } from '@/engine';
+import type { QueryPlan } from '@/engine';
+import { planNodes } from '@/engine/postgres/plan';
 
 export interface PlanConditions {
   forbidSeqScan: string[];
@@ -8,13 +9,9 @@ export interface PlanConditions {
 
 const INDEX_NODES = new Set(['Index Scan', 'Index Only Scan', 'Bitmap Heap Scan']);
 
-function nodes(root: PlanNode): PlanNode[] {
-  return [root, ...root.children.flatMap(nodes)];
-}
-
 /** Deterministic plan checks: node types and planner cost, never wall-clock time. */
 export function evaluatePlan(plan: QueryPlan, baselineCost: number, conditions: PlanConditions): string[] {
-  const all = nodes(plan.root);
+  const all = planNodes(plan.root);
   const problems: string[] = [];
 
   for (const table of conditions.forbidSeqScan) {

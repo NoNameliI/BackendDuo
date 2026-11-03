@@ -104,8 +104,6 @@ export function validateModel(model: ErdModel): string[] {
   return problems;
 }
 
-/** serial is an integer with a sequence; columns referencing it use the plain type. */
-const referenceType = (type: string) => (type === 'serial' ? 'integer' : type === 'bigserial' ? 'bigint' : type);
 
 /**
  * Builds CREATE TABLE statements for the new (unlocked) tables. Tables are ordered so that referenced
@@ -167,7 +165,7 @@ export function toDdl(model: ErdModel): string {
   return statements.join('\n\n');
 }
 
-/** Picks the column type for a new foreign key that points at `target`. */
+/** Column type for a foreign key pointing at a column of `targetType`: serial is an integer with a sequence. */
 export function foreignKeyType(targetType: string): string {
-  return referenceType(targetType);
+  return targetType === 'serial' ? 'integer' : targetType === 'bigserial' ? 'bigint' : targetType;
 }

@@ -50,7 +50,7 @@ export function toQueryPlan(json: unknown, analyzed: boolean): QueryPlan {
   };
 }
 
-export function walkPlan(node: PlanNode, visit: (node: PlanNode) => void): void {
-  visit(node);
-  node.children.forEach((child) => walkPlan(child, visit));
+/** All nodes of a plan, parents before children. */
+export function planNodes(root: PlanNode): PlanNode[] {
+  return [root, ...root.children.flatMap(planNodes)];
 }

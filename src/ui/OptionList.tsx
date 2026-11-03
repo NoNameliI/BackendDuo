@@ -1,5 +1,11 @@
 import { InlineMarkdown } from './Markdown';
 
+/** Radio-like for single-answer questions, checkbox-like for multiple answers. */
+export function toggleSelection(selected: number[], index: number, multiple: boolean): number[] {
+  if (!multiple) return [index];
+  return selected.includes(index) ? selected.filter((i) => i !== index) : [...selected, index];
+}
+
 interface OptionListProps {
   options: string[];
   selected: number[];

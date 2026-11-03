@@ -82,6 +82,12 @@ describe('result check', () => {
     expect(rounded.passed).toBe(false);
   });
 
+  it('compares large integers exactly', async () => {
+    const phones = makeTask({ type: 'result', setup: SHOP, solution: 'SELECT 79161234567::bigint AS phone' });
+    expect((await checker.check(phones, sql('SELECT 79161234568::bigint AS phone'))).passed).toBe(false);
+    expect((await checker.check(phones, sql('SELECT 79161234567.00::numeric AS phone'))).passed).toBe(true);
+  });
+
   it('marks a broken reference solution as a content error', async () => {
     const bad = makeTask({ type: 'result', setup: SHOP, solution: 'SELECT missing FROM customers' });
     await expect(checker.check(bad, sql('SELECT 1'))).rejects.toBeInstanceOf(SolutionError);

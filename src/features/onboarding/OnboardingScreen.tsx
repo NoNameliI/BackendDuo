@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useUi } from '@/app/store';
 import { course } from '@/content/course';
 import { useProgress } from '@/progress/store';
+import { useFocusHeading } from '@/ui/useFocusHeading';
 import { BeginnerFlow } from './BeginnerFlow';
 import { PlacementFlow } from './PlacementFlow';
 
@@ -10,6 +11,7 @@ type Path = 'beginner' | 'experienced';
 export function OnboardingScreen() {
   const data = course.onboarding;
   const [path, setPath] = useState<Path | null>(null);
+  const rootRef = useFocusHeading<HTMLDivElement>(path);
   const setView = useUi((s) => s.setView);
   const { completeOnboarding, passLessons } = useProgress();
 
@@ -23,7 +25,7 @@ export function OnboardingScreen() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="mx-auto max-w-4xl px-6 py-10">
+      <div ref={rootRef} className="mx-auto max-w-4xl px-6 py-10">
         {path === null && (
           <section className="animate-rise">
             <h1 className="text-[32px] font-semibold leading-tight tracking-tight">{data.welcome.title}</h1>

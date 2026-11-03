@@ -18,7 +18,3 @@ export function formatSqlError(error: SqlError): string {
   if (error.hint) lines.push(`HINT: ${error.hint}`);
   return lines.join('\n');
 }
-
-/** Type ids rendered right-aligned: int2/4/8, oid, float4/8, money, numeric. */
-export const NUMERIC_TYPE_IDS = new Set([20, 21, 23, 26, 700, 701, 790, 1700]);
-export const BOOLEAN_TYPE_ID = 16;
