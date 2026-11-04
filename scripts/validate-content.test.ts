@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
-import { createGitChecker, runReference } from '@/checker/git';
+import { createGitChecker, runReference, stoppedOnConflict } from '@/checker/git';
 import { loadCatalog, type Catalog } from '@/content/catalog';
 import type { Task } from '@/content/loadCourse';
 import { theoryExamples } from '@/content/theory';
@@ -80,7 +80,7 @@ for (const course of catalog?.courses ?? []) {
                 sandbox.reset(lesson.exampleSetup);
                 for (const command of examples.flatMap(splitCommands)) {
                   const result = command.includes('\n') ? sandbox.runScript(command) : sandbox.run(command);
-                  const failed = 'exit' in result ? result.exit !== 0 : Boolean(result.failed);
+                  const failed = ('exit' in result ? result.exit !== 0 : Boolean(result.failed)) && !stoppedOnConflict(sandbox.world, command);
                   const output = result.lines.map((l) => l.text).join('\n');
                   expect(failed, `example command failed: ${command}\n${output}`).toBe(false);
                 }
@@ -101,7 +101,7 @@ ${sql}`).toBeUndefined();
       }
     }
 
-    const extra = [...(course?.placement?.blocks.flatMap((b) => b.questions) ?? []), ...(course?.onboarding ? [course.onboarding.firstQuery] : [])];
+    const extra = [...(course?.placement?.blocks.flatMap((b) => b.questions) ?? []), ...(course?.onboarding ? [course.onboarding.kind === 'sql' ? course.onboarding.firstQuery : course.onboarding.firstTask] : [])];
     if (extra.length) {
       describe('placement and onboarding', () => {
         for (const task of extra) {

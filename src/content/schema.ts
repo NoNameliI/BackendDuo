@@ -239,9 +239,15 @@ export const manifestSchema = z.object({
 });
 
 /** Cross-course settings: which courses the hub shows (in order) and the shared level ladder. */
+/** Badges for progress across all courses of the platform. */
+export const platformBadgeSchema = badgeSchema.extend({
+  rule: z.object({ kind: z.literal('everyCourse'), tasks: z.number().int().positive() }),
+});
+
 export const platformSchema = z.object({
   courses: z.array(slug).min(1),
   levels: levelsSchema,
+  badges: z.array(platformBadgeSchema).default([]),
 });
 
 export const placementSchema = z
@@ -289,6 +295,31 @@ export const onboardingSchema = z.object({
   outro: z.object(titled),
 });
 
+/** Onboarding of the Git course: concept cards, then a first real command in a small sandbox. */
+export const gitOnboardingSchema = z.object({
+  welcome: z.object({
+    title: z.string().min(1),
+    subtitle: z.string().min(1),
+    beginner: z.object(titled),
+    experienced: z.object(titled),
+  }),
+  intro: z.object({ title: z.string().min(1), paragraphs: z.array(z.string().min(1)).min(1) }),
+  steps: z
+    .array(
+      z.object({
+        id: slug,
+        ...titled,
+        options: z.array(z.string().min(1)).min(2).max(4),
+        answer: z.number().int().nonnegative(),
+        explanation: z.string().min(1),
+      }),
+    )
+    .min(1),
+  /** A Git task (graph or worktree) the beginner solves in the terminal. */
+  firstTask: z.record(z.string(), z.unknown()),
+  outro: z.object(titled),
+});
+
 /** SQLSTATE (or its two-character class) → hint shown under PostgreSQL's own message. */
 export const errorHintsSchema = z.record(z.string().regex(/^[0-9A-Z]{2}([0-9A-Z]{3})?$/), z.string().min(1));
 
@@ -298,6 +329,8 @@ export const terminalHintsSchema = z.array(z.object({ pattern: z.string().min(1)
 export type TaskInput = z.input<typeof taskSchema>;
 export type ParsedTask = z.output<typeof taskSchema>;
 export type Badge = z.output<typeof badgeSchema>;
+export type PlatformBadge = z.output<typeof platformBadgeSchema>;
 export type Level = z.output<typeof manifestSchema>['levels'][number];
 export type OnboardingData = z.output<typeof onboardingSchema>;
 export type OnboardingStep = OnboardingData['steps'][number];
+export type GitOnboardingData = z.output<typeof gitOnboardingSchema>;

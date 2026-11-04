@@ -11,6 +11,8 @@ import {
   type OnboardingData,
   type ParsedTask,
   terminalHintsSchema,
+  gitOnboardingSchema,
+  type GitOnboardingData,
 } from './schema';
 
 export type Task = ParsedTask & {
@@ -60,7 +62,9 @@ export interface Placement {
   blocks: PlacementBlock[];
 }
 
-export type Onboarding = Omit<OnboardingData, 'firstQuery'> & { firstQuery: Extract<Task, { type: 'result' }> };
+export type SqlOnboarding = Omit<OnboardingData, 'firstQuery'> & { kind: 'sql'; firstQuery: Extract<Task, { type: 'result' }> };
+export type GitOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'git'; firstTask: GitTask };
+export type Onboarding = SqlOnboarding | GitOnboarding;
 
 export interface Course {
   id: string;
@@ -276,6 +280,30 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
   }
 
   function loadOnboarding(file: string): Onboarding | null {
+    return manifest.engine === 'git' ? loadGitOnboarding(file) : loadSqlOnboarding(file);
+  }
+
+  function loadGitOnboarding(file: string): GitOnboarding | null {
+    const path = `${root}/${file}`;
+    const parsed = gitOnboardingSchema.safeParse(readJson(files, path, problems));
+    if (!parsed.success) {
+      if (files[path] !== undefined) problems.push(...formatIssues(path, parsed.error.issues));
+      return null;
+    }
+    const data = parsed.data;
+    for (const step of data.steps) {
+      if (step.answer >= step.options.length) problems.push(`${path} › ${step.id}: ответа ${step.answer} нет среди вариантов`);
+    }
+    const firstTask = buildTask(data.firstTask, `${path} › firstTask`, 'onboarding', 'onboarding');
+    if (!firstTask) return null;
+    if (!('shellSolution' in firstTask)) {
+      problems.push(`${path} › firstTask: ожидается задание Git`);
+      return null;
+    }
+    return { ...data, kind: 'git', firstTask };
+  }
+
+  function loadSqlOnboarding(file: string): SqlOnboarding | null {
     const path = `${root}/${file}`;
     const parsed = onboardingSchema.safeParse(readJson(files, path, problems));
     if (!parsed.success) {
@@ -305,7 +333,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
       problems.push(`${path} › firstQuery: ожидается задание типа result`);
       return null;
     }
-    return { ...data, firstQuery };
+    return { ...data, kind: 'sql', firstQuery };
   }
 
   if (problems.length > 0) throw new CourseError(problems);

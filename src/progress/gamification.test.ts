@@ -6,6 +6,7 @@ import {
   lessonStatuses,
   levelInfo,
   nextLesson,
+  platformBadgeEarned,
   streakInfo,
   taskXp,
   totalXp,
@@ -121,6 +122,14 @@ describe('badges', () => {
     expect(badgeEarned(badge({ kind: 'worldCompleted', world: 'w2' }), course, cp, streak)).toBe(false);
     expect(badgeEarned(badge({ kind: 'streak', days: 3 }), course, cp, { ...streak, best: 3 })).toBe(true);
     expect(badgeEarned(badge({ kind: 'firstTry', count: 4 }), course, cp, streak)).toBe(false);
+  });
+
+  it('awards a platform badge only when every course has enough solved tasks', () => {
+    const other: Course = { ...course, id: 'other' };
+    const shared = { id: 'p', title: 'P', description: 'D', glyph: 'P', rule: { kind: 'everyCourse' as const, tasks: 2 } };
+    const progress = (map: Record<string, CourseProgress>) => (id: string) => map[id] ?? EMPTY_COURSE;
+    expect(platformBadgeEarned(shared, [course, other], progress({ [course.id]: solved('a1', 'b1'), other: solved('a1') }))).toBe(false);
+    expect(platformBadgeEarned(shared, [course, other], progress({ [course.id]: solved('a1', 'b1'), other: solved('a1', 'c1') }))).toBe(true);
   });
 });
 

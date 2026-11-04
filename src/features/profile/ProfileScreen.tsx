@@ -8,7 +8,8 @@ import { allTasks } from '@/content/loadCourse';
 import { TASK_KIND } from '@/features/lesson/TaskPanel';
 import { useWorkspace } from '@/features/lesson/workspace';
 import { isLessonComplete, levelInfo, localDay, progressOf, streakInfo } from '@/progress/gamification';
-import { globalXp, selectCourse, useProgress } from '@/progress/store';
+import { globalXp, PLATFORM, selectCourse, useProgress } from '@/progress/store';
+import type { Badge, PlatformBadge } from '@/content/schema';
 import { Button } from '@/ui/Button';
 import { plural } from '@/ui/format';
 import { FlameIcon } from '@/ui/icons';
@@ -91,32 +92,44 @@ export function ProfileScreen() {
         <section aria-label="Бейджи" className="rounded-md border border-line bg-panel p-5 md:col-span-2">
           <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-faint">Бейджи · {course.title}</h2>
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {course.badges.map((badge) => {
-              const earnedAt = doc.badges[badgeKey(course.id, badge.id)];
-              return (
-                <li key={badge.id} className={`flex items-center gap-3 rounded border p-2.5 ${earnedAt ? 'border-amber/40' : 'border-line'}`}>
-                  <span
-                    className={`grid h-11 w-11 shrink-0 place-items-center font-mono text-[11px] font-semibold [clip-path:polygon(25%_4%,75%_4%,100%_50%,75%_96%,25%_96%,0_50%)] ${
-                      earnedAt ? 'bg-amber text-on-accent' : 'bg-raised text-faint'
-                    }`}
-                  >
-                    {badge.glyph}
-                  </span>
-                  <span className="min-w-0">
-                    <span className={`block text-[13.5px] font-medium ${earnedAt ? 'text-fg' : 'text-dim'}`}>{badge.title}</span>
-                    <span className="block text-[12px] leading-snug text-faint">
-                      {earnedAt ? `Получен ${dateFormat.format(new Date(earnedAt))}` : badge.description}
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
+            {course.badges.map((badge) => (
+              <BadgeTile key={badge.id} badge={badge} earnedAt={doc.badges[badgeKey(course.id, badge.id)]} />
+            ))}
           </ul>
         </section>
+
+        {platform.badges.length > 0 && (
+          <section aria-label="Общие бейджи" className="rounded-md border border-line bg-panel p-5 md:col-span-2">
+            <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-faint">Бейджи платформы · все курсы</h2>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {platform.badges.map((badge) => (
+                <BadgeTile key={badge.id} badge={badge} earnedAt={doc.badges[badgeKey(PLATFORM, badge.id)]} />
+              ))}
+            </ul>
+          </section>
+        )}
 
         <Settings />
       </div>
     </div>
+  );
+}
+
+function BadgeTile({ badge, earnedAt }: { badge: Badge | PlatformBadge; earnedAt: string | undefined }) {
+  return (
+    <li className={`flex items-center gap-3 rounded border p-2.5 ${earnedAt ? 'border-amber/40' : 'border-line'}`}>
+      <span
+        className={`grid h-11 w-11 shrink-0 place-items-center font-mono text-[11px] font-semibold [clip-path:polygon(25%_4%,75%_4%,100%_50%,75%_96%,25%_96%,0_50%)] ${
+          earnedAt ? 'bg-amber text-on-accent' : 'bg-raised text-faint'
+        }`}
+      >
+        {badge.glyph}
+      </span>
+      <span className="min-w-0">
+        <span className={`block text-[13.5px] font-medium ${earnedAt ? 'text-fg' : 'text-dim'}`}>{badge.title}</span>
+        <span className="block text-[12px] leading-snug text-faint">{earnedAt ? `Получен ${dateFormat.format(new Date(earnedAt))}` : badge.description}</span>
+      </span>
+    </li>
   );
 }
 

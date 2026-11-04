@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type DragEvent } from 'react';
 import { useHotkeys } from '@/app/hotkeys';
 import type { CheckResult } from '@/checker';
-import { errorHint, type Onboarding } from '@/content/loadCourse';
+import { errorHint, type SqlOnboarding as Onboarding } from '@/content/loadCourse';
 import type { OnboardingStep } from '@/content/schema';
 import { useCourse } from '@/app/useCourse';
 import { ResultTable } from '@/features/lesson/ResultTable';

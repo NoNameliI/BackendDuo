@@ -4,6 +4,7 @@ import { useCourse } from '@/app/useCourse';
 import { useProgress } from '@/progress/store';
 import { useFocusHeading } from '@/ui/useFocusHeading';
 import { BeginnerFlow } from './BeginnerFlow';
+import { GitBeginnerFlow } from './GitBeginnerFlow';
 import { PlacementFlow } from './PlacementFlow';
 
 type Path = 'beginner' | 'experienced';
@@ -34,12 +35,17 @@ export function OnboardingScreen() {
             <div className="mt-8 grid gap-3 md:grid-cols-2">
               <PathCard glyph="00" title={data.welcome.beginner.title} text={data.welcome.beginner.text} onClick={() => setPath('beginner')} />
               {course.placement && (
-                <PathCard glyph="SQL" title={data.welcome.experienced.title} text={data.welcome.experienced.text} onClick={() => setPath('experienced')} />
+                <PathCard glyph={course.engine === 'git' ? 'GIT' : 'SQL'} title={data.welcome.experienced.title} text={data.welcome.experienced.text} onClick={() => setPath('experienced')} />
               )}
             </div>
           </section>
         )}
-        {path === 'beginner' && <BeginnerFlow data={data} onFinish={() => finish('beginner')} />}
+        {path === 'beginner' &&
+          (data.kind === 'git' ? (
+            <GitBeginnerFlow data={data} onFinish={() => finish('beginner')} />
+          ) : (
+            <BeginnerFlow data={data} onFinish={() => finish('beginner')} />
+          ))}
         {path === 'experienced' && course.placement && (
           <PlacementFlow placement={course.placement} onFinish={(unlocks) => finish('experienced', unlocks)} />
         )}

@@ -1,8 +1,9 @@
 import { CourseError, loadCourse, type Course } from './loadCourse';
-import { platformSchema, type Level } from './schema';
+import { platformSchema, type Level, type PlatformBadge } from './schema';
 
 export interface Platform {
   levels: Level[];
+  badges: PlatformBadge[];
 }
 
 export interface Catalog {
@@ -44,5 +45,5 @@ export function loadCatalog(files: Record<string, string>, root = '/courses'): C
     }
   }
   if (problems.length > 0) throw new CourseError(problems);
-  return { courses, platform: { levels: parsed.data.levels } };
+  return { courses, platform: { levels: parsed.data.levels, badges: parsed.data.badges } };
 }

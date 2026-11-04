@@ -28,5 +28,17 @@
       "xp": 1500,
       "title": "Architect"
     }
+  ],
+  "badges": [
+    {
+      "id": "polyglot",
+      "title": "Два стека",
+      "description": "Решено хотя бы 10 заданий в каждом курсе платформы",
+      "glyph": "2x",
+      "rule": {
+        "kind": "everyCourse",
+        "tasks": 10
+      }
+    }
   ]
 }

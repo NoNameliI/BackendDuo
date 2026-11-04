@@ -1,0 +1,24 @@
+{
+  "questions": "placement.md",
+  "passThreshold": 2,
+  "blocks": [
+    {
+      "id": "basics",
+      "title": "Коммиты и история",
+      "questions": ["git-pl-staging", "git-pl-diff", "git-pl-restore"],
+      "unlocks": ["git-first-repo", "git-changes", "git-ignore-undo"]
+    },
+    {
+      "id": "branches",
+      "title": "Ветки и слияния",
+      "questions": ["git-pl-switch", "git-pl-conflict", "git-pl-rebase"],
+      "unlocks": ["git-branches", "git-merge", "git-conflicts", "git-rebase"]
+    },
+    {
+      "id": "fixes",
+      "title": "Исправление ошибок",
+      "questions": ["git-pl-reset", "git-pl-revert", "git-pl-reflog"],
+      "unlocks": ["git-amend-reset", "git-revert-reflog", "git-stash-cherry-pick", "git-tags"]
+    }
+  ]
+}

@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { courseById, courses, platform } from '@/content/courses';
 import type { Task } from '@/content/loadCourse';
-import type { Badge } from '@/content/schema';
+import type { Badge, PlatformBadge } from '@/content/schema';
 import { readStore, writeStore } from '@/platform';
-import { badgeEarned, levelInfo, localDay, progressOf, streakInfo, taskXp, totalXp } from './gamification';
+
+/** Badge key prefix of the cross-course badges from platform.json. */
+export const PLATFORM = 'platform';
+import { badgeEarned, levelInfo, platformBadgeEarned, localDay, progressOf, streakInfo, taskXp, totalXp } from './gamification';
 import {
   badgeKey,
   EMPTY_COURSE,
@@ -19,7 +22,7 @@ const SAVE_DELAY_MS = 400;
 
 export interface SolveReward {
   xp: number;
-  badges: Badge[];
+  badges: (Badge | PlatformBadge)[];
   levelUp: string | null;
 }
 
@@ -99,9 +102,15 @@ export const useProgress = create<ProgressState>((set, get) => {
       const course = courseById(task.courseId);
       const streak = streakInfo(next.activity, today);
       const cp = courseProgress(next, course.id);
-      const badges = course.badges.filter((b) => !next.badges[badgeKey(course.id, b.id)] && badgeEarned(b, course, cp, streak));
+      const earned = course.badges.filter((b) => !next.badges[badgeKey(course.id, b.id)] && badgeEarned(b, course, cp, streak));
+      const after = next;
+      const shared = platform.badges.filter(
+        (b) => !after.badges[badgeKey(PLATFORM, b.id)] && platformBadgeEarned(b, courses, (id) => courseProgress(after, id)),
+      );
       const earnedAt = new Date().toISOString();
-      next = { ...next, badges: { ...next.badges, ...Object.fromEntries(badges.map((b) => [badgeKey(course.id, b.id), earnedAt])) } };
+      const keys = [...earned.map((b) => badgeKey(course.id, b.id)), ...shared.map((b) => badgeKey(PLATFORM, b.id))];
+      next = { ...next, badges: { ...next.badges, ...Object.fromEntries(keys.map((k) => [k, earnedAt])) } };
+      const badges = [...earned, ...shared];
       set({ doc: next });
 
       const xpBefore = globalXp(doc);

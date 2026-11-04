@@ -355,7 +355,8 @@ export class Hosting {
         this.flavor === 'github'
           ? `${pr.title} (#${pr.number})\n\n${picked.map((c) => `* ${c.message.trim().split('\n').join('\n  ')}`).join('\n\n')}\n`
           : `${pr.title}\n`;
-      tip = own(merged, [target], message);
+      // The squashed commit keeps the pull request's author, like on GitHub and GitLab.
+      tip = own(merged, [target], message, this.signature(pr.author));
     } else if (method === 'rebase') {
       const picked = [...repo.ancestors(head)].filter((id) => !repo.isAncestor(id, target)).map((id) => repo.commits.get(id)!);
       picked.sort((a, b) => a.committer.time - b.committer.time);
@@ -391,6 +392,7 @@ export class Hosting {
   review(p: Project, pr: PullRequest, state: Review['state'], body = ''): void {
     if (pr.state !== 'open') throw new HostingError(`${this.flavor === 'github' ? 'Pull' : 'Merge'} request ${this.pullRef(pr.number)} is ${pr.state}`);
     if (pr.author === this.user && state !== 'commented') {
+      if (this.flavor === 'gitlab') throw new HostingError('You cannot approve your own merge request.');
       throw new HostingError(state === 'approved' ? 'Can not approve your own pull request' : 'Can not request changes on your own pull request');
     }
     if (state === 'commented' && !body.trim()) throw new HostingError('body cannot be blank');

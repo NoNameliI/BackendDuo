@@ -9,18 +9,136 @@
     {
       "id": "git-w1",
       "title": "Первые шаги",
-      "summary": "Репозиторий, рабочая папка, индекс и коммиты. Смотрим историю и изменения.",
+      "summary": "Репозиторий, рабочая папка, индекс и коммиты. Смотрим историю и изменения, отменяем незакоммиченное.",
       "lessons": [
-        { "id": "git-first-repo", "file": "w1/01-first-repo.md" }
+        {
+          "id": "git-first-repo",
+          "file": "w1/01-first-repo.md"
+        },
+        {
+          "id": "git-changes",
+          "file": "w1/02-changes.md"
+        },
+        {
+          "id": "git-ignore-undo",
+          "file": "w1/03-ignore-undo.md"
+        }
+      ]
+    },
+    {
+      "id": "git-w2",
+      "title": "Ветки и слияния",
+      "summary": "Ветки, переключение, слияние, конфликты и перебазирование.",
+      "lessons": [
+        {
+          "id": "git-branches",
+          "file": "w2/01-branches.md"
+        },
+        {
+          "id": "git-merge",
+          "file": "w2/02-merge.md"
+        },
+        {
+          "id": "git-conflicts",
+          "file": "w2/03-conflicts.md"
+        },
+        {
+          "id": "git-rebase",
+          "file": "w2/04-rebase.md"
+        }
+      ]
+    },
+    {
+      "id": "git-w3",
+      "title": "Исправление ошибок",
+      "summary": "Правка последнего коммита, reset и revert, журнал ссылок, stash, cherry-pick и теги.",
+      "lessons": [
+        {
+          "id": "git-amend-reset",
+          "file": "w3/01-amend-reset.md"
+        },
+        {
+          "id": "git-revert-reflog",
+          "file": "w3/02-revert-reflog.md"
+        },
+        {
+          "id": "git-stash-cherry-pick",
+          "file": "w3/03-stash-cherry-pick.md"
+        },
+        {
+          "id": "git-tags",
+          "file": "w3/04-tags.md"
+        }
+      ]
+    },
+    {
+      "id": "git-w4",
+      "title": "Команда, GitHub и GitLab",
+      "summary": "Удалённые репозитории, pull и merge request, ревью, задачи, форки, защищённые ветки и релизы.",
+      "lessons": [
+        {
+          "id": "git-remotes",
+          "file": "w4/01-remotes.md"
+        },
+        {
+          "id": "git-pull-requests",
+          "file": "w4/02-pull-requests.md"
+        },
+        {
+          "id": "git-gitlab-forks",
+          "file": "w4/03-gitlab-forks.md"
+        },
+        {
+          "id": "git-protected-releases",
+          "file": "w4/04-protected-releases.md"
+        }
+      ]
+    },
+    {
+      "id": "git-w5",
+      "title": "CI/CD",
+      "summary": "Автоматические проверки: GitHub Actions и GitLab CI, чтение журналов, обязательные проверки.",
+      "lessons": [
+        {
+          "id": "git-actions",
+          "file": "w5/01-actions.md"
+        },
+        {
+          "id": "git-failing-checks",
+          "file": "w5/02-failing-checks.md"
+        },
+        {
+          "id": "git-gitlab-ci",
+          "file": "w5/03-gitlab-ci.md"
+        },
+        {
+          "id": "git-ci-conditions",
+          "file": "w5/04-ci-conditions.md"
+        }
       ]
     }
   ],
   "levels": [
-    { "xp": 0, "title": "Новичок в Git" },
-    { "xp": 80, "title": "Автор коммитов" },
-    { "xp": 200, "title": "Мастер веток" },
-    { "xp": 400, "title": "Командный игрок" },
-    { "xp": 650, "title": "Инженер CI" }
+    {
+      "xp": 0,
+      "title": "Новичок в Git"
+    },
+    {
+      "xp": 80,
+      "title": "Автор коммитов"
+    },
+    {
+      "xp": 200,
+      "title": "Мастер веток"
+    },
+    {
+      "xp": 400,
+      "title": "Командный игрок"
+    },
+    {
+      "xp": 650,
+      "title": "Инженер CI"
+    }
   ],
   "badges": [
     {
@@ -28,7 +146,94 @@
       "title": "Первый коммит",
       "description": "Решено первое задание курса Git",
       "glyph": "1st",
-      "rule": { "kind": "tasksSolved", "count": 1 }
+      "rule": {
+        "kind": "tasksSolved",
+        "count": 1
+      }
+    },
+    {
+      "id": "basics-done",
+      "title": "Основы",
+      "description": "Пройден мир «Первые шаги»",
+      "glyph": "I",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "git-w1"
+      }
+    },
+    {
+      "id": "brancher",
+      "title": "Ветвление",
+      "description": "Пройден мир «Ветки и слияния»",
+      "glyph": "II",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "git-w2"
+      }
+    },
+    {
+      "id": "time-traveler",
+      "title": "Машина времени",
+      "description": "Пройден мир «Исправление ошибок»",
+      "glyph": "III",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "git-w3"
+      }
+    },
+    {
+      "id": "team-player",
+      "title": "Командный игрок",
+      "description": "Пройден мир «Команда, GitHub и GitLab»",
+      "glyph": "IV",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "git-w4"
+      }
+    },
+    {
+      "id": "pipeline",
+      "title": "Конвейер",
+      "description": "Пройден мир «CI/CD»",
+      "glyph": "V",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "git-w5"
+      }
+    },
+    {
+      "id": "history-keeper",
+      "title": "Хранитель истории",
+      "description": "Решено 10 заданий на историю коммитов",
+      "glyph": "log",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "graph",
+        "count": 10
+      }
+    },
+    {
+      "id": "green-build",
+      "title": "Зелёная сборка",
+      "description": "Решено 3 задания на CI",
+      "glyph": "CI",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "ci",
+        "count": 3
+      }
+    },
+    {
+      "id": "clean-hands",
+      "title": "Чистая работа",
+      "description": "5 заданий курса Git решены с первой попытки без подсказок",
+      "glyph": "+5",
+      "rule": {
+        "kind": "firstTry",
+        "count": 5
+      }
     }
-  ]
+  ],
+  "placement": "placement.json",
+  "onboarding": "onboarding.json"
 }

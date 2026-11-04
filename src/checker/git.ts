@@ -23,6 +23,14 @@ const verdict = (problems: string[]): CheckResult => ({ passed: problems.length 
 const quote = (s: string) => `«${s}»`;
 const subject = (repo: Repo, id: string) => repo.commits.get(id)!.message.split('\n')[0];
 
+/**
+ * merge, rebase, cherry-pick, revert, stash and pull stop with exit code 1 on a conflict; in a solution or a
+ * theory example that is the intended next state, not a failure.
+ */
+export function stoppedOnConflict(world: World, command: string): boolean {
+  return /^git (merge|rebase|cherry-pick|revert|stash|pull)\b/.test(command.trim()) && (world.repoAt(world.cwd)?.conflicts.size ?? 0) > 0;
+}
+
 /** Runs setup and the reference solution in a fresh sandbox; a failing line is a content bug. */
 export function runReference(task: GitTask): Reference {
   const engine = new GitSandboxEngine();
@@ -33,7 +41,7 @@ export function runReference(task: GitTask): Reference {
     const result = command.includes('\n') ? engine.runScript(command) : engine.run(command);
     const exit = 'exit' in result ? result.exit : result.failed ? result.failed.exit : 0;
     commands.push({ line: command.split('\n')[0], exit });
-    if (exit !== 0) {
+    if (exit !== 0 && !stoppedOnConflict(engine.world, command)) {
       const output = result.lines.map((l) => l.text).join('\n');
       throw new SolutionError(`${task.id}: эталонное решение упало на «${command.split('\n')[0]}»:\n${output}`);
     }
@@ -112,7 +120,8 @@ function checkGraph(task: Extract<GitTask, { type: 'graph' }>, want: Repo, got: 
     }
   }
   if (task.check.remotes) {
-    for (const [name, id] of want.remoteBranches) compareRef(problems, `Ветка ${name}`, want, id, got, got.remoteBranches.get(name), messages);
+    // "origin/HEAD" only mirrors the remote's default branch; comparing it would repeat that branch's problems.
+    for (const [name, id] of want.remoteBranches) if (!name.endsWith('/HEAD')) compareRef(problems, `Ветка ${name}`, want, id, got, got.remoteBranches.get(name), messages);
   }
   if (task.check.head) {
     const wantHead = want.currentBranch();

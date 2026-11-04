@@ -1,5 +1,5 @@
 import type { Course, Lesson, Task, World } from '@/content/loadCourse';
-import type { Badge, Level } from '@/content/schema';
+import type { Badge, Level, PlatformBadge } from '@/content/schema';
 import { EMPTY_TASK, type CourseProgress, type TaskProgress } from './model';
 
 export const LESSON_BONUS_XP = 20;
@@ -137,4 +137,13 @@ export function badgeEarned(badge: Badge, course: Course, cp: CourseProgress, st
     case 'firstTry':
       return solved.filter((t) => progressOf(cp, t.id).firstTry).length >= rule.count;
   }
+}
+
+/** A platform badge: at least `tasks` solved tasks in every course. */
+export function platformBadgeEarned(badge: PlatformBadge, courses: Course[], progress: (courseId: string) => CourseProgress): boolean {
+  return courses.every((course) => {
+    const cp = progress(course.id);
+    const solved = course.worlds.flatMap((w) => w.lessons.flatMap((l) => l.tasks)).filter((t) => progressOf(cp, t.id).solved);
+    return solved.length >= badge.rule.tasks;
+  });
 }
