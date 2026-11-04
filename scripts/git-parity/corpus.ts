@@ -2,6 +2,8 @@
  * Scripts run both in the sandbox and in real git; their output must match. Lines are shell commands
  * (the sandbox's mini shell subset); `cmd <<'EOF'` takes the following lines up to EOF.
  */
+import { advanced } from './corpus-advanced.ts';
+
 export const corpus: Record<string, string> = {
   'init and first commit': `
 git init site
@@ -315,4 +317,5 @@ cd ..
 git init --bare srv.git
 git status
 `,
+  ...advanced,
 };

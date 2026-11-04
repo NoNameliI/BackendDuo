@@ -1,5 +1,5 @@
 import { compareFiles, type FileChange } from './patch';
-import { relativePath, type Repo } from './world';
+import { conflictKind, relativePath, type Repo } from './world';
 
 export interface Status {
   /** HEAD → index. */
@@ -65,28 +65,51 @@ export function formatStatus(repo: Repo, mode: 'status' | 'commit' = 'status'): 
     return path.endsWith('/') ? `${rel}/` : rel;
   };
   const unborn = !repo.headId();
-  const out = [repo.currentBranch() ? `On branch ${repo.currentBranch()}` : `HEAD detached at ${repo.short(repo.headId()!)}`];
-  const tracking = repo.trackingLines();
+  const out = repo.rebase ? rebaseLines(repo) : [repo.currentBranch() ? `On branch ${repo.currentBranch()}` : `HEAD detached at ${repo.short(repo.headId()!)}`];
+  const tracking = repo.rebase ? [] : repo.trackingLines();
   if (tracking.length) out.push(...tracking, '');
   if (unborn) out.push(...(tracking.length ? [] : ['']), mode === 'commit' ? 'Initial commit' : 'No commits yet', '');
 
-  if (repo.merging) {
+  const pending = repo.merging;
+  const fixed = !s.conflicts.length;
+  if (pending?.kind === 'merge') {
     out.push(
-      ...(s.conflicts.length
-        ? ['You have unmerged paths.', '  (fix conflicts and run "git commit")', '  (use "git merge --abort" to abort the merge)']
-        : ['All conflicts fixed but you are still merging.', '  (use "git commit" to conclude merge)']),
+      ...(fixed
+        ? ['All conflicts fixed but you are still merging.', '  (use "git commit" to conclude merge)']
+        : ['You have unmerged paths.', '  (fix conflicts and run "git commit")', '  (use "git merge --abort" to abort the merge)']),
+      '',
+    );
+  } else if (pending?.kind === 'cherry-pick' || pending?.kind === 'revert') {
+    const op = pending.kind;
+    out.push(
+      `You are currently ${op === 'revert' ? 'reverting' : 'cherry-picking'} commit ${repo.short(pending.theirs)}.`,
+      fixed ? `  (all conflicts fixed: run "git ${op} --continue")` : `  (fix conflicts and run "git ${op} --continue")`,
+      `  (use "git ${op} --skip" to skip this patch)`,
+      `  (use "git ${op} --abort" to cancel the ${op} operation)`,
+      '',
+    );
+  } else if (repo.rebase) {
+    out.push(
+      ...(fixed
+        ? ['  (all conflicts fixed: run "git rebase --continue")']
+        : ['  (fix conflicts and then run "git rebase --continue")', '  (use "git rebase --skip" to skip this patch)', '  (use "git rebase --abort" to check out the original branch)']),
       '',
     );
   }
+  // git leaves out the unstage hints while a merge or cherry-pick is being concluded.
+  const plainCommit = pending?.kind !== 'merge' && pending?.kind !== 'cherry-pick';
   if (s.staged.length) {
     out.push('Changes to be committed:');
-    out.push(unborn ? '  (use "git rm --cached <file>..." to unstage)' : '  (use "git restore --staged <file>..." to unstage)');
+    if (plainCommit) out.push(unborn ? '  (use "git rm --cached <file>..." to unstage)' : '  (use "git restore --staged <file>..." to unstage)');
     for (const c of s.staged) out.push(`	${label(c.kind)}${c.kind === 'renamed' ? `${show(c.from!)} -> ${show(c.path)}` : show(c.path)}`);
     out.push('');
   }
   if (s.conflicts.length) {
-    out.push('Unmerged paths:', '  (use "git add <file>..." to mark resolution)');
-    for (const path of s.conflicts) out.push(`	both modified:   ${show(path)}`);
+    const kinds = s.conflicts.map((path) => conflictKind(repo.conflicts.get(path)!));
+    out.push('Unmerged paths:');
+    if (plainCommit) out.push('  (use "git restore --staged <file>..." to unstage)');
+    out.push(kinds.some((k) => k.startsWith('deleted')) ? '  (use "git add/rm <file>..." as appropriate to mark resolution)' : '  (use "git add <file>..." to mark resolution)');
+    s.conflicts.forEach((path, i) => out.push(`	${`${kinds[i]}:`.padEnd(17)}${show(path)}`));
     out.push('');
   }
   if (s.unstaged.length) {
@@ -107,5 +130,27 @@ export function formatStatus(repo: Repo, mode: 'status' | 'commit' = 'status'): 
   else if (s.untracked.length) out.push('nothing added to commit but untracked files present (use "git add" to track)');
   else if (unborn) out.push('nothing to commit (create/copy files and use "git add" to track)');
   else out.push('nothing to commit, working tree clean');
+  return out;
+}
+
+/** The head of `git status` while a rebase is stopped: what was done, what is left, onto what. */
+function rebaseLines(repo: Repo): string[] {
+  const state = repo.rebase!;
+  const pick = (id: string) => `   pick ${repo.short(id)} # ${repo.commits.get(id)!.message.split('\n')[0]}`;
+  const onto = repo.short(state.onto);
+  const out = [`interactive rebase in progress; onto ${onto}`];
+  const done = state.done.length;
+  if (done) {
+    out.push(done === 1 ? 'Last command done (1 command done):' : `Last commands done (${done} commands done):`);
+    out.push(...state.done.slice(-2).map(pick));
+    if (done > 2) out.push('  (see more in file .git/rebase-merge/done)');
+  }
+  const left = state.todo.length;
+  if (left) {
+    out.push(left === 1 ? 'Next command to do (1 remaining command):' : `Next commands to do (${left} remaining commands):`);
+    out.push(...state.todo.slice(0, 2).map(pick));
+    out.push('  (use "git rebase --edit-todo" to view and edit)');
+  } else out.push('No commands remaining.');
+  out.push(state.branch ? `You are currently rebasing branch '${state.branch}' on '${onto}'.` : `You are currently rebasing.`);
   return out;
 }

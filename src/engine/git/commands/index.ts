@@ -1,10 +1,17 @@
 import { flag, parseArgs } from '../args';
 import { computeStatus, formatStatus } from '../status';
+import { conflictKind } from '../world';
 import { branch, checkout, switchCommand } from './branches';
 import { commit } from './commit';
 import { fatal, requireRepo, shownPath, type Command, type Ctx } from './common';
 import { add, mv, restore, rm } from './files';
-import { diff, log, show } from './history';
+import { diff, log, reflog, show } from './history';
+import { merge } from './merge';
+import { clone, fetch, pull, push, remote } from './remote';
+import { reset } from './reset';
+import { cherryPick, rebase, revert } from './sequencer';
+import { stash } from './stash';
+import { tag } from './tags';
 import { config, init } from './setup';
 
 const status: Command = (ctx, argv) => {
@@ -42,7 +49,11 @@ const status: Command = (ctx, argv) => {
     const prev = codes.get(u.path) ?? [' ', ' '];
     codes.set(u.path, [prev[0], u.kind === 'deleted' ? 'D' : 'M', prev[2]]);
   }
-  for (const path of s.conflicts) codes.set(path, ['U', 'U']);
+  const UNMERGED = { 'both modified': 'UU', 'both added': 'AA', 'deleted by us': 'DU', 'deleted by them': 'UD' } as const;
+  for (const path of s.conflicts) {
+    const code = UNMERGED[conflictKind(repo.conflicts.get(path)!)];
+    codes.set(path, [code[0], code[1]]);
+  }
   for (const [path, [x, y, from]] of [...codes].sort()) {
     ctx.out(`${x}${y} ${from ? `${shownPath(ctx, repo, from)} -> ` : ''}${shownPath(ctx, repo, path)}`);
   }
@@ -65,6 +76,19 @@ const COMMANDS: Record<string, Command> = {
   branch,
   switch: switchCommand,
   checkout,
+  merge,
+  rebase,
+  reset,
+  revert,
+  'cherry-pick': cherryPick,
+  stash,
+  tag,
+  reflog,
+  clone,
+  remote,
+  fetch,
+  pull,
+  push,
 };
 
 /** Registered by later modules (history rewriting, remotes) to keep this table the single entry point. */

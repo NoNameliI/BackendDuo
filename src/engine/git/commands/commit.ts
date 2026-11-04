@@ -5,13 +5,17 @@ import { formatStatus } from '../status';
 import type { Repo } from '../world';
 import { fatal, requireRepo, type Command, type Ctx } from './common';
 
-/** Prints "[main 1a2b3c4] subject" and the change summary. */
-export function reportCommit(ctx: Ctx, repo: Repo, id: string, root: boolean): void {
+/**
+ * Prints "[main 1a2b3c4] subject" and the change summary. git shows the author date when the author was
+ * taken from another commit (amend, cherry-pick, revert), not for commits it records on its own.
+ */
+export function reportCommit(ctx: Ctx, repo: Repo, id: string, root: boolean, showDate = false): void {
   const commit = repo.commits.get(id)!;
   const where = repo.currentBranch() ?? 'detached HEAD';
   ctx.out(`[${where}${root ? ' (root-commit)' : ''} ${repo.short(id)}] ${commit.message.split('\n')[0]}`);
-  if (commit.author.time !== commit.committer.time) ctx.out(` Date: ${formatDate(commit.author)}`);
+  if (showDate) ctx.out(` Date: ${formatDate(commit.author)}`);
   const parent = commit.parents[0] ? repo.commits.get(commit.parents[0])!.files : {};
+  if (commit.parents.length > 1) return;
   for (const line of formatSummary(compareFiles(parent, commit.files))) ctx.out(line);
 }
 
@@ -38,7 +42,9 @@ export const commit: Command = (ctx, argv) => {
     ctx.err('error: Committing is not possible because you have unmerged files.');
     ctx.err("hint: Fix them up in the work tree, and then use 'git add/rm <file>'");
     ctx.err('hint: as appropriate to mark resolution and make a commit.');
-    return fatal(ctx, 'Exiting because of an unresolved conflict.');
+    fatal(ctx, 'Exiting because of an unresolved conflict.');
+    for (const path of [...repo.conflicts.keys()].sort()) ctx.out(`U\t${path}`);
+    return 128;
   }
   const amend = flag(p, 'amend');
   const head = repo.headCommit();
@@ -77,12 +83,15 @@ export const commit: Command = (ctx, argv) => {
     return 1;
   }
 
-  const parents = amend ? head!.parents : [...(head ? [head.id] : []), ...(repo.merging ? [repo.merging.theirs] : [])];
-  const created = repo.createCommit(files, parents, message, amend ? head!.author : undefined);
+  const pending = repo.merging;
+  const merging = pending?.kind === 'merge';
+  const parents = amend ? head!.parents : [...(head ? [head.id] : []), ...(merging ? [pending.theirs] : [])];
+  const author = amend ? head!.author : pending?.author;
+  const created = repo.createCommit(files, parents, message, author);
   const subject = created.message.split('\n')[0];
-  const kind = amend ? ' (amend)' : repo.merging ? ' (merge)' : head ? '' : ' (initial)';
+  const kind = amend ? ' (amend)' : merging ? ' (merge)' : pending?.kind === 'cherry-pick' ? ' (cherry-pick)' : head ? '' : ' (initial)';
   repo.advanceHead(created.id, `commit${kind}: ${subject}`);
   repo.merging = null;
-  if (!flag(p, 'quiet')) reportCommit(ctx, repo, created.id, created.parents.length === 0 && !amend);
+  if (!flag(p, 'quiet')) reportCommit(ctx, repo, created.id, created.parents.length === 0 && !amend, amend);
   return 0;
 };

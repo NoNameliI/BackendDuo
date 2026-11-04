@@ -124,7 +124,7 @@ export function formatSummary(changes: FileChange[], modes = true): string[] {
 const scale = (it: number, width: number, max: number) => (it ? 1 + Math.floor((it * (width - 1)) / max) : 0);
 
 /** `--stat` lines: " file | 4 ++--" with git's 80-column layout, then the summary line. */
-export function formatStat(changes: FileChange[]): string[] {
+export function formatStat(changes: FileChange[], modes = false): string[] {
   const rows = changes.map((c) => ({ name: c.from !== undefined ? formatRename(c.from, c.path) : c.path, ...lineStats(c.oldContent, c.newContent) }));
   const maxChange = Math.max(0, ...rows.map((r) => r.added + r.removed));
   const numberWidth = String(maxChange).length;
@@ -153,5 +153,5 @@ export function formatStat(changes: FileChange[]): string[] {
     const graph = '+'.repeat(added) + '-'.repeat(removed);
     return ` ${name} | ${String(r.added + r.removed).padStart(numberWidth)}${graph ? ` ${graph}` : ''}`;
   });
-  return [...out, ...formatSummary(changes, false)];
+  return [...out, ...formatSummary(changes, modes)];
 }

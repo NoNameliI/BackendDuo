@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GitSandboxEngine, SetupError } from './GitSandboxEngine';
 import { blobId } from './objects';
 import { sha1 } from './sha1';
+import { prompt } from './complete';
 import { tokenize } from './shell';
 
 const text = (engine: GitSandboxEngine, line: string) => engine.run(line).lines.map((l) => l.text);
@@ -85,5 +86,48 @@ describe('git commands', () => {
     a.reset('git init -q one');
     expect(b.world.repos.size).toBe(0);
     expect(() => a.reset('git commit -m nothing')).toThrow(SetupError);
+  });
+});
+
+describe('history operations', () => {
+  const base = 'git init -q r\ncd r\necho a > a.txt\ngit add a.txt\ngit commit -q -m one\necho b >> a.txt\ngit commit -q -am two';
+
+  it('recovers a commit lost by reset through the reflog', () => {
+    const engine = new GitSandboxEngine();
+    engine.reset(base);
+    const repo = engine.world.repoAt(engine.world.cwd)!;
+    const lost = repo.headId();
+    engine.run('git reset --hard HEAD~1');
+    expect(repo.headCommit()!.message).toBe('one\n');
+    expect(text(engine, 'git reset --hard HEAD@{1}')[0]).toMatch(/^HEAD is now at [0-9a-f]{7} two$/);
+    expect(repo.headId()).toBe(lost);
+  });
+
+  it('prints "Updating" before refusing to overwrite local changes, as a terminal shows it', () => {
+    const engine = new GitSandboxEngine();
+    engine.reset(`${base}\ngit switch -q -c f\necho c >> a.txt\ngit commit -q -am three\ngit switch -q main\necho dirty >> a.txt`);
+    const result = engine.run('git merge f');
+    expect(result.exit).not.toBe(0);
+    expect(result.lines[0].text).toMatch(/^Updating /);
+    expect(result.lines[1].text).toBe('error: Your local changes to the following files would be overwritten by merge:');
+  });
+
+  it('shows rebase progress in the prompt and finishes after --continue', () => {
+    const engine = new GitSandboxEngine();
+    engine.reset(`${base}\ngit switch -q -c f\necho f > a.txt\ngit commit -q -am f\ngit switch -q main\necho m > a.txt\ngit commit -q -am m\ngit switch -q f`);
+    expect(engine.run('git rebase main').exit).toBe(1);
+    expect(prompt(engine.world)).toBe('~/r (f|REBASE 1/1) $');
+    engine.run('echo both > a.txt');
+    engine.run('git add a.txt');
+    expect(engine.run('git rebase --continue').exit).toBe(0);
+    expect(prompt(engine.world)).toBe('~/r (f) $');
+  });
+
+  it('asks for an upstream before the first push of a new branch', () => {
+    const engine = new GitSandboxEngine();
+    engine.reset('git init -q --bare /srv/o.git\ngit clone -q /srv/o.git w\ncd w\necho x > x\ngit add x\ngit commit -q -m x\ngit switch -q -c topic');
+    expect(text(engine, 'git push')[0]).toBe('fatal: The current branch topic has no upstream branch.');
+    expect(engine.run('git push -u origin topic').exit).toBe(0);
+    expect(engine.world.repos.get('/srv/o.git')!.branches.has('topic')).toBe(true);
   });
 });

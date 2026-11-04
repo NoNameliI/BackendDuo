@@ -1,4 +1,4 @@
-import { flag, parseArgs } from '../args';
+import { flag, parseArgs, value } from '../args';
 import { drawGraph } from '../graph';
 import { formatDate, type Commit, type Files } from '../objects';
 import { compareFiles, formatPatch, formatStat } from '../patch';
@@ -82,6 +82,7 @@ function logEntry(repo: Repo, c: Commit, oneline: boolean): string[] {
 }
 
 export const log: Command = (ctx, argv) => {
+  if (argv.includes('-g') || argv.includes('--walk-reflogs')) return reflog(ctx, argv.filter((a) => a !== '-g' && a !== '--walk-reflogs'));
   const limitArg = argv.find((a) => /^-\d+$/.test(a));
   const p = parseArgs(
     argv.filter((a) => a !== limitArg),
@@ -167,12 +168,23 @@ export const show: Command = (ctx, argv) => {
     ctx.err(`fatal: ambiguous argument '${rev}': unknown revision or path not in the working tree.`);
     return 128;
   }
+  const tagged = repo.tags.get(rev)?.annotation;
+  if (tagged) {
+    ctx.out(`tag ${rev}`);
+    ctx.out(`Tagger: ${tagged.tagger.name} <${tagged.tagger.email}>`);
+    ctx.out(`Date:   ${formatDate(tagged.tagger)}`);
+    ctx.out('');
+    for (const line of tagged.message.replace(/\n$/, '').split('\n')) ctx.out(line);
+    ctx.out('');
+  }
   const commit = repo.commits.get(id)!;
+  const stat = argv.includes('--stat');
   for (const line of logEntry(repo, commit, false)) ctx.out(line);
-  if (commit.parents.length > 1) return 0;
+  // A clean merge has an empty combined diff; --stat compares with the first parent.
+  if (commit.parents.length > 1 && !stat) return 0;
   const before = commit.parents[0] ? repo.commits.get(commit.parents[0])!.files : {};
   if (compareFiles(before, commit.files).length) ctx.out('');
-  printChanges(ctx, before, commit.files, [], argv.includes('--stat'));
+  printChanges(ctx, before, commit.files, [], stat);
   return 0;
 };
 
@@ -206,5 +218,25 @@ export const diff: Command = (ctx, argv) => {
     return 0;
   }
   printChanges(ctx, before, after, specs, flag(p, 'stat'));
+  return 0;
+};
+
+/** `git reflog` and `git log -g`: where HEAD has been, newest first. */
+export const reflog: Command = (ctx, argv) => {
+  const args = argv[0] === 'show' ? argv.slice(1) : argv;
+  const limitArg = args.find((a) => /^-\d+$/.test(a));
+  const p = parseArgs(args.filter((a) => a !== limitArg), { flags: { '-n': 'max', '--max-count': 'max', '--oneline': 'oneline' }, values: ['max'] });
+  if (p.error) return fatal(ctx, p.error);
+  const repo = requireRepo(ctx);
+  if (!repo) return 128;
+  if (p.args.length && p.args[0] !== 'HEAD') {
+    ctx.err('error: в учебной песочнице хранится журнал ссылок только для HEAD.');
+    return 1;
+  }
+  const max = limitArg ? Number(limitArg.slice(1)) : Number(value(p, 'max') ?? Infinity);
+  repo.reflog.slice(0, max).forEach((entry, i) => {
+    const refs = decorations(repo, entry.id);
+    ctx.out(`${repo.short(entry.id)}${refs.length ? ` (${refs.join(', ')})` : ''} HEAD@{${i}}: ${entry.message}`);
+  });
   return 0;
 };

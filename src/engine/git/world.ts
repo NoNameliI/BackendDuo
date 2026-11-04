@@ -13,6 +13,44 @@ export interface ReflogEntry {
   message: string;
 }
 
+/** One side of a conflict is null when that side deleted the file; base is null for add/add. */
+export interface Conflict {
+  base: string | null;
+  ours: string | null;
+  theirs: string | null;
+}
+
+export function conflictKind(c: Conflict): 'both modified' | 'both added' | 'deleted by us' | 'deleted by them' {
+  if (c.ours === null) return 'deleted by us';
+  if (c.theirs === null) return 'deleted by them';
+  return c.base === null ? 'both added' : 'both modified';
+}
+
+/** A merge, cherry-pick or revert stopped by conflicts (MERGE_HEAD / CHERRY_PICK_HEAD / REVERT_HEAD). */
+export interface Pending {
+  kind: 'merge' | 'cherry-pick' | 'revert' | 'rebase';
+  /** Merged or picked commit. */
+  theirs: string;
+  message: string;
+  /** Author kept from the picked commit. */
+  author?: Signature;
+}
+
+export interface RebaseState {
+  /** Branch being rebased (null when HEAD was detached) and where it pointed before. */
+  branch: string | null;
+  origHead: string;
+  onto: string;
+  /** Commits still to apply, oldest first; `done` holds the ones already applied or stopped at. */
+  todo: string[];
+  done: string[];
+}
+
+export interface StashEntry {
+  id: string;
+  message: string;
+}
+
 export interface Tag {
   /** Commit the tag points at. */
   target: string;
@@ -59,6 +97,19 @@ export class World {
   constructor(identity = { name: 'Студент', email: 'student@example.com' }) {
     this.globalConfig.set('user.name', identity.name);
     this.globalConfig.set('user.email', identity.email);
+    // Divergent pulls merge, so beginners never meet git's "specify how to reconcile" stop.
+    this.globalConfig.set('pull.rebase', 'false');
+  }
+
+  /** Web addresses of sandbox hosting (https://…) mapped to repository paths in this world. */
+  readonly hosts = new Map<string, string>();
+
+  /** The repository a remote URL points at: a sandbox path (with or without ".git") or a hosting address. */
+  findRemote(url: string, from: string): Repo | undefined {
+    const target = this.hosts.get(url) ?? this.hosts.get(url.replace(/\.git$/, '')) ?? url;
+    if (/^[a-z]+:\/\//.test(target) || /^[\w.-]+@[\w.-]+:/.test(target)) return undefined;
+    const path = resolvePath(from, target);
+    return this.repos.get(path) ?? this.repos.get(`${path}.git`);
   }
 
   /** Called before each git command, so a command's commits share one timestamp, as in real git. */
@@ -123,6 +174,8 @@ export class Repo {
   readonly remotes = new Map<string, string>();
   /** "origin/main" → commit id. */
   readonly remoteBranches = new Map<string, string>();
+  /** Remote → its default branch, shown as "origin/HEAD". */
+  readonly remoteHeads = new Map<string, string>();
   /** Local branch → its upstream ("origin/main"). */
   readonly upstreams = new Map<string, { remote: string; branch: string }>();
   readonly config = new Map<string, string>();
@@ -131,16 +184,29 @@ export class Repo {
   previousBranch: string | null = null;
   head: Head = { kind: 'branch', name: 'main' };
   index = new Map<string, string>();
-  /** Unresolved paths of an operation stopped by conflicts, with both sides' versions. */
-  readonly conflicts = new Map<string, { ours: string | null; theirs: string | null }>();
-  /** Set while a merge (or rebase, cherry-pick, revert) waits for conflicts to be resolved. */
-  merging: { kind: 'merge' | 'rebase' | 'cherry-pick' | 'revert'; theirs: string; message: string } | null = null;
+  /** Unresolved paths of an operation stopped by conflicts. */
+  readonly conflicts = new Map<string, Conflict>();
+  /** Set while a merge, cherry-pick, revert or rebase step waits for conflicts to be resolved. */
+  merging: Pending | null = null;
+  rebase: RebaseState | null = null;
+  origHead: string | undefined;
+  /** Newest first, like refs/stash's reflog. */
+  readonly stash: StashEntry[] = [];
 
   constructor(
     readonly world: World,
     readonly root: string,
     readonly bare = false,
   ) {}
+
+  /** Updates a remote-tracking branch (undefined deletes it), keeping "<remote>/HEAD" in step. */
+  setRemoteBranch(remote: string, branch: string, id: string | undefined): void {
+    const keys = [`${remote}/${branch}`, ...(this.remoteHeads.get(remote) === branch ? [`${remote}/HEAD`] : [])];
+    for (const key of keys) {
+      if (id === undefined) this.remoteBranches.delete(key);
+      else this.remoteBranches.set(key, id);
+    }
+  }
 
   headId(): string | undefined {
     return this.head.kind === 'branch' ? this.branches.get(this.head.name) : this.head.id;
@@ -197,9 +263,9 @@ export class Repo {
   }
 
   /** Stores a commit object and returns it; the id is computed exactly like git's. */
-  createCommit(files: Files, parents: string[], message: string, author?: Signature): Commit {
+  createCommit(files: Files, parents: string[], message: string, author?: Signature, raw = false): Commit {
     const committer = this.signature();
-    const body = { tree: treeId(files), parents, author: author ?? committer, committer, message: cleanMessage(message) };
+    const body = { tree: treeId(files), parents, author: author ?? committer, committer, message: raw ? message : cleanMessage(message) };
     const commit: Commit = { id: commitId(body), files: { ...files }, ...body };
     this.commits.set(commit.id, commit);
     return commit;
@@ -230,7 +296,12 @@ export class Repo {
   }
 
   private resolveName(name: string): string | undefined {
+    const at = /^(.*)@\{(\d+|u|upstream|-1)\}$/.exec(name);
+    if (at) return this.resolveAt(at[1], at[2]);
     if (name === 'HEAD' || name === '@') return this.headId();
+    if (name === 'ORIG_HEAD') return this.origHead;
+    if (name === 'MERGE_HEAD') return this.merging?.kind === 'merge' ? this.merging.theirs : undefined;
+    if (name === 'stash') return this.stash[0]?.id;
     if (this.branches.has(name)) return this.branches.get(name);
     if (this.tags.has(name)) return this.tags.get(name)!.target;
     if (this.remoteBranches.has(name)) return this.remoteBranches.get(name);
@@ -242,6 +313,19 @@ export class Repo {
       const found = [...this.commits.keys()].filter((id) => id.startsWith(name));
       if (found.length === 1) return found[0];
     }
+    return undefined;
+  }
+
+  private resolveAt(base: string, spec: string): string | undefined {
+    if (spec === '-1') return this.previousBranch ? this.branches.get(this.previousBranch) : undefined;
+    if (spec === 'u' || spec === 'upstream') {
+      const branch = base === '' || base === 'HEAD' ? this.currentBranch() : base;
+      const up = branch ? this.upstreams.get(branch) : undefined;
+      return up ? this.remoteBranches.get(`${up.remote}/${up.branch}`) : undefined;
+    }
+    const n = Number(spec);
+    if (base === 'stash') return this.stash[n]?.id;
+    if (base === '' || base === 'HEAD') return this.reflog[n]?.id;
     return undefined;
   }
 
@@ -281,8 +365,8 @@ export class Repo {
     const name = `${upstream.remote}/${upstream.branch}`;
     const theirs = this.remoteBranches.get(name);
     const ours = this.branches.get(branch);
-    if (!theirs) return [`Your branch is based on '${name}', but the upstream is gone.`, '  (use "git branch --unset-upstream" to fixup)'];
     if (!ours) return [];
+    if (!theirs) return [`Your branch is based on '${name}', but the upstream is gone.`, '  (use "git branch --unset-upstream" to fixup)'];
     const [ahead, behind] = this.aheadBehind(ours, theirs);
     const commits = (n: number) => `${n} commit${n === 1 ? '' : 's'}`;
     if (!ahead && !behind) return [`Your branch is up to date with '${name}'.`];

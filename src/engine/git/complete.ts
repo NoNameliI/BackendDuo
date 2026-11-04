@@ -17,8 +17,13 @@ const STATE_NAMES = { merge: 'MERGING', rebase: 'REBASE', 'cherry-pick': 'CHERRY
 export function prompt(world: World): string {
   const repo = world.repoAt(world.cwd);
   if (!repo || repo.bare) return `${displayPath(world.cwd)} $`;
-  const where = repo.currentBranch() ?? `${repo.short(repo.headId()!)}...`;
-  const state = repo.merging ? `|${STATE_NAMES[repo.merging.kind]}` : '';
+  const rebase = repo.rebase;
+  const state = rebase
+    ? `|REBASE ${rebase.done.length}/${rebase.done.length + rebase.todo.length}`
+    : repo.merging
+      ? `|${STATE_NAMES[repo.merging.kind]}`
+      : '';
+  const where = repo.currentBranch() ?? (rebase?.branch ? `${rebase.branch}` : `${repo.short(repo.headId()!)}...`);
   return `${displayPath(world.cwd)} (${where}${state}) $`;
 }
 

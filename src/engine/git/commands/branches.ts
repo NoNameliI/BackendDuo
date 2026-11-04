@@ -378,21 +378,39 @@ export const branch: Command = (ctx, argv) => {
   }
 
   const verbose = flag(p, 'verbose');
-  const rows: { name: string; current: boolean; id?: string }[] = [];
+  const veryVerbose = argv.includes('-vv') || argv.filter((a) => a === '-v' || a === '--verbose').length > 1;
+  const rows: { name: string; current: boolean; id?: string; branch?: string; alias?: string }[] = [];
   if (!flag(p, 'remotes')) {
     if (repo.head.kind === 'detached') rows.push({ name: `(HEAD detached at ${repo.short(repo.head.id)})`, current: true, id: repo.head.id });
-    for (const name of [...repo.branches.keys()].sort()) rows.push({ name, current: repo.currentBranch() === name, id: repo.branches.get(name) });
+    for (const name of [...repo.branches.keys()].sort()) rows.push({ name, current: repo.currentBranch() === name, id: repo.branches.get(name), branch: name });
   }
   if (flag(p, 'all') || flag(p, 'remotes')) {
     for (const name of [...repo.remoteBranches.keys()].sort()) {
-      rows.push({ name: flag(p, 'all') ? `remotes/${name}` : name, current: false, id: repo.remoteBranches.get(name) });
+      const [remote, rest] = [name.slice(0, name.indexOf('/')), name.slice(name.indexOf('/') + 1)];
+      const alias = rest === 'HEAD' && repo.remoteHeads.has(remote) ? `${remote}/${repo.remoteHeads.get(remote)}` : undefined;
+      rows.push({ name: flag(p, 'all') ? `remotes/${name}` : name, current: false, id: repo.remoteBranches.get(name), alias });
     }
   }
-  const width = Math.max(0, ...rows.map((r) => r.name.length));
+  const width = Math.max(0, ...rows.filter((r) => !r.alias).map((r) => r.name.length));
+  const tracking = (branch: string, id: string): string => {
+    const up = repo.upstreams.get(branch);
+    if (!up) return '';
+    const name = `${up.remote}/${up.branch}`;
+    const theirs = repo.remoteBranches.get(name);
+    if (!theirs) return veryVerbose ? `[${name}: gone] ` : '[gone] ';
+    const [ahead, behind] = repo.aheadBehind(id, theirs);
+    const state = [ahead ? `ahead ${ahead}` : '', behind ? `behind ${behind}` : ''].filter(Boolean).join(', ');
+    if (veryVerbose) return `[${name}${state ? `: ${state}` : ''}] `;
+    return state ? `[${state}] ` : '';
+  };
   for (const row of rows) {
     const mark = row.current ? '* ' : '  ';
-    if (!verbose || !row.id) ctx.out(`${mark}${row.name}`);
-    else ctx.out(`${mark}${row.name.padEnd(width)} ${repo.short(row.id)} ${repo.commits.get(row.id)!.message.split('\n')[0]}`);
+    if (row.alias) ctx.out(`${mark}${row.name} -> ${row.alias}`);
+    else if (!verbose || !row.id) ctx.out(`${mark}${row.name}`);
+    else {
+      const info = row.branch ? tracking(row.branch, row.id) : '';
+      ctx.out(`${mark}${row.name.padEnd(width)} ${repo.short(row.id)} ${info}${repo.commits.get(row.id)!.message.split('\n')[0]}`);
+    }
   }
   return 0;
 };

@@ -56,3 +56,17 @@ describe('terminal helpers', () => {
     expect(commonPrefix(['status', 'stash'])).toBe('sta');
   });
 });
+
+describe('graph layout of a merge', () => {
+  it('joins the merged branch back into the main lane', () => {
+    const engine = sandbox(`${BRANCHED}\ngit merge -q --no-edit feature`);
+    const layout = layoutGraph(engine.world.repoAt(engine.world.cwd)!);
+    expect(layout.nodes.map((n) => [n.subject, n.lane])).toEqual([
+      ["Merge branch 'feature'", 0],
+      ['main-work', 0],
+      ['feature', 1],
+      ['base', 0],
+    ]);
+    expect(layout.edges.filter((e) => e.from.row === 0)).toHaveLength(2);
+  });
+});
