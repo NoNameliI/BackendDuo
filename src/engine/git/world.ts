@@ -46,6 +46,21 @@ export interface RebaseState {
   done: string[];
 }
 
+/** A branch update a push asks a remote for; `id` is undefined for a deletion. */
+export interface RefUpdate {
+  branch: string;
+  old: string | undefined;
+  id: string | undefined;
+  force: boolean;
+}
+
+/** Server-side hooks of a hosted repository (protected branches, CI, "create a pull request" hints). */
+export interface ReceiveHook {
+  check(update: RefUpdate): { reason: string; messages: string[] } | null;
+  /** Runs after accepted updates; returns lines printed with the "remote: " prefix. */
+  after(updates: RefUpdate[]): string[];
+}
+
 export interface StashEntry {
   id: string;
   message: string;
@@ -190,6 +205,8 @@ export class Repo {
   merging: Pending | null = null;
   rebase: RebaseState | null = null;
   origHead: string | undefined;
+  /** Set on repositories that live on the sandbox's hosting. */
+  receive: ReceiveHook | undefined;
   /** Newest first, like refs/stash's reflog. */
   readonly stash: StashEntry[] = [];
 
@@ -263,8 +280,8 @@ export class Repo {
   }
 
   /** Stores a commit object and returns it; the id is computed exactly like git's. */
-  createCommit(files: Files, parents: string[], message: string, author?: Signature, raw = false): Commit {
-    const committer = this.signature();
+  createCommit(files: Files, parents: string[], message: string, author?: Signature, raw = false, by?: Signature): Commit {
+    const committer = by ?? this.signature();
     const body = { tree: treeId(files), parents, author: author ?? committer, committer, message: raw ? message : cleanMessage(message) };
     const commit: Commit = { id: commitId(body), files: { ...files }, ...body };
     this.commits.set(commit.id, commit);

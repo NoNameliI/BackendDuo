@@ -39,7 +39,8 @@ describe('shell', () => {
     engine.run('echo world >> a.txt');
     expect(text(engine, 'cat a.txt')).toEqual(['hello', 'world']);
     expect(engine.run('vim a.txt')).toMatchObject({ exit: 127, lines: [{ text: 'bash: vim: command not found', stream: 'err' }] });
-    expect(engine.run('false || true').exit).toBe(2);
+    expect(engine.run('false || true').exit).toBe(0);
+    expect(engine.run('echo a | cat').exit).toBe(2);
     expect(engine.run('clear').clear).toBe(true);
   });
 

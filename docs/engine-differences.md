@@ -48,4 +48,31 @@
 - `pull` по умолчанию сливает (как `pull.rebase=false`), чтобы новичок не упирался в выбор стратегии.
 - Сообщения о прогрессе передачи («Enumerating objects…») не выводятся.
 
-Разделы о хостинге и CI дополняются по мере появления этих возможностей в песочнице.
+## Учебный хостинг (GitHub и GitLab)
+
+- Хостинг — модель внутри приложения. Адреса `https://github.com/…`, `https://gitlab.com/…` и
+  `git@…:…` ведут к репозиториям песочницы; запросов в сеть нет, учётные записи и токены не нужны.
+  Переключатель GitHub/GitLab меняет термины (pull request / merge request, Actions / CI/CD) и сообщения.
+- Пользователь всегда `student`. Других участников (например, ревьюера `mentor`) изображает песочница.
+- Учебные `gh` и `glab` знают повседневные команды: `repo create|clone|fork|view`, `pr`/`mr`
+  `create|list|view|diff|checks|merge|review|approve|comment|close|checkout`, `issue create|list|view|close|comment`,
+  `release create|list|view`, `run`/`ci list|view`. Интерактивных вопросов нет: недостающее берётся по умолчанию
+  (например, `gh pr merge` без флага делает обычное слияние).
+- Защита ветки: запрет прямого push, нужное число одобрений, обязательные проверки CI. Тексты отказа
+  (`GH006 …`, `You are not allowed to push code to protected branches …`) повторяют настоящие.
+- Слияние на хостинге делает коммит слияния, squash или rebase; «Closes #N» в описании закрывает задачу.
+
+## CI (GitHub Actions и GitLab CI)
+
+- Читаются `.github/workflows/*.yml` и `.gitlab-ci.yml` из отправленного коммита. Поддерживаются триггеры
+  `push`/`pull_request` с фильтрами веток, `jobs`, `needs`, `steps` с `run`, `env`, `if` (сравнения, `&&`, `||`,
+  `success()`, `failure()`, `always()`), выражения `${{ github.… }}`; в GitLab — `stages`, `script`,
+  `before_script`/`after_script`, `variables`, `rules: - if:`, `only`/`except`, `when: manual`, `allow_failure`.
+- Шаги выполняются в отдельной учебной песочнице: доступны команды оболочки песочницы, а также `test`/`[`,
+  `grep`, `npm test`/`npm run` (скрипты из package.json), запуск `.sh`-файлов. Настоящие программы, Docker-образы,
+  сеть и кэши не используются; `actions/checkout` копирует файлы коммита, прочие действия (`uses:`) только
+  отмечаются в журнале. Матрицы, артефакты, секреты и расписания не моделируются.
+- Без `actions/checkout` в GitHub Actions файлов проекта в рабочей папке нет — как и на настоящем раннере.
+
+Служебные команды для заданий курса: `hosting flavor|create|protect` и `as <пользователь> <команда>`
+(подготовить чужой репозиторий или ревью). В реальном Git их нет.

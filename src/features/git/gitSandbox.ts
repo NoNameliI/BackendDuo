@@ -21,6 +21,8 @@ interface GitSandboxState {
   reset: (setup: string, cwd?: string) => void;
   saveFile: (path: string, content: string) => void;
   setOpenFile: (path: string | null) => void;
+  /** Re-renders views after a change made outside the terminal (hosting pages). */
+  touch: () => void;
 }
 
 let nextId = 1;
@@ -72,4 +74,5 @@ export const useGitSandbox = create<GitSandboxState>((set, get) => ({
     set({ version: get().version + 1 });
   },
   setOpenFile: (openFile) => set({ openFile }),
+  touch: () => set({ version: get().version + 1 }),
 }));

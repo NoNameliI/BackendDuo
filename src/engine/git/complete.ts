@@ -1,7 +1,7 @@
 import { computeStatus } from './status';
 import { displayPath, relativePath, resolvePath, type World } from './world';
 
-export const SHELL_COMMANDS = ['cat', 'cd', 'clear', 'echo', 'git', 'ls', 'mkdir', 'mv', 'pwd', 'rm', 'touch'];
+export const SHELL_COMMANDS = ['cat', 'cd', 'clear', 'echo', 'gh', 'git', 'glab', 'grep', 'ls', 'mkdir', 'mv', 'npm', 'pwd', 'rm', 'test', 'touch'];
 
 export const GIT_COMMANDS = [
   'add', 'branch', 'checkout', 'cherry-pick', 'clone', 'commit', 'config', 'diff', 'fetch', 'init', 'log', 'merge',

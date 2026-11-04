@@ -5,9 +5,12 @@ import { useGitSandbox } from './gitSandbox';
 
 /** git prints progress and advice to stderr too; only real errors are red. */
 function tone(line: OutputLine): string {
+  const text = line.text;
+  if (/^(remote: )?(fatal|error)\b|^CONFLICT|\[(remote )?rejected\]/.test(text)) return 'text-err';
   if (line.stream === 'out') return 'text-dim';
-  if (/^(fatal|error|bash|CONFLICT)|^[a-z]+: /.test(line.text) && !line.text.startsWith('hint:')) return 'text-err';
-  return line.text.startsWith('hint:') ? 'text-amber' : 'text-dim';
+  if (text.startsWith('hint:')) return 'text-amber';
+  // Errors of other tools: "bash: x: command not found", "grep: f: No such file or directory".
+  return /^(?!remote:|hint:|warning:)[a-z]+: /.test(text) ? 'text-err' : 'text-dim';
 }
 
 /** Command line of the Git sandbox: prompt, history on ↑/↓, Tab completion, Ctrl+L to clear. */

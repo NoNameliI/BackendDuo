@@ -1,5 +1,5 @@
 import { flag, parseArgs } from '../args';
-import { Repo, resolvePath } from '../world';
+import { Repo, resolvePath, type RefUpdate } from '../world';
 import { fatal, quiet, requireRepo, type Command, type Ctx } from './common';
 import { mergeInto, refuseWhileMerging } from './merge';
 import { rebase } from './sequencer';
@@ -256,6 +256,9 @@ export const push: Command = (outer, argv) => {
   const rows: string[] = [];
   let rejected: 'fetch first' | 'non-fast-forward' | null = null;
   let deleteFailed = false;
+  let remoteRejected = false;
+  const remoteLines: string[] = [];
+  const updates: RefUpdate[] = [];
   const pushed: Spec[] = [];
   for (const spec of specs) {
     if (spec.src === null) {
@@ -264,6 +267,14 @@ export const push: Command = (outer, argv) => {
         deleteFailed = true;
         continue;
       }
+      const refused = remote.receive?.check({ branch: spec.dst, old: remote.branches.get(spec.dst), id: undefined, force: true });
+      if (refused) {
+        remoteLines.push(...refused.messages);
+        rows.push(` ! ${summary('[remote rejected]')} ${spec.dst} (${refused.reason})`);
+        remoteRejected = true;
+        continue;
+      }
+      updates.push({ branch: spec.dst, old: remote.branches.get(spec.dst), id: undefined, force: true });
       remote.branches.delete(spec.dst);
       repo.setRemoteBranch(remoteName, spec.dst, undefined);
       rows.push(` - ${summary('[deleted]')} ${spec.dst}`);
@@ -301,6 +312,15 @@ export const push: Command = (outer, argv) => {
       }
     }
     copyObjects(repo, remote, [id]);
+    const update = { branch: spec.dst, old, id, force: Boolean(old && !repo.isAncestor(old, id)) };
+    const refused = remote.receive?.check(update);
+    if (refused) {
+      remoteLines.push(...refused.messages);
+      rows.push(` ! ${summary('[remote rejected]')} ${arrow} (${refused.reason})`);
+      remoteRejected = true;
+      continue;
+    }
+    updates.push(update);
     remote.branches.set(spec.dst, id);
     repo.setRemoteBranch(remoteName, spec.dst, id);
     if (!old) rows.push(` * ${summary('[new branch]')} ${arrow}`);
@@ -309,11 +329,13 @@ export const push: Command = (outer, argv) => {
     pushed.push(spec);
   }
 
+  if (updates.length && remote.receive) remoteLines.push(...remote.receive.after(updates));
+  for (const line of remoteLines) ctx.err(`remote: ${line}`);
   if (rows.length) {
     ctx.err(`To ${url}`);
     for (const row of rows) ctx.err(row);
   } else if (!rejected && !deleteFailed) ctx.err('Everything up-to-date');
-  if (rejected || deleteFailed) {
+  if (rejected || deleteFailed || remoteRejected) {
     ctx.err(`error: failed to push some refs to '${url}'`);
     const hints =
       rejected === 'fetch first'
@@ -339,7 +361,7 @@ export const push: Command = (outer, argv) => {
       ctx.out(`branch '${spec.src}' set up to track '${remoteName}/${spec.dst}'.`);
     }
   }
-  return rejected || deleteFailed ? 1 : 0;
+  return rejected || deleteFailed || remoteRejected ? 1 : 0;
 };
 
 export const remote: Command = (ctx, argv) => {

@@ -1,5 +1,7 @@
 import { runGit } from './commands';
 import type { Ctx } from './commands/common';
+import { HOSTING_TOOLS } from './hosting/cli';
+import { runScriptFile, TOOLS } from './tools';
 import { resolvePath, type World } from './world';
 
 export interface OutputLine {
@@ -14,7 +16,7 @@ export interface ShellResult {
   clear: boolean;
 }
 
-type Token = { op: '&&' | ';' | '>' | '>>' | '|' } | { word: string };
+type Token = { op: '&&' | '||' | ';' | '>' | '>>' | '|' } | { word: string };
 
 /** Splits a command line into words and operators; quotes group words, backslash escapes outside single quotes. */
 export function tokenize(line: string): Token[] | { error: string } {
@@ -42,6 +44,10 @@ export function tokenize(line: string): Token[] | { error: string } {
     else if (c === '&' && line[i + 1] === '&') {
       flush();
       tokens.push({ op: '&&' });
+      i++;
+    } else if (c === '|' && line[i + 1] === '|') {
+      flush();
+      tokens.push({ op: '||' });
       i++;
     } else if (c === ';' || c === '|') {
       flush();
@@ -167,9 +173,18 @@ function builtin(ctx: Ctx, argv: string[], stdin: string | undefined): number {
       world.writeFile(world.isDir(to) ? `${to}/${from.split('/').pop()}` : to, content);
       return 0;
     }
-    default:
+    default: {
+      const exec = (line: string) => {
+        const result = runLine(world, line);
+        for (const l of result.lines) (l.stream === 'out' ? ctx.out : ctx.err)(l.text);
+        return result.exit;
+      };
+      if (cmd.startsWith('./') || cmd.endsWith('.sh')) return runScriptFile(ctx, cmd, { stdin, exec });
+      const tool = TOOLS[cmd] ?? HOSTING_TOOLS[cmd];
+      if (tool) return tool(ctx, args, { stdin, exec });
       ctx.err(`bash: ${cmd}: command not found`);
       return 127;
+    }
   }
 }
 
@@ -179,9 +194,9 @@ export function runLine(world: World, line: string, stdin?: string): ShellResult
   const tokens = tokenize(line);
   if ('error' in tokens) return { lines: [{ text: `bash: ${tokens.error}`, stream: 'err' }], exit: 2, clear: false };
 
-  const chain: { cmd: Simple; op: '&&' | ';' }[] = [];
+  const chain: { cmd: Simple; op: '&&' | '||' | ';' }[] = [];
   let current: Simple = { argv: [] };
-  let pendingOp: '&&' | ';' = ';';
+  let pendingOp: '&&' | '||' | ';' = ';';
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if ('word' in t) current.argv.push(t.word);
@@ -204,6 +219,7 @@ export function runLine(world: World, line: string, stdin?: string): ShellResult
   for (const { cmd, op } of chain) {
     if (cmd.argv.length === 0) continue;
     if (op === '&&' && exit !== 0) continue;
+    if (op === '||' && exit === 0) continue;
     if (cmd.argv[0] === 'clear') {
       clear = true;
       lines.length = 0;

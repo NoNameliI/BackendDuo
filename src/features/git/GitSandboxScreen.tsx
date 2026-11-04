@@ -5,16 +5,18 @@ import { Split } from '@/ui/Split';
 import { Tabs } from '@/ui/Tabs';
 import { GitFiles } from './GitFiles';
 import { GitGraph } from './GitGraph';
+import { GitHosting } from './GitHosting';
 import { PLAYGROUND_SETUP, useGitSandbox } from './gitSandbox';
 import { GitStatusView } from './GitStatusView';
 import { GitTerminal } from './GitTerminal';
 
 const GitFileEditor = lazy(() => import('./GitFileEditor'));
 
-type Side = 'graph' | 'status';
+type Side = 'graph' | 'status' | 'hosting';
 const SIDE_TABS = [
   { id: 'graph', title: 'Граф' },
   { id: 'status', title: 'Статус' },
+  { id: 'hosting', title: 'Хостинг' },
 ] as const;
 
 const SANDBOX_NOTE = 'Учебная песочница: Git смоделирован внутри приложения, команды не трогают ваши файлы и сеть';
@@ -43,7 +45,7 @@ export default function GitSandboxScreen() {
           </Panel>
           <Panel tabs={<Tabs label="Состояние репозитория" items={SIDE_TABS} value={side} onChange={setSide} idPrefix="git-side" />}>
             <div id="git-side-panel" role="tabpanel" aria-labelledby={`git-side-tab-${side}`} className="h-full">
-              {side === 'graph' ? <GitGraph /> : <GitStatusView />}
+              {side === 'graph' ? <GitGraph /> : side === 'status' ? <GitStatusView /> : <GitHosting />}
             </div>
           </Panel>
         </Split>
