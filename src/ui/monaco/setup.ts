@@ -1,5 +1,5 @@
 // Monaco is bundled locally (the app works offline) with only the editor features we use
-// and the PostgreSQL grammar; no bundled language services.
+// and a few grammars (PostgreSQL, files of the Git course); no bundled language services.
 import 'monaco-editor/features/codeEditor/register';
 import 'monaco-editor/features/codicon/register';
 import 'monaco-editor/features/bracketMatching/register';
@@ -23,6 +23,13 @@ import 'monaco-editor/editor/contrib/find/browser/findController';
 import 'monaco-editor/editor/contrib/suggest/browser/suggestController';
 import 'monaco-editor/editor/common/standaloneStrings';
 import 'monaco-editor/languages/definitions/pgsql/register';
+import 'monaco-editor/languages/definitions/markdown/register';
+import 'monaco-editor/languages/definitions/yaml/register';
+import 'monaco-editor/languages/definitions/javascript/register';
+import 'monaco-editor/languages/definitions/css/register';
+import 'monaco-editor/languages/definitions/html/register';
+import 'monaco-editor/languages/definitions/shell/register';
+import 'monaco-editor/languages/definitions/ini/register';
 import * as monaco from 'monaco-editor/editor/editor.api';
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
 import { loader } from '@monaco-editor/react';

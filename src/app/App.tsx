@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { setWindowTheme } from '@/platform';
 import { HubScreen } from '@/features/hub/HubScreen';
 import { LessonScreen } from '@/features/lesson/LessonScreen';
@@ -12,6 +12,8 @@ import { useUi } from './store';
 import { TopBar } from './TopBar';
 import { applyTheme } from './theme';
 import { useResolvedTheme } from './useResolvedTheme';
+
+const GitSandboxScreen = lazy(() => import('@/features/git/GitSandboxScreen'));
 
 export function App() {
   const theme = useResolvedTheme();
@@ -36,6 +38,11 @@ export function App() {
         {view === 'map' && <MapScreen />}
         {view === 'lesson' && <LessonScreen />}
         {view === 'profile' && <ProfileScreen />}
+        {view === 'git-sandbox' && (
+          <Suspense fallback={null}>
+            <GitSandboxScreen />
+          </Suspense>
+        )}
       </main>
       <CommandPalette />
       <Toaster />

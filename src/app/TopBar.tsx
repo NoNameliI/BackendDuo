@@ -25,6 +25,7 @@ const nav: { id: View; title: string }[] = [
   { id: 'hub', title: 'Курсы' },
   { id: 'map', title: 'Карта' },
   { id: 'lesson', title: 'Урок' },
+  { id: 'git-sandbox', title: 'Песочница Git' },
   { id: 'profile', title: 'Профиль' },
 ];
 
@@ -62,7 +63,7 @@ export function TopBar() {
             type="button"
             aria-current={view === item.id ? 'page' : undefined}
             onClick={() => go(item.id)}
-            className={`relative text-[13px] font-medium transition-colors ${view === item.id ? 'text-fg' : 'text-faint hover:text-dim'}`}
+            className={`relative whitespace-nowrap text-[13px] font-medium transition-colors ${view === item.id ? 'text-fg' : 'text-faint hover:text-dim'}`}
           >
             {item.title}
             <span className={`absolute inset-x-0 bottom-0 h-0.5 rounded-full ${view === item.id ? 'bg-amber' : 'bg-transparent'}`} />

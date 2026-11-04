@@ -43,6 +43,7 @@ function buildCommands(close: () => void): Command[] {
       }),
     },
     { id: 'profile', group: 'Разделы', title: 'Профиль и настройки', run: go(() => ui.setView('profile')) },
+    { id: 'git-sandbox', group: 'Разделы', title: 'Песочница Git', hint: 'терминал, граф, файлы', run: go(() => ui.setView('git-sandbox')) },
     { id: 'theme', group: 'Действия', title: 'Сменить тему оформления', run: go(() => ui.setTheme(nextThemePreference(ui.theme))) },
   ];
   if (ui.view === 'lesson' && ws.task) {
