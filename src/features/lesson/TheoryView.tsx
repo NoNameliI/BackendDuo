@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { course } from '@/content/course';
+import { courseById } from '@/content/courses';
 import { errorHint, type Lesson } from '@/content/loadCourse';
 import { splitTheory } from '@/content/theory';
 import type { ExecOutcome } from '@/engine';
@@ -51,7 +51,7 @@ function RunnableExample({ lesson, sql }: { lesson: Lesson; sql: string }) {
   };
 
   const table = outcome?.results.findLast((r) => r.columns.length > 0);
-  const hint = outcome?.error ? errorHint(course, outcome.error.code) : undefined;
+  const hint = outcome?.error ? errorHint(courseById(lesson.courseId), outcome.error.code) : undefined;
 
   return (
     <figure className="overflow-hidden rounded-md border border-line bg-well">

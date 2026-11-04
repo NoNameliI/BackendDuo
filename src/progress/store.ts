@@ -1,10 +1,18 @@
 import { create } from 'zustand';
-import { course } from '@/content/course';
+import { courseById, courses, platform } from '@/content/courses';
 import type { Task } from '@/content/loadCourse';
 import type { Badge } from '@/content/schema';
 import { readStore, writeStore } from '@/platform';
 import { badgeEarned, levelInfo, localDay, progressOf, streakInfo, taskXp, totalXp } from './gamification';
-import { EMPTY_COURSE, emptyProgress, migrate, type CourseProgress, type ProgressDoc, type TaskProgress } from './model';
+import {
+  badgeKey,
+  EMPTY_COURSE,
+  emptyProgress,
+  migrate,
+  type CourseProgress,
+  type ProgressDoc,
+  type TaskProgress,
+} from './model';
 
 const STORE_KEY = 'progress';
 const SAVE_DELAY_MS = 400;
@@ -15,6 +23,8 @@ export interface SolveReward {
   levelUp: string | null;
 }
 
+type TaskRef = Pick<Task, 'id' | 'courseId'>;
+
 interface ProgressState {
   doc: ProgressDoc;
   load: () => Promise<void>;
@@ -23,23 +33,28 @@ interface ProgressState {
   revealSolution: (task: Task) => void;
   /** Returns the reward when this attempt solves the task for the first time. */
   recordAttempt: (task: Task, passed: boolean) => SolveReward | null;
-  passLessons: (lessonIds: string[]) => void;
-  completeOnboarding: (path: 'beginner' | 'experienced') => void;
+  passLessons: (courseId: string, lessonIds: string[]) => void;
+  completeOnboarding: (courseId: string, path: 'beginner' | 'experienced') => void;
   resetAll: () => void;
 }
 
-export const courseProgress = (doc: ProgressDoc): CourseProgress => doc.courses[course.id] ?? EMPTY_COURSE;
-export const selectCourse = (s: Pick<ProgressState, 'doc'>) => courseProgress(s.doc);
-export const selectTask = (taskId: string) => (s: Pick<ProgressState, 'doc'>) => progressOf(courseProgress(s.doc), taskId);
+export const courseProgress = (doc: ProgressDoc, courseId: string): CourseProgress => doc.courses[courseId] ?? EMPTY_COURSE;
+export const selectCourse = (courseId: string) => (s: Pick<ProgressState, 'doc'>) => courseProgress(s.doc, courseId);
+export const selectTask = (task: TaskRef) => (s: Pick<ProgressState, 'doc'>) =>
+  progressOf(courseProgress(s.doc, task.courseId), task.id);
 
-function withCourse(doc: ProgressDoc, change: (cp: CourseProgress) => CourseProgress): ProgressDoc {
-  return { ...doc, courses: { ...doc.courses, [course.id]: change(courseProgress(doc)) } };
+/** XP and level are shared by all courses. */
+export const globalXp = (doc: ProgressDoc): number =>
+  courses.reduce((sum, c) => sum + totalXp(c, courseProgress(doc, c.id)), 0);
+
+function withCourse(doc: ProgressDoc, courseId: string, change: (cp: CourseProgress) => CourseProgress): ProgressDoc {
+  return { ...doc, courses: { ...doc.courses, [courseId]: change(courseProgress(doc, courseId)) } };
 }
 
-function withTask(doc: ProgressDoc, taskId: string, change: (t: TaskProgress) => Partial<TaskProgress>): ProgressDoc {
-  return withCourse(doc, (cp) => {
-    const current = progressOf(cp, taskId);
-    return { ...cp, tasks: { ...cp.tasks, [taskId]: { ...current, ...change(current) } } };
+function withTask(doc: ProgressDoc, task: TaskRef, change: (t: TaskProgress) => Partial<TaskProgress>): ProgressDoc {
+  return withCourse(doc, task.courseId, (cp) => {
+    const current = progressOf(cp, task.id);
+    return { ...cp, tasks: { ...cp.tasks, [task.id]: { ...current, ...change(current) } } };
   });
 }
 
@@ -51,26 +66,28 @@ export const useProgress = create<ProgressState>((set, get) => {
 
     load: async () => {
       const raw = await readStore<unknown>(STORE_KEY);
-      const { doc, discarded } = migrate(raw);
+      const { doc, discarded, migratedFrom } = migrate(raw);
+      // Keep the original data next to the migrated copy: progress must never be lost.
       if (discarded) await writeStore(`${STORE_KEY}-unreadable`, raw);
+      if (migratedFrom !== undefined) await writeStore(`${STORE_KEY}-v${migratedFrom}-backup`, raw);
       set({ doc });
     },
 
-    saveDraft: (task, code) => update((d) => withTask(d, task.id, () => ({ draft: code }))),
-    useHint: (task) => update((d) => withTask(d, task.id, (t) => ({ hintsUsed: Math.min(t.hintsUsed + 1, task.hints.length) }))),
-    revealSolution: (task) => update((d) => withTask(d, task.id, () => ({ solutionShown: true }))),
+    saveDraft: (task, code) => update((d) => withTask(d, task, () => ({ draft: code }))),
+    useHint: (task) => update((d) => withTask(d, task, (t) => ({ hintsUsed: Math.min(t.hintsUsed + 1, task.hints.length) }))),
+    revealSolution: (task) => update((d) => withTask(d, task, () => ({ solutionShown: true }))),
 
     recordAttempt: (task, passed) => {
       const doc = get().doc;
-      const before = progressOf(courseProgress(doc), task.id);
+      const before = progressOf(courseProgress(doc, task.courseId), task.id);
       const attempts = before.attempts + 1;
       if (before.solved || !passed) {
-        update((d) => withTask(d, task.id, () => ({ attempts })));
+        update((d) => withTask(d, task, () => ({ attempts })));
         return null;
       }
 
       const today = localDay();
-      let next = withTask(doc, task.id, (t) => ({
+      let next = withTask(doc, task, (t) => ({
         attempts,
         solved: true,
         solvedAt: new Date().toISOString(),
@@ -79,23 +96,26 @@ export const useProgress = create<ProgressState>((set, get) => {
       }));
       next = { ...next, activity: { ...next.activity, [today]: (next.activity[today] ?? 0) + 1 } };
 
-      const xpBefore = totalXp(course, courseProgress(doc));
-      const xpAfter = totalXp(course, courseProgress(next));
+      const course = courseById(task.courseId);
       const streak = streakInfo(next.activity, today);
-      const badges = course.badges.filter((b) => !next.badges[b.id] && badgeEarned(b, course, courseProgress(next), streak));
+      const cp = courseProgress(next, course.id);
+      const badges = course.badges.filter((b) => !next.badges[badgeKey(course.id, b.id)] && badgeEarned(b, course, cp, streak));
       const earnedAt = new Date().toISOString();
-      next = { ...next, badges: { ...next.badges, ...Object.fromEntries(badges.map((b) => [b.id, earnedAt])) } };
+      next = { ...next, badges: { ...next.badges, ...Object.fromEntries(badges.map((b) => [badgeKey(course.id, b.id), earnedAt])) } };
       set({ doc: next });
 
-      const levelBefore = levelInfo(xpBefore, course.levels);
-      const levelAfter = levelInfo(xpAfter, course.levels);
+      const xpBefore = globalXp(doc);
+      const xpAfter = globalXp(next);
+      const levelBefore = levelInfo(xpBefore, platform.levels);
+      const levelAfter = levelInfo(xpAfter, platform.levels);
       return { xp: xpAfter - xpBefore, badges, levelUp: levelAfter.index > levelBefore.index ? levelAfter.title : null };
     },
 
-    passLessons: (lessonIds) =>
-      update((d) => withCourse(d, (cp) => ({ ...cp, passedLessons: [...new Set([...cp.passedLessons, ...lessonIds])] }))),
+    passLessons: (courseId, lessonIds) =>
+      update((d) => withCourse(d, courseId, (cp) => ({ ...cp, passedLessons: [...new Set([...cp.passedLessons, ...lessonIds])] }))),
 
-    completeOnboarding: (path) => update((d) => ({ ...d, onboarding: { path, completedAt: new Date().toISOString() } })),
+    completeOnboarding: (courseId, path) =>
+      update((d) => withCourse(d, courseId, (cp) => ({ ...cp, onboarding: { path, completedAt: new Date().toISOString() } }))),
 
     resetAll: () => set({ doc: emptyProgress() }),
   };

@@ -1,4 +1,4 @@
-import { course } from '@/content/course';
+import { courseById } from '@/content/courses';
 import type { Lesson } from '@/content/loadCourse';
 import { createEngine, type ExecOutcome, type SandboxEngine } from '@/engine';
 
@@ -15,7 +15,7 @@ function serial<T>(job: () => Promise<T>): Promise<T> {
 }
 
 async function load(lesson: Lesson): Promise<SandboxEngine> {
-  engine ??= createEngine(course.engine);
+  engine ??= createEngine(courseById(lesson.courseId).engine);
   await engine.reset(lesson.exampleSetup);
   loadedLesson = lesson.id;
   return engine;

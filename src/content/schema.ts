@@ -153,11 +153,19 @@ export const manifestSchema = z.object({
   engine: z.literal('postgres'),
   datasets: z.record(slug, z.string().regex(/\.sql$/)).default({}),
   errors: z.string().regex(/\.json$/),
+  /** One or two sentences for the course card in the hub. */
+  description: z.string().min(1),
   worlds: z.array(worldSchema).min(1),
   levels: levelsSchema,
   badges: z.array(badgeSchema).default([]),
   placement: z.string().regex(/\.json$/).optional(),
   onboarding: z.string().regex(/\.json$/).optional(),
+});
+
+/** Cross-course settings: which courses the hub shows (in order) and the shared level ladder. */
+export const platformSchema = z.object({
+  courses: z.array(slug).min(1),
+  levels: levelsSchema,
 });
 
 export const placementSchema = z

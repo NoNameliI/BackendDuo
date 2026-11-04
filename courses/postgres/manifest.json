@@ -1,6 +1,7 @@
 {
   "id": "postgres",
   "title": "PostgreSQL",
+  "description": "SQL на настоящем PostgreSQL прямо в приложении: от первого SELECT до соединений, оконных функций, индексов и транзакций.",
   "engine": "postgres",
   "errors": "errors.json",
   "placement": "placement.json",

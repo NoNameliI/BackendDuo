@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useUi } from '@/app/store';
-import { course } from '@/content/course';
+import { useCourse } from '@/app/useCourse';
 import type { Lesson, World } from '@/content/loadCourse';
 import { useWorkspace } from '@/features/lesson/workspace';
 import { firstOpenTask, isWorldComplete, lessonStatuses, nextLesson, progressOf, type LessonStatus } from '@/progress/gamification';
@@ -11,8 +11,9 @@ import { CheckIcon, LockIcon } from '@/ui/icons';
 import { ProgressBar } from '@/ui/ProgressBar';
 
 export function MapScreen() {
-  const cp = useProgress(selectCourse);
-  const statuses = useMemo(() => lessonStatuses(course, cp), [cp]);
+  const course = useCourse();
+  const cp = useProgress(selectCourse(course.id));
+  const statuses = useMemo(() => lessonStatuses(course, cp), [course, cp]);
   const next = nextLesson(course, cp);
   const setView = useUi((s) => s.setView);
 

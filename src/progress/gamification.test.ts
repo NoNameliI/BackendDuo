@@ -17,6 +17,7 @@ const task = (id: string, type: Task['type'] = 'result'): Task =>
 
 const lesson = (id: string, tasks: Task[], requires: string[] = []): Lesson => ({
   id,
+  courseId: 'c',
   worldId: '',
   title: id,
   theory: '',
@@ -28,6 +29,7 @@ const lesson = (id: string, tasks: Task[], requires: string[] = []): Lesson => (
 const course: Course = {
   id: 'c',
   title: 'C',
+  description: 'D',
   engine: 'postgres',
   errorHints: {},
   levels: [
@@ -123,7 +125,7 @@ describe('badges', () => {
 
 describe('migrate', () => {
   it('accepts the current version and discards unreadable data', () => {
-    expect(migrate(undefined)).toMatchObject({ discarded: false, doc: { schemaVersion: 1 } });
+    expect(migrate(undefined)).toMatchObject({ discarded: false, doc: { schemaVersion: 2 } });
     expect(migrate({ schemaVersion: 1, courses: { c: { tasks: {} } } }).doc.courses.c.passedLessons).toEqual([]);
     expect(migrate({ schemaVersion: 99 }).discarded).toBe(true);
     expect(migrate('garbage').discarded).toBe(true);

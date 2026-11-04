@@ -13,6 +13,7 @@ import {
 } from './schema';
 
 export type Task = ParsedTask & {
+  courseId: string;
   lessonId: string;
   worldId: string;
   /** Dataset script followed by the task's own setup. */
@@ -24,6 +25,7 @@ export type ChoiceTask = Extract<Task, { type: 'choice' | 'review' }>;
 
 export interface Lesson {
   id: string;
+  courseId: string;
   worldId: string;
   title: string;
   theory: string;
@@ -61,6 +63,7 @@ export type Onboarding = Omit<OnboardingData, 'firstQuery'> & { firstQuery: Extr
 export interface Course {
   id: string;
   title: string;
+  description: string;
   engine: EngineKind;
   worlds: World[];
   levels: Level[];
@@ -141,7 +144,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
       }
       setupSql = [task.dataset ? datasets[task.dataset] : '', task.setup].filter((s) => s?.trim()).join('\n\n');
     }
-    return { ...task, lessonId, worldId, setupSql };
+    return { ...task, courseId: manifest.id, lessonId, worldId, setupSql };
   };
 
   const parseFile = (path: string) => {
@@ -166,6 +169,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
       const source = files[path];
       const lesson: Lesson = {
         id: ref.id,
+        courseId: manifest.id,
         worldId: w.id,
         title: ref.id,
         theory: '',
@@ -286,6 +290,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
   return {
     id: manifest.id,
     title: manifest.title,
+    description: manifest.description,
     engine: manifest.engine,
     worlds,
     levels: manifest.levels,

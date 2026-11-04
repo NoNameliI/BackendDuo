@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useUi } from '@/app/store';
 import { nextThemePreference } from '@/app/theme';
-import { course } from '@/content/course';
+import { openCourse } from '@/app/openCourse';
+import { activeCourse } from '@/app/useCourse';
+import { courses } from '@/content/courses';
 import { useWorkspace } from '@/features/lesson/workspace';
 import { firstOpenTask, lessonStatuses, progressOf, resumeTask } from '@/progress/gamification';
 import { selectCourse, useProgress } from '@/progress/store';
@@ -11,7 +13,8 @@ import { filterCommands, type Command } from './commands';
 function buildCommands(close: () => void): Command[] {
   const ui = useUi.getState();
   const ws = useWorkspace.getState();
-  const cp = selectCourse(useProgress.getState());
+  const course = activeCourse();
+  const cp = selectCourse(course.id)(useProgress.getState());
   const statuses = lessonStatuses(course, cp);
   const go = (fn: () => void) => () => {
     close();
@@ -25,7 +28,11 @@ function buildCommands(close: () => void): Command[] {
   };
 
   const commands: Command[] = [
-    { id: 'map', group: 'Разделы', title: 'Карта навыков', run: go(() => ui.setView('map')) },
+    { id: 'hub', group: 'Разделы', title: 'Все курсы', run: go(() => ui.setView('hub')) },
+    { id: 'map', group: 'Разделы', title: 'Карта навыков', hint: course.title, run: go(() => ui.setView('map')) },
+    ...courses
+      .filter((c) => c.id !== course.id)
+      .map((c) => ({ id: `course:${c.id}`, group: 'Курсы', title: `Перейти в курс «${c.title}»`, run: go(() => openCourse(c.id)) })),
     {
       id: 'continue',
       group: 'Разделы',

@@ -3,7 +3,7 @@ import { useHotkeys } from '@/app/hotkeys';
 import type { CheckResult } from '@/checker';
 import { errorHint, type Onboarding } from '@/content/loadCourse';
 import type { OnboardingStep } from '@/content/schema';
-import { course } from '@/content/course';
+import { useCourse } from '@/app/useCourse';
 import { ResultTable } from '@/features/lesson/ResultTable';
 import { useWorkspace } from '@/features/lesson/workspace';
 import { Button } from '@/ui/Button';
@@ -213,6 +213,7 @@ function LinkStep({ step, data, onDone }: { step: Extract<OnboardingStep, { kind
 }
 
 function FirstQuery({ data, onDone }: { data: Onboarding; onDone: () => void }) {
+  const course = useCourse();
   const task = data.firstQuery;
   const { prepare, verify } = useWorkspace();
   const [code, setCode, latestCode] = useLatestState('');

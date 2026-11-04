@@ -1,0 +1,31 @@
+{
+  "courses": [
+    "postgres"
+  ],
+  "levels": [
+    {
+      "xp": 0,
+      "title": "Trainee"
+    },
+    {
+      "xp": 100,
+      "title": "Junior"
+    },
+    {
+      "xp": 300,
+      "title": "Middle"
+    },
+    {
+      "xp": 600,
+      "title": "Senior"
+    },
+    {
+      "xp": 1000,
+      "title": "Lead"
+    },
+    {
+      "xp": 1500,
+      "title": "Architect"
+    }
+  ]
+}

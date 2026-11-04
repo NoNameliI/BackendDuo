@@ -18,6 +18,7 @@ const manifest = (lessons: object[], extra: object = {}) =>
   JSON.stringify({
     id: 'demo',
     title: 'Demo',
+    description: 'Demo course',
     engine: 'postgres',
     errors: 'errors.json',
     datasets: { shop: 'datasets/shop.sql' },

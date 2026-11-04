@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { setWindowTheme } from '@/platform';
+import { HubScreen } from '@/features/hub/HubScreen';
 import { LessonScreen } from '@/features/lesson/LessonScreen';
 import { CommandPalette } from '@/features/palette/CommandPalette';
 import { MapScreen } from '@/features/map/MapScreen';
@@ -30,6 +31,7 @@ export function App() {
     <div className="flex h-full flex-col">
       <TopBar />
       <main className="min-h-0 flex-1 p-1.5">
+        {view === 'hub' && <HubScreen />}
         {view === 'onboarding' && <OnboardingScreen />}
         {view === 'map' && <MapScreen />}
         {view === 'lesson' && <LessonScreen />}

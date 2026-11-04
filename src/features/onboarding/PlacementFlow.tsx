@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useHotkeys, type HotkeyMap } from '@/app/hotkeys';
 import { checkChoice, type CheckResult } from '@/checker';
-import { course } from '@/content/course';
+import { courseById } from '@/content/courses';
 import { errorHint, type Placement, type Task } from '@/content/loadCourse';
 import { SchemaView } from '@/features/lesson/SchemaView';
 import { useWorkspace } from '@/features/lesson/workspace';
@@ -141,7 +141,7 @@ function Question({ task, label, onAnswer }: { task: Task; label: string; onAnsw
     task.type === 'choice' || task.type === 'review' ? Object.fromEntries(task.options.map((_, i) => [`${i + 1}`, () => toggle(i)])) : {};
   useHotkeys({ 'Ctrl+Shift+Enter': () => void submit(), 'Ctrl+Enter': () => void submit(), ...optionKeys });
 
-  const hint = result?.error ? errorHint(course, result.error.code) : undefined;
+  const hint = result?.error ? errorHint(courseById(task.courseId), result.error.code) : undefined;
 
   return (
     <section className="animate-rise space-y-4">

@@ -4,11 +4,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
-import { loadCourse, type Course, type Task } from '@/content/loadCourse';
+import { loadCatalog, type Catalog } from '@/content/catalog';
+import type { Task } from '@/content/loadCourse';
 import { theoryExamples } from '@/content/theory';
 import { PostgresEngine } from '@/engine/postgres/PostgresEngine';
 
-const COURSES = ['postgres'];
 
 function readTree(dir: string): Record<string, string> {
   const files: Record<string, string> = {};
@@ -40,20 +40,20 @@ async function validateTask(task: Task) {
   expect(untouched.passed, 'starter code must not pass the check').toBe(false);
 }
 
-for (const id of COURSES) {
-  const root = `/courses/${id}`;
-  let course: Course | undefined;
-  let loadError: unknown;
-  try {
-    course = loadCourse(readTree(`courses/${id}`), root);
-  } catch (e) {
-    loadError = e;
-  }
+let catalog: Catalog | undefined;
+let loadError: unknown;
+try {
+  catalog = loadCatalog(readTree('courses'), '/courses');
+} catch (e) {
+  loadError = e;
+}
 
-  describe(`course ${id}`, () => {
-    it('loads without structural problems', () => {
-      if (loadError) throw loadError;
-    });
+it('all courses load without structural problems', () => {
+  if (loadError) throw loadError;
+});
+
+for (const course of catalog?.courses ?? []) {
+  describe(`course ${course.id}`, () => {
 
     for (const world of course?.worlds ?? []) {
       for (const lesson of world.lessons) {

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useUi } from '@/app/store';
 import type { ThemePreference } from '@/app/theme';
-import { course } from '@/content/course';
+import { useCourse } from '@/app/useCourse';
+import { platform } from '@/content/courses';
+import { badgeKey } from '@/progress/model';
 import { allTasks } from '@/content/loadCourse';
 import { TASK_KIND } from '@/features/lesson/TaskPanel';
 import { useWorkspace } from '@/features/lesson/workspace';
-import { isLessonComplete, levelInfo, localDay, progressOf, streakInfo, totalXp } from '@/progress/gamification';
-import { selectCourse, useProgress } from '@/progress/store';
+import { isLessonComplete, levelInfo, localDay, progressOf, streakInfo } from '@/progress/gamification';
+import { globalXp, selectCourse, useProgress } from '@/progress/store';
 import { Button } from '@/ui/Button';
 import { plural } from '@/ui/format';
 import { FlameIcon } from '@/ui/icons';
@@ -17,10 +19,11 @@ const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'lo
 
 export function ProfileScreen() {
   const doc = useProgress((s) => s.doc);
-  const cp = useProgress(selectCourse);
+  const course = useCourse();
+  const cp = useProgress(selectCourse(course.id));
   const today = localDay();
-  const xp = totalXp(course, cp);
-  const level = levelInfo(xp, course.levels);
+  const xp = globalXp(doc);
+  const level = levelInfo(xp, platform.levels);
   const streak = streakInfo(doc.activity, today);
   const tasks = allTasks(course);
   const solved = tasks.filter((t) => progressOf(cp, t.id).solved);
@@ -43,7 +46,7 @@ export function ProfileScreen() {
           <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-line pt-4">
             <Stat label="заданий" value={`${solved.length}/${tasks.length}`} />
             <Stat label="уроков" value={`${lessonsDone}/${lessons.length}`} />
-            <Stat label="бейджей" value={`${Object.keys(doc.badges).length}/${course.badges.length}`} />
+            <Stat label="бейджей" value={`${course.badges.filter((b) => doc.badges[badgeKey(course.id, b.id)]).length}/${course.badges.length}`} />
           </dl>
         </section>
 
@@ -65,7 +68,7 @@ export function ProfileScreen() {
         </section>
 
         <section aria-label="Задания по типам" className="rounded-md border border-line bg-panel p-5 md:col-span-2">
-          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-faint">Решено по типам</h2>
+          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-faint">Решено по типам · {course.title}</h2>
           <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
             {(Object.keys(TASK_KIND) as (keyof typeof TASK_KIND)[]).map((type) => {
               const all = tasks.filter((t) => t.type === type).length;
@@ -86,10 +89,10 @@ export function ProfileScreen() {
         </section>
 
         <section aria-label="Бейджи" className="rounded-md border border-line bg-panel p-5 md:col-span-2">
-          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-faint">Бейджи</h2>
+          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-faint">Бейджи · {course.title}</h2>
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {course.badges.map((badge) => {
-              const earnedAt = doc.badges[badge.id];
+              const earnedAt = doc.badges[badgeKey(course.id, badge.id)];
               return (
                 <li key={badge.id} className={`flex items-center gap-3 rounded border p-2.5 ${earnedAt ? 'border-amber/40' : 'border-line'}`}>
                   <span
@@ -164,6 +167,7 @@ const themeOptions: { id: ThemePreference; title: string }[] = [
 
 function Settings() {
   const { theme, setTheme, setView, reminders, setReminders } = useUi();
+  const course = useCourse();
   const resetAll = useProgress((s) => s.resetAll);
   const [confirming, setConfirming] = useState(false);
 

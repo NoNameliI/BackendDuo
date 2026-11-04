@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { course } from '@/content/course';
+import { courseById } from '@/content/courses';
 import { allTasks, errorHint, type Task } from '@/content/loadCourse';
 import { selectCourse, selectTask, useProgress } from '@/progress/store';
 import { Button, Kbd } from '@/ui/Button';
@@ -50,7 +50,7 @@ export function TaskPanel() {
         {taskTab === 'theory' ? (
           <>
             <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.14em] text-faint">
-              {course.worlds.find((w) => w.id === lesson.worldId)?.title}
+              {courseById(lesson.courseId).worlds.find((w) => w.id === lesson.worldId)?.title}
             </p>
             <h1 className="mb-3 text-[22px] font-semibold leading-tight tracking-tight">{lesson.title}</h1>
             <TheoryView lesson={lesson} />
@@ -68,7 +68,7 @@ export function TaskPanel() {
 
 function TaskView({ task }: { task: Task }) {
   const { verdict, schema, explainTarget, revealHint, revealSolution, setCode, status } = useWorkspace();
-  const progress = useProgress(selectTask(task.id));
+  const progress = useProgress(selectTask(task));
   const canShowSolution = 'solution' in task && (progress.attempts > 0 || progress.hintsUsed >= task.hints.length);
 
   return (
@@ -158,9 +158,9 @@ function CostLine({ verdict }: { verdict: Verdict }) {
 
 function VerdictCard({ verdict, task }: { verdict: Verdict; task: Task }) {
   const { goRelative } = useWorkspace();
-  const tasks = allTasks(course);
+  const tasks = allTasks(courseById(task.courseId));
   const hasNext = tasks.findIndex((t) => t.id === task.id) < tasks.length - 1;
-  const hint = verdict.error ? errorHint(course, verdict.error.code) : undefined;
+  const hint = verdict.error ? errorHint(courseById(task.courseId), verdict.error.code) : undefined;
 
   if (verdict.passed) {
     return (
@@ -213,7 +213,7 @@ function SectionLabel({ children }: { children: string }) {
 
 function TaskStepper() {
   const { task, lesson, openTask } = useWorkspace();
-  const cp = useProgress(selectCourse);
+  const cp = useProgress(selectCourse(lesson?.courseId ?? ''));
   if (!lesson || !task) return null;
   return (
     <nav aria-label="Задания урока" className="flex items-center gap-1">

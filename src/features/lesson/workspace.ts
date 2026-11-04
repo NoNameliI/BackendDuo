@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { checkChoice, createChecker, SolutionError, type Answer, type Checker, type CheckResult } from '@/checker';
-import { course } from '@/content/course';
+import { courseById } from '@/content/courses';
 import { allTasks, errorHint, type Lesson, type Task } from '@/content/loadCourse';
 import {
   createEngine,
@@ -79,7 +79,7 @@ let nextLogId = 1;
 let enginePromise: Promise<{ engine: SandboxEngine; checker: Checker }> | null = null;
 
 export const lessonOf = (task: Task): Lesson =>
-  course.worlds.flatMap((w) => w.lessons).find((l) => l.id === task.lessonId)!;
+  courseById(task.courseId).worlds.flatMap((w) => w.lessons).find((l) => l.id === task.lessonId)!;
 
 const isSqlTask = (task: Task | null) => task !== null && task.type !== 'choice' && task.type !== 'review';
 
@@ -90,7 +90,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     if (!enginePromise) {
       set({ status: 'starting' });
       const started = performance.now();
-      const engine = createEngine(course.engine);
+      // This workspace drives SQL lessons, so its sandbox is always PostgreSQL.
+      const engine = createEngine('postgres');
       enginePromise = engine.init().then(
         () => {
           print('ok', `Песочница PostgreSQL готова (${formatMs(performance.now() - started)})`);
@@ -133,13 +134,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
 
   const printError = (error: SqlError) => {
     print('error', formatSqlError(error));
-    const hint = errorHint(course, error.code);
+    const hint = errorHint(courseById(get().task?.courseId ?? ''), error.code);
     if (hint) print('hint', hint);
   };
 
   const saveDraft = () => {
     const { task, code } = get();
-    if (task && 'solution' in task && code !== (selectTask(task.id)(useProgress.getState()).draft ?? task.starter)) {
+    if (task && 'solution' in task && code !== (selectTask(task)(useProgress.getState()).draft ?? task.starter)) {
       useProgress.getState().saveDraft(task, code);
     }
   };
@@ -169,7 +170,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     openTask: async (task) => {
       saveDraft();
       const lesson = lessonOf(task);
-      const progress = selectTask(task.id)(useProgress.getState());
+      const progress = selectTask(task)(useProgress.getState());
       set({
         task,
         lesson,
@@ -195,10 +196,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     goRelative: (delta) => {
       const { task } = get();
       if (!task) return;
+      const course = courseById(task.courseId);
       const tasks = allTasks(course);
       const next = tasks[tasks.findIndex((t) => t.id === task.id) + delta];
       if (!next) return;
-      if (lessonStatuses(course, selectCourse(useProgress.getState())).get(next.lessonId) === 'locked') {
+      if (lessonStatuses(course, selectCourse(course.id)(useProgress.getState())).get(next.lessonId) === 'locked') {
         useToasts.getState().push({ tone: 'info', title: 'Следующий урок пока закрыт', body: 'Решите задания текущего урока' });
         return;
       }
@@ -299,7 +301,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
 
     revealHint: () => {
       const { task } = get();
-      if (!task || selectTask(task.id)(useProgress.getState()).hintsUsed >= task.hints.length) return;
+      if (!task || selectTask(task)(useProgress.getState()).hintsUsed >= task.hints.length) return;
       useProgress.getState().useHint(task);
       set({ taskTab: 'task' });
     },

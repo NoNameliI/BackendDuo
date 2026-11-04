@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useUi } from '@/app/store';
-import { course } from '@/content/course';
+import { useCourse } from '@/app/useCourse';
 import { useProgress } from '@/progress/store';
 import { useFocusHeading } from '@/ui/useFocusHeading';
 import { BeginnerFlow } from './BeginnerFlow';
@@ -9,6 +9,7 @@ import { PlacementFlow } from './PlacementFlow';
 type Path = 'beginner' | 'experienced';
 
 export function OnboardingScreen() {
+  const course = useCourse();
   const data = course.onboarding;
   const [path, setPath] = useState<Path | null>(null);
   const rootRef = useFocusHeading<HTMLDivElement>(path);
@@ -18,8 +19,8 @@ export function OnboardingScreen() {
   if (!data) return null;
 
   const finish = (chosen: Path, unlocks: string[] = []) => {
-    passLessons(unlocks);
-    completeOnboarding(chosen);
+    passLessons(course.id, unlocks);
+    completeOnboarding(course.id, chosen);
     setView('map');
   };
 

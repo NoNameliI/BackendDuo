@@ -1,12 +1,13 @@
-import { course } from '@/content/course';
+import { platform } from '@/content/courses';
 import { useWorkspace } from '@/features/lesson/workspace';
-import { levelInfo, localDay, resumeTask, streakInfo, totalXp } from '@/progress/gamification';
-import { selectCourse, useProgress } from '@/progress/store';
+import { levelInfo, localDay, resumeTask, streakInfo } from '@/progress/gamification';
+import { globalXp, selectCourse, useProgress } from '@/progress/store';
 import { Button, Kbd } from '@/ui/Button';
 import { plural } from '@/ui/format';
 import { FlameIcon, MonitorIcon, MoonIcon, SunIcon } from '@/ui/icons';
 import { useUi, type View } from './store';
 import { nextThemePreference, type ThemePreference } from './theme';
+import { activeCourse, useCourse } from './useCourse';
 
 const themeLabels: Record<ThemePreference, string> = {
   dark: 'Тёмная тема',
@@ -21,6 +22,7 @@ const themeIcons: Record<ThemePreference, typeof MoonIcon> = {
 };
 
 const nav: { id: View; title: string }[] = [
+  { id: 'hub', title: 'Курсы' },
   { id: 'map', title: 'Карта' },
   { id: 'lesson', title: 'Урок' },
   { id: 'profile', title: 'Профиль' },
@@ -29,10 +31,12 @@ const nav: { id: View; title: string }[] = [
 export function TopBar() {
   const { theme, setTheme, view, setView } = useUi();
   const ThemeIcon = themeIcons[theme];
+  const course = useCourse();
 
   const go = (target: View) => {
-    if (target === 'lesson' && !useWorkspace.getState().task) {
-      void useWorkspace.getState().openTask(resumeTask(course, selectCourse(useProgress.getState())));
+    const current = activeCourse();
+    if (target === 'lesson' && useWorkspace.getState().task?.courseId !== current.id) {
+      void useWorkspace.getState().openTask(resumeTask(current, selectCourse(current.id)(useProgress.getState())));
     }
     setView(target);
   };
@@ -40,6 +44,16 @@ export function TopBar() {
   return (
     <header className="flex h-11 shrink-0 items-center gap-6 border-b border-line px-3">
       <Brand />
+      {view !== 'hub' && (
+        <button
+          type="button"
+          onClick={() => go('hub')}
+          title="Сменить курс"
+          className="-ml-3 rounded border border-line px-2 py-0.5 font-mono text-[11.5px] text-dim hover:border-line-strong hover:text-fg"
+        >
+          {course.title}
+        </button>
+      )}
       {view !== 'onboarding' && (
       <nav aria-label="Разделы" className="flex h-full items-stretch gap-5">
         {nav.map((item) => (
@@ -81,10 +95,9 @@ export function TopBar() {
 }
 
 function Stats({ onOpenProfile }: { onOpenProfile: () => void }) {
-  const cp = useProgress(selectCourse);
   const activity = useProgress((s) => s.doc.activity);
-  const xp = totalXp(course, cp);
-  const level = levelInfo(xp, course.levels);
+  const xp = useProgress((s) => globalXp(s.doc));
+  const level = levelInfo(xp, platform.levels);
   const streak = streakInfo(activity, localDay());
 
   return (
