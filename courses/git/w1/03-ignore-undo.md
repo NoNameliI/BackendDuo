@@ -294,7 +294,12 @@ git restore style.css
     "Разделы «git mv», «git rm» и «git rm --cached» в теории.",
     "Перед коммитом проверьте git status: в индексе должны быть переименование, два удаления и новый .gitignore.",
     "git mv readme.txt …, git rm …, git rm --cached …, затем echo в .gitignore, git add … и git commit -m с сообщением из условия."
-  ]
+  ],
+  "check": {
+    "files": [
+      ".env"
+    ]
+  }
 }
 ```
 

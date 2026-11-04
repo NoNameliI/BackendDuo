@@ -133,7 +133,7 @@ Workflow `Tests` теперь проходит. `CI` по-прежнему па�
 
 ### Обязательные проверки
 
-Ветку `main` можно защитить так, что pull request нельзя слить, пока CI на нём не прошёл. Это **обязательные проверки** (required checks). Их включают в настройках защиты ветки, вкладка «Хостинг» → «Защита ветки».
+Ветку `main` можно защитить так, что pull request нельзя слить, пока CI на нём не прошёл. Это **обязательные проверки** (required checks). Их включают в настройках защиты ветки, вкладка «Хостинг» → «Настройки», раздел «Защита ветки».
 
 Чтобы проверки появились у pull request, workflow должен реагировать на событие `pull_request`:
 
@@ -198,7 +198,12 @@ X  CI/test (pull_request)
     "Разделы «Журнал упавшего запуска» и «Три частые причины».",
     "gh run view 1 --log-failed покажет упавший шаг. Затем git status: какой файл есть у вас, но не в коммите?",
     "git add …, git commit -m \"…\", git push."
-  ]
+  ],
+  "check": {
+    "files": [
+      ".github/workflows/ci.yml"
+    ]
+  }
 }
 ```
 
@@ -238,7 +243,7 @@ jobs:
 EOF
 git add index.html .github/workflows/ci.yml
 git commit -q -m "Сайт кофейни"
-gh repo create site --source=. --push
+gh repo create site --public --source=. --push
 ```
 
 ```sh solution
@@ -260,7 +265,13 @@ git push
     "Раздел «npm test в CI»: что именно выполняет npm test, написано в package.json.",
     "Журнал (gh run view 1 --log-failed) показывает команду теста. Она ищет строку в index.html. Добавьте эту строку в файл через редактор.",
     "В <head> файла index.html нужна строка вида <title>…</title>. Затем git add index.html, git commit -m \"…\", git push."
-  ]
+  ],
+  "check": {
+    "files": [
+      "package.json",
+      ".github/workflows/ci.yml"
+    ]
+  }
 }
 ```
 
@@ -304,7 +315,7 @@ jobs:
 EOF
 git add index.html package.json .github/workflows/ci.yml
 git commit -q -m "Магазин и тесты"
-gh repo create shop --source=. --push
+gh repo create shop --public --source=. --push
 ```
 
 ```sh solution
@@ -335,7 +346,12 @@ git push
     "Раздел «Три частые причины», пункт про ошибку в YAML.",
     "gh run view 1 --log-failed назовёт строку. Сравните её отступ с соседним шагом: элементы одного списка начинаются в одном столбце.",
     "Оба шага должны начинаться одинаково:\n      - uses: actions/checkout@v4\n      - run: …\nПосле правки: git add …, git commit -m \"…\", git push."
-  ]
+  ],
+  "check": {
+    "files": [
+      ".github/workflows/ci.yml"
+    ]
+  }
 }
 ```
 
@@ -361,7 +377,7 @@ jobs:
 EOF
 git add guide.md .github/workflows/ci.yml
 git commit -q -m "Руководство и CI"
-gh repo create docs --source=. --push
+gh repo create docs --public --source=. --push
 ```
 
 ```sh solution
@@ -429,7 +445,7 @@ jobs:
 EOF
 git add index.html .github/workflows/ci.yml
 git commit -q -m "Сайт кафе"
-gh repo create cafe --source=. --push
+gh repo create cafe --public --source=. --push
 hosting protect student/cafe main --checks
 git switch -c prices
 cat > index.html <<'EOF'

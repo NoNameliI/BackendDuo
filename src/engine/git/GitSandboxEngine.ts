@@ -18,7 +18,9 @@ export class GitSandboxEngine {
   /** Starts from an empty home directory and runs the setup script; a failing setup is a content bug. */
   reset(setup: string): void {
     this.world = new World(this.identity);
+    this.world.privileged = true;
     const result = runScript(this.world, setup);
+    this.world.privileged = false;
     if (result.failed) {
       const output = result.lines.map((l) => l.text).join('\n');
       throw new SetupError(`setup failed at «${result.failed.line}» (exit ${result.failed.exit}):\n${output}`);

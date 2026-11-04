@@ -16,11 +16,12 @@
 ### gh repo create — опубликовать репозиторий
 
 ```sh
-gh repo create имя --source=. --push
+gh repo create имя --public --source=. --push
 ```
 
 - `repo create` — создать репозиторий на хостинге (`student/имя`);
 - `имя` — имя репозитория, обычно как у папки;
+- `--public` — публичный репозиторий, его видят все; `--private` — закрытый. Без одного из этих флагов `gh` не создаст репозиторий;
 - `--source=.` — связать его с репозиторием в текущей папке: команда добавит удалённый `origin`;
 - `--push` — сразу отправить текущую ветку (как `git push -u origin ветка`).
 
@@ -32,7 +33,7 @@ git init
 echo "# Рецепты" > README.md
 git add README.md
 git commit -m "Описание проекта"
-gh repo create recipes --source=. --push
+gh repo create recipes --public --source=. --push
 git remote -v
 ```
 
@@ -130,7 +131,7 @@ gh pr merge номер --squash --delete-branch
 
 - `pr merge` — слить PR на хостинге; без номера — PR текущей ветки;
 - способ слияния — один из трёх:
-  - `--merge` (по умолчанию) — коммит слияния, все коммиты ветки сохраняются;
+  - `--merge` — коммит слияния, все коммиты ветки сохраняются. Способ указывайте всегда: настоящий `gh` без флага спрашивает его в диалоге, а в скрипте завершается ошибкой (песочница без флага делает обычное слияние);
   - `--squash` — все коммиты ветки склеиваются в один новый коммит в `main`;
   - `--rebase` — коммиты ветки переносятся поверх `main` по одному, без коммита слияния;
 - `--delete-branch` — после слияния удалить ветку на хостинге.
@@ -179,7 +180,7 @@ git add cake.md
 git commit -m "Рецепт шарлотки"
 git push -u origin cake
 gh pr create --fill --body "Closes #2"
-gh pr merge --delete-branch
+gh pr merge --merge --delete-branch
 gh issue list --state all
 git switch main
 git pull
@@ -195,7 +196,7 @@ git log --oneline
 
 ### Шпаргалка
 
-- `gh repo create имя --source=. --push` — опубликовать текущий репозиторий
+- `gh repo create имя --public --source=. --push` — опубликовать текущий репозиторий
 - `git push -u origin ветка`, затем `gh pr create --title "…" --body "…"` или `--fill`
 - `gh pr list`, `gh pr view номер` — список и подробности
 - `gh pr review номер --approve` — одобрить чужой PR
@@ -213,7 +214,7 @@ git log --oneline
   "hints": [
     "Раздел «gh repo create — опубликовать репозиторий».",
     "Одна команда создаёт репозиторий на хостинге, добавляет origin и отправляет ветку.",
-    "gh repo create … --source=. --push"
+    "gh repo create … --public --source=. --push"
   ]
 }
 ```
@@ -235,7 +236,7 @@ git commit -q -m "Главная страница"
 ```
 
 ```sh solution
-gh repo create portfolio --source=. --push
+gh repo create portfolio --public --source=. --push
 ```
 
 ## task git-gh-pr-create
@@ -249,7 +250,10 @@ gh repo create portfolio --source=. --push
     "Раздел «gh pr create — открыть pull request».",
     "Ветки contacts на хостинге ещё нет: сначала отправьте её с -u, потом откройте PR.",
     "git push -u origin …, затем gh pr create --title \"…\""
-  ]
+  ],
+  "check": {
+    "titles": true
+  }
 }
 ```
 
@@ -264,7 +268,7 @@ git init -q
 echo "<h1>Кофейня</h1>" > index.html
 git add index.html
 git commit -q -m "Главная"
-gh repo create site --source=. --push
+gh repo create site --public --source=. --push
 git switch -q -c contacts
 echo "<p>Телефон: 123-45-67</p>" > contacts.html
 git add contacts.html
@@ -302,7 +306,7 @@ git init -q
 echo "<h1>Кофейня</h1>" > index.html
 git add index.html
 git commit -q -m "Главная"
-gh repo create site --source=. --push
+gh repo create site --public --source=. --push
 git clone -q https://github.com/student/site.git /tmp/anna
 cd /tmp/anna
 git switch -q -c menu
@@ -334,7 +338,7 @@ git pull
   "hints": [
     "Разделы «Задачи (issues)» и «Pull request».",
     "Путь: ветка → коммит → git push -u → gh pr create с Closes #1 в описании → gh pr merge. Задача закроется сама при слиянии.",
-    "git switch -c fix-typo, echo \"…\" > README.md, git add, git commit -m \"…\", git push -u origin fix-typo, gh pr create --title \"…\" --body \"Closes #1\", gh pr merge --delete-branch"
+    "git switch -c …, правка README.md, git add и git commit -m \"…\", git push -u origin …, затем gh pr create --title \"…\" --body \"Closes #…\" и gh pr merge --… --delete-branch."
   ]
 }
 ```
@@ -352,7 +356,7 @@ git init -q
 echo "# Блог о путешествях" > README.md
 git add README.md
 git commit -q -m "Описание блога"
-gh repo create blog --source=. --push
+gh repo create blog --public --source=. --push
 as mentor gh issue create --title "Опечатка в README" --body "В слове «путешествиях» пропущена буква"
 ```
 
@@ -363,7 +367,7 @@ git add README.md
 git commit -m "Исправлена опечатка в README"
 git push -u origin fix-typo
 gh pr create --title "Исправлена опечатка" --body "Closes #1"
-gh pr merge --delete-branch
+gh pr merge --merge --delete-branch
 git switch main
 git pull
 ```

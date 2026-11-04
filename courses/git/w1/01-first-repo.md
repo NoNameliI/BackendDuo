@@ -38,7 +38,7 @@ git init
 - `git` — сама программа;
 - `init` — команда «создать репозиторий в текущей папке».
 
-Git отвечает строкой `Initialized empty Git repository in …/.git/`. Ветка по умолчанию называется `main`.
+Git отвечает строкой `Initialized empty Git repository in …/.git/`. Первая ветка в песочнице называется `main` — так её называют GitHub и GitLab. Настоящий Git без настройки называет её `master`; чтобы было как здесь, достаточно один раз выполнить `git config --global init.defaultBranch main`.
 
 ```sh example
 git init
@@ -219,12 +219,18 @@ git add README.md
   "hints": [
     "Разделы «git status» и «git log» в теории.",
     "Нужны две команды: одна показывает состояние файлов, другая — историю одной строкой на коммит.",
-    "git status и git log --oneline."
+    "git … (состояние файлов) и git log --… (история одной строкой на коммит)."
   ],
   "check": {
     "require": [
-      { "pattern": "^git status\\b", "message": "Посмотрите состояние файлов командой git status" },
-      { "pattern": "^git log\\b.*--oneline", "message": "Посмотрите историю компактно: git log --oneline" }
+      {
+        "pattern": "^git status\\b",
+        "message": "Посмотрите состояние файлов командой git status"
+      },
+      {
+        "pattern": "^git log\\b.*--oneline",
+        "message": "Посмотрите историю компактно: git log --oneline"
+      }
     ]
   }
 }

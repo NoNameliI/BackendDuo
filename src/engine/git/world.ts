@@ -116,6 +116,9 @@ export class World {
     this.globalConfig.set('pull.rebase', 'false');
   }
 
+  /** Task setup and reference solutions may use service commands (`hosting`, `as`); the learner may not. */
+  privileged = false;
+
   /** Web addresses of sandbox hosting (https://…) mapped to repository paths in this world. */
   readonly hosts = new Map<string, string>();
 

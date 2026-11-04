@@ -114,6 +114,10 @@ const graphTask = z.object({
       head: z.boolean().default(true),
       tags: z.boolean().default(true),
       remotes: z.boolean().default(false),
+      /** Upstream branches (`git push -u`, `branch -u`) must match too. */
+      upstreams: z.boolean().default(false),
+      /** Working-tree files that must match the reference (present with the same content, or absent). */
+      files: z.array(z.string().min(1)).default([]),
     })
     .prefault({}),
 });
@@ -128,6 +132,8 @@ const worktreeTask = z.object({
       files: z.array(z.string().min(1)).optional(),
       index: z.boolean().default(true),
       untracked: z.boolean().default(true),
+      /** The stash list (descriptions in order) must match too. */
+      stash: z.boolean().default(false),
     })
     .prefault({}),
 });
@@ -150,6 +156,10 @@ const hostingTask = z.object({
       issues: z.boolean().default(true),
       releases: z.boolean().default(true),
       protections: z.boolean().default(true),
+      /** Titles of pull/merge requests, issues and releases must match exactly (when the prompt names them). */
+      titles: z.boolean().default(false),
+      /** Tags of the local repository (e.g. fetched after a release) must match too. */
+      localTags: z.boolean().default(false),
     })
     .prefault({}),
 });
@@ -162,6 +172,8 @@ const ciTask = z.object({
       project: z.string().regex(/^[\w.-]+\/[\w.-]+$/).optional(),
       /** Branch whose latest runs are compared; the default branch of the project by default. */
       branch: z.string().min(1).optional(),
+      /** Files at the branch tip that must equal the reference (YAML and JSON are compared by meaning). */
+      files: z.array(z.string().min(1)).default([]),
     })
     .prefault({}),
 });

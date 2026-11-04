@@ -197,7 +197,7 @@ git status
   "check": {
     "require": [
       {
-        "pattern": "^git stash\\b(?=.* (-u|--include-untracked)\\b)(?=.* (-m|--message) )",
+        "pattern": "^git stash\\b(?=.* (-u|--include-untracked)\\b)(?=.* (-m|--message) )(?=.*Тёмная тема)",
         "message": "Отложите изменения одной командой git stash с флагом -u (новые файлы) и описанием -m \"Тёмная тема\""
       }
     ]
@@ -236,7 +236,10 @@ git stash -u -m "Тёмная тема"
     "Разделы «git stash list — список отложенного» и «git stash pop и git stash apply — вернуть изменения».",
     "Посмотрите git stash list: запись «Меню» не самая свежая, поэтому её номер нужно указать явно.",
     "git stash pop stash@{…}"
-  ]
+  ],
+  "check": {
+    "stash": true
+  }
 }
 ```
 

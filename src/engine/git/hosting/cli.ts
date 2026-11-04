@@ -64,6 +64,7 @@ function showRun(ctx: Ctx, run: Run, withLog: boolean, failedOnly: boolean): voi
   ctx.out(`${mark(run.status)} ${run.branch} ${run.workflow} · ${run.id}`);
   ctx.out(`${run.event === 'push' ? 'Triggered via push' : 'Triggered via pull request'} · commit ${run.sha.slice(0, 7)}`);
   ctx.out('');
+  if (run.error) ctx.out(run.error);
   ctx.out('JOBS');
   for (const job of run.jobs) {
     ctx.out(`${mark(job.status)} ${job.name}${job.stage ? ` (${job.stage})` : ''}`);
@@ -116,7 +117,7 @@ const FLAGS = {
   '--squash': 'squash', '--rebase': 'rebase', '--delete-branch': 'deleteBranch', '--remove-source-branch': 'deleteBranch',
   '--approve': 'approve', '-a': 'approve', '--request-changes': 'requestChanges', '-r': 'requestChanges', '--comment': 'comment', '-c': 'comment',
   '--label': 'label', '-l': 'label', '--notes': 'notes', '-n': 'notes', '--name': 'title', '--target': 'target', '--state': 'state',
-  '--log': 'log', '--log-failed': 'logFailed', '--clone': 'clone', '--remote': 'remote', '--public': 'public', '--private': 'private',
+  '--log': 'log', '--log-failed': 'logFailed', '--clone': 'clone', '--remote': 'remote', '--public': 'public', '--private': 'private', '--internal': 'internal',
   '--source': 'source', '--push': 'push', '-y': 'yes', '--yes': 'yes', '--web': 'web', '-w': 'web', '--draft': 'draft', '--json': 'json',
 } as const;
 const VALUES = ['repo', 'title', 'body', 'description', 'base', 'head', 'message', 'label', 'notes', 'target', 'state', 'source'];
@@ -160,6 +161,9 @@ function run(cli: Cli, ctx: Ctx, argv: string[], exec: (line: string) => number)
     case 'repo create': {
       const name = (arg ?? '').split('/').pop() ?? '';
       if (!name) throw new HostingError('укажите имя репозитория: ' + `${cli} repo create NAME`);
+      if (cli === 'gh' && !flag(p, 'public') && !flag(p, 'private') && !flag(p, 'internal')) {
+        throw new HostingError('--public, --private, or --internal required when not running interactively');
+      }
       const owner = arg?.includes('/') ? arg.split('/')[0] : hosting.user;
       const project = hosting.createProject(owner, name, value(p, 'description') ?? '');
       ctx.out(`✓ Created repository ${fullName(project)} on ${product}`);
@@ -299,7 +303,18 @@ function run(cli: Cli, ctx: Ctx, argv: string[], exec: (line: string) => number)
       if (cli === 'gh') {
         const verb = { merge: 'Merged', squash: 'Squashed and merged', rebase: 'Rebased and merged' }[method];
         ctx.out(`✓ ${verb} pull request ${fullName(base)}#${pr.number} (${pr.title})`);
-        if (flag(p, 'deleteBranch')) ctx.out(`✓ Deleted remote branch ${pr.head.branch}`);
+        if (flag(p, 'deleteBranch')) {
+          // Like gh: the local branch goes too, and the terminal moves to the base branch first.
+          const repo = ctx.world.repoAt(ctx.world.cwd);
+          const linked = repo && [...repo.remotes.values()].some((url) => hosting.find(url) && fullName(hosting.find(url)!) === pr.head.project);
+          if (repo && linked && repo.branches.has(pr.head.branch)) {
+            if (repo.currentBranch() === pr.head.branch && exec(`git switch -q ${pr.base.branch}`) !== 0) return 1;
+            repo.branches.delete(pr.head.branch);
+            repo.upstreams.delete(pr.head.branch);
+            ctx.out(`✓ Deleted local branch ${pr.head.branch} and switched to branch ${repo.currentBranch()}`);
+          }
+          ctx.out(`✓ Deleted remote branch ${pr.head.branch}`);
+        }
       } else {
         ctx.out(`✓ Merged!`);
         ctx.out(hosting.pullUrl(base, pr.number));
@@ -561,4 +576,11 @@ const as: Tool = (ctx, args, env) => {
   }
 };
 
-export const HOSTING_TOOLS: Record<string, Tool> = { gh: guarded('gh'), glab: guarded('glab'), hosting: admin, as };
+/** Service commands exist only for task setup and reference solutions; in the learner's terminal they are unknown. */
+const serviceOnly = (tool: Tool, name: string): Tool => (ctx, args, env) => {
+  if (ctx.world.privileged) return tool(ctx, args, env);
+  ctx.err(`bash: ${name}: command not found`);
+  return 127;
+};
+
+export const HOSTING_TOOLS: Record<string, Tool> = { gh: guarded('gh'), glab: guarded('glab'), hosting: serviceOnly(admin, 'hosting'), as: serviceOnly(as, 'as') };

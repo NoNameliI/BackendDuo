@@ -175,8 +175,11 @@ Fast-forward
   "hints": [
     "Раздел «glab mr create — открыть merge request».",
     "Создайте ветку, сделайте коммит, отправьте ветку с -u и откройте MR. Хостинг в режиме GitLab, поэтому клиент — glab.",
-    "git switch -c install, echo \"…\" > install.md, git add …, git commit -m \"…\", git push -u origin install, glab mr create --title \"…\""
-  ]
+    "git switch -c …, файл и коммит, git push -u origin …, затем glab mr create --title \"…\"."
+  ],
+  "check": {
+    "titles": true
+  }
 }
 ```
 
@@ -225,8 +228,11 @@ glab mr create --title "Инструкция по установке"
   "hints": [
     "Разделы «gh repo fork — сделать форк» и «Pull request из форка».",
     "После gh repo fork … --clone перейдите в папку cookbook. Ветку отправляйте в origin — это ваш форк; PR сам уйдёт в оригинал.",
-    "gh repo fork mentor/cookbook --clone, cd cookbook, git switch -c pancakes, echo \"…\" > pancakes.md, git add, git commit -m \"…\", git push -u origin pancakes, gh pr create --title \"…\""
-  ]
+    "gh repo fork … --clone, cd …, git switch -c …, файл и коммит, git push -u origin …, gh pr create --title \"…\"."
+  ],
+  "check": {
+    "titles": true
+  }
 }
 ```
 

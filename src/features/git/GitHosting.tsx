@@ -57,6 +57,7 @@ function RunView({ run }: { run: Run }) {
       </button>
       {open && (
         <div className="border-t border-line px-2.5 py-2">
+          {run.error && <p className="mb-2 font-mono text-[12px] text-err">{run.error}</p>}
           {run.jobs.map((job) => (
             <div key={job.name} className="mb-2">
               <p className="text-[13px]">
@@ -215,7 +216,7 @@ export function GitHosting() {
             <p>На учебном {github ? 'GitHub' : 'GitLab'} пока нет репозиториев.</p>
             <p className="font-mono text-[12px] text-dim">{cli} repo create {name} --source=. --push</p>
             {repo && (
-              <Button variant="check" onClick={() => run(github ? `gh repo create ${name} --source=. --push` : `glab repo create ${name} && git remote add origin https://gitlab.com/student/${name}.git && git push -u origin ${repo.currentBranch() ?? 'main'}`)}>
+              <Button variant="check" onClick={() => run(github ? `gh repo create ${name} --public --source=. --push` : `glab repo create ${name} && git remote add origin https://gitlab.com/student/${name}.git && git push -u origin ${repo.currentBranch() ?? 'main'}`)}>
                 Создать репозиторий и отправить код
               </Button>
             )}

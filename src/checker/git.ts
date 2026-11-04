@@ -4,6 +4,7 @@ import { hostingOf, type Hosting, type Project } from '@/engine/git/hosting/mode
 import { computeStatus } from '@/engine/git/status';
 import { splitCommands } from '@/engine/git/shell';
 import { conflictKind, resolvePath, type Repo, type World } from '@/engine/git/world';
+import { parse as parseYaml } from 'yaml';
 import { SolutionError, type CheckResult } from './index';
 
 /** A command typed in the terminal and how it ended. */
@@ -36,6 +37,8 @@ export function runReference(task: GitTask): Reference {
   const engine = new GitSandboxEngine();
   engine.reset(task.shellSetup);
   const start = engine.world.cwd;
+  // Reference solutions may stand in for clicks in the hosting pages with service commands.
+  engine.world.privileged = true;
   const commands: CommandRecord[] = [];
   for (const command of splitCommands(task.shellSolution)) {
     const result = command.includes('\n') ? engine.runScript(command) : engine.run(command);
@@ -116,9 +119,24 @@ function checkGraph(task: Extract<GitTask, { type: 'graph' }>, want: Repo, got: 
       const mine = got.tags.get(name);
       if (!mine) problems.push(`Тега ${name} нет`);
       else if (Boolean(tag.annotation) !== Boolean(mine.annotation)) problems.push(`Тег ${name} должен быть ${tag.annotation ? 'аннотированным (-a -m)' : 'лёгким (без -a)'}`);
-      else compareRef(problems, `Тег ${name}`, want, tag.target, got, mine.target, messages);
+      else {
+        compareRef(problems, `Тег ${name}`, want, tag.target, got, mine.target, messages);
+        if (messages && tag.annotation && tag.annotation.message.trim() !== mine.annotation!.message.trim()) {
+          problems.push(`У тега ${name} другое описание: ожидается «${tag.annotation.message.trim()}»`);
+        }
+      }
+    }
+    if (want.tags.size) for (const name of got.tags.keys()) if (!want.tags.has(name)) problems.push(`Тега ${name} быть не должно`);
+  }
+  if (task.check.upstreams) {
+    for (const [branch, up] of want.upstreams) {
+      const mine = got.upstreams.get(branch);
+      if (!mine || mine.remote !== up.remote || mine.branch !== up.branch) {
+        problems.push(`Ветка ${branch} должна отслеживать ${up.remote}/${up.branch} — отправьте её с флагом -u`);
+      }
     }
   }
+  problems.push(...compareFiles(task.check.files, want, got));
   if (task.check.remotes) {
     // "origin/HEAD" only mirrors the remote's default branch; comparing it would repeat that branch's problems.
     for (const [name, id] of want.remoteBranches) if (!name.endsWith('/HEAD')) compareRef(problems, `Ветка ${name}`, want, id, got, got.remoteBranches.get(name), messages);
@@ -135,6 +153,17 @@ function checkGraph(task: Extract<GitTask, { type: 'graph' }>, want: Repo, got: 
 }
 
 // ---------------------------------------------------------------- working tree
+
+function compareFiles(files: string[], want: Repo, got: Repo): string[] {
+  const wantTree = want.worktree();
+  const gotTree = got.worktree();
+  return files.flatMap((f) => {
+    if (wantTree[f] === gotTree[f]) return [];
+    if (wantTree[f] === undefined) return [`Файла ${f} в рабочей папке быть не должно`];
+    if (gotTree[f] === undefined) return [`В рабочей папке нет файла ${f} — он должен остаться на диске`];
+    return [`Содержимое файла ${f} отличается от ожидаемого`];
+  });
+}
 
 function checkWorktree(task: Extract<GitTask, { type: 'worktree' }>, want: Repo, got: Repo): string[] {
   const problems: string[] = [];
@@ -160,6 +189,13 @@ function checkWorktree(task: Extract<GitTask, { type: 'worktree' }>, want: Repo,
     }
     for (const path of g) if (!w.has(path)) problems.push(`Изменение в ${path} не должно быть в индексе`);
   }
+  if (task.check.stash) {
+    const w = want.stash.map((e) => e.message);
+    const g = got.stash.map((e) => e.message);
+    if (w.join('\n') !== g.join('\n')) {
+      problems.push(`В списке git stash ожидается ${w.length ? w.map(quote).join(', ') : 'пусто'}; у вас ${g.length ? g.map(quote).join(', ') : 'пусто'}`);
+    }
+  }
   if (task.check.untracked) {
     const w = new Set(wantStatus.untracked);
     const g = new Set(gotStatus.untracked);
@@ -171,15 +207,18 @@ function checkWorktree(task: Extract<GitTask, { type: 'worktree' }>, want: Repo,
 
 // ---------------------------------------------------------------- commands
 
+/** Commands joined with &&, || or ; count one by one. */
+const parts = (line: string) => line.split(/&&|\|\||;/).map((p) => p.trim()).filter(Boolean);
+
 function checkCommands(task: Extract<GitTask, { type: 'commands' }>, commands: CommandRecord[]): string[] {
   const problems: string[] = [];
   for (const rule of task.check.require) {
     const re = new RegExp(rule.pattern);
-    if (!commands.some((c) => c.exit === 0 && re.test(c.line))) problems.push(rule.message);
+    if (!commands.some((c) => c.exit === 0 && parts(c.line).some((part) => re.test(part)))) problems.push(rule.message);
   }
   for (const rule of task.check.forbid) {
     const re = new RegExp(rule.pattern);
-    if (commands.some((c) => re.test(c.line))) problems.push(rule.message);
+    if (commands.some((c) => parts(c.line).some((part) => re.test(part)))) problems.push(rule.message);
   }
   return problems;
 }
@@ -212,6 +251,7 @@ function checkHosting(task: Extract<GitTask, { type: 'hosting' }>, want: Hosting
         if (!match) problems.push(`${what} не найден`);
         else if (match.state !== pr.state) problems.push(`${what} должен быть ${{ open: 'открыт', merged: 'слит', closed: 'закрыт без слияния' }[pr.state]}, а он ${{ open: 'открыт', merged: 'слит', closed: 'закрыт' }[match.state]}`);
         else if (pr.reviews.some((r) => r.state === 'approved') && !match.reviews.some((r) => r.state === 'approved')) problems.push(`${what} должен получить одобрение ревьюера`);
+        if (match && task.check.titles && match.title.trim() !== pr.title.trim()) problems.push(`${what}: заголовок должен быть «${pr.title.trim()}»`);
       }
       const extra = gp.pulls.length - wp.pulls.length;
       if (extra > 0) problems.push(`Лишних ${word.toLowerCase()}: ${extra}`);
@@ -222,11 +262,18 @@ function checkHosting(task: Extract<GitTask, { type: 'hosting' }>, want: Hosting
         const mine = gp.issues.find((i) => i.number === issue.number);
         if (!mine) continue;
         if (mine.state !== issue.state) problems.push(`Задача #${issue.number} должна быть ${issue.state === 'open' ? 'открыта' : 'закрыта'}`);
+        if (task.check.titles && mine.title.trim() !== issue.title.trim()) problems.push(`Задача #${issue.number}: заголовок должен быть «${issue.title.trim()}»`);
         for (const label of issue.labels) if (!mine.labels.includes(label)) problems.push(`У задачи #${issue.number} нет метки ${label}`);
       }
     }
     if (task.check.releases) {
-      for (const r of wp.releases) if (!gp.releases.some((x) => x.tag === r.tag)) problems.push(`Нет релиза ${r.tag}`);
+      for (const r of wp.releases) {
+        const mine = gp.releases.find((x) => x.tag === r.tag);
+        if (!mine) problems.push(`Нет релиза ${r.tag}`);
+        else if (task.check.titles && (mine.title.trim() !== r.title.trim() || mine.notes.trim() !== r.notes.trim())) {
+          problems.push(`У релиза ${r.tag} должны быть название «${r.title.trim()}» и описание «${r.notes.trim()}»`);
+        }
+      }
     }
     if (task.check.protections) {
       for (const [branch, rule] of wp.protections) {
@@ -240,6 +287,19 @@ function checkHosting(task: Extract<GitTask, { type: 'hosting' }>, want: Hosting
     }
   }
   return problems;
+}
+
+/** YAML and JSON files are equal when they mean the same; other files when their text matches line by line. */
+function sameMeaning(file: string, a: string | undefined, b: string | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  try {
+    if (/\.ya?ml$/.test(file)) return JSON.stringify(parseYaml(a)) === JSON.stringify(parseYaml(b));
+    if (/\.json$/.test(file)) return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b));
+  } catch {
+    return false;
+  }
+  const norm = (t: string) => t.split('\n').map((l) => l.trimEnd()).join('\n').trim();
+  return norm(a) === norm(b);
 }
 
 function checkCi(task: Extract<GitTask, { type: 'ci' }>, want: Hosting, got: Hosting): string[] {
@@ -257,6 +317,19 @@ function checkCi(task: Extract<GitTask, { type: 'ci' }>, want: Hosting, got: Hos
       for (const r of p.runs) if (r.branch === branch && r.event === 'push') byFile.set(r.file, r);
       return byFile;
     };
+    const wantTip = wp.repo.branches.get(branch);
+    const gotTip = gp.repo.branches.get(branch);
+    for (const file of task.check.files) {
+      const a = wantTip ? wp.repo.commits.get(wantTip)!.files[file] : undefined;
+      const b = gotTip ? gp.repo.commits.get(gotTip)!.files[file] : undefined;
+      if (!sameMeaning(file, a, b)) {
+        problems.push(
+          b === undefined
+            ? `На ${branch} нет файла ${file}`
+            : `Файл ${file} на ${branch} отличается от ожидаемого: исправьте только то, что просит условие, а не саму проверку`,
+        );
+      }
+    }
     const w = latest(wp);
     const g = latest(gp);
     if (!g.size && w.size) {
@@ -309,7 +382,16 @@ export function createGitChecker() {
     check(task: GitTask, learner: World, commands: CommandRecord[]): CheckResult {
       const ref = reference(task);
       if (task.type === 'commands') return verdict(checkCommands(task, commands));
-      if (task.type === 'hosting') return verdict(checkHosting(task, hostingOf(ref.world), hostingOf(learner)));
+      if (task.type === 'hosting') {
+        const problems = checkHosting(task, hostingOf(ref.world), hostingOf(learner));
+        if (task.check.localTags) {
+          const mine = learner.repoAt(ref.start)?.tags;
+          for (const name of ref.world.repoAt(ref.start)?.tags.keys() ?? []) {
+            if (!mine?.has(name)) problems.push(`В локальном репозитории нет тега ${name}: заберите его с сервера (git fetch)`);
+          }
+        }
+        return verdict(problems);
+      }
       if (task.type === 'ci') return verdict(checkCi(task, hostingOf(ref.world), hostingOf(learner)));
       const path = task.check.repo ? resolvePath(ref.start, task.check.repo) : ref.start;
       const want = ref.world.repoAt(path);

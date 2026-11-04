@@ -15,6 +15,8 @@ function task(raw: Record<string, unknown>): GitTask {
 function session(t: GitTask, typed: string) {
   const engine = new GitSandboxEngine();
   engine.reset(t.shellSetup);
+  // Lets typed service commands stand in for clicks in the hosting pages.
+  engine.world.privileged = true;
   const commands: CommandRecord[] = splitCommands(typed).map((line) => ({ line, exit: engine.run(line).exit }));
   return { world: engine.world, commands };
 }
@@ -80,7 +82,7 @@ describe('git checker', () => {
   });
 
   it('hosting: compares pull requests and protections', () => {
-    const setup = `${SETUP}\ngh repo create site --source=. --push\ngit switch -q -c about\necho about > about.html\ngit add .\ngit commit -q -m "About"\ngit push -q -u origin about`;
+    const setup = `${SETUP}\ngh repo create site --public --source=. --push\ngit switch -q -c about\necho about > about.html\ngit add .\ngit commit -q -m "About"\ngit push -q -u origin about`;
     const t = task({ type: 'hosting', shellSetup: setup, shellSolution: 'gh pr create --fill\nhosting protect student/site main' });
     const ok = session(t, 'gh pr create --title "Страница о нас"\nhosting protect student/site main');
     expect(checker.check(t, ok.world, ok.commands).passed).toBe(true);
@@ -88,11 +90,25 @@ describe('git checker', () => {
     expect(checker.check(t, none.world, []).problems).toEqual(['Pull request из about в main не найден', 'Ветка main должна быть защищена']);
   });
 
+  it('ci: rejects a run made green by weakening the workflow, accepts chained commands', () => {
+    const workflow = "name: CI\non: push\njobs:\n  site:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: test -f index.html";
+    const t = task({
+      type: 'ci',
+      shellSetup: `${SETUP}\ngh repo create site --public --source=. --push\nmkdir -p .github/workflows\ncat > .github/workflows/ci.yml <<'EOF'\n${workflow}\nEOF\ngit add .\ngit commit -q -m CI\ngit push -q`,
+      shellSolution: 'echo page > index.html\ngit add index.html\ngit commit -m Page\ngit push',
+      check: { files: ['.github/workflows/ci.yml'] },
+    });
+    const cheat = session(t, 'echo "name: CI" > .github/workflows/ci.yml\ngit commit -am Cheat\ngit push');
+    expect(checker.check(t, cheat.world, cheat.commands).problems[0]).toMatch(/^Файл \.github\/workflows\/ci\.yml на main отличается/);
+    const ok = session(t, 'echo page > index.html && git add index.html && git commit -m Page && git push');
+    expect(checker.check(t, ok.world, ok.commands).passed).toBe(true);
+  });
+
   it('ci: explains which job failed', () => {
     const workflow = "name: CI\non: push\njobs:\n  site:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Есть index.html\n        run: test -f index.html";
     const t = task({
       type: 'ci',
-      shellSetup: `${SETUP}\ngh repo create site --source=. --push\nmkdir -p .github/workflows\ncat > .github/workflows/ci.yml <<'EOF'\n${workflow}\nEOF`,
+      shellSetup: `${SETUP}\ngh repo create site --public --source=. --push\nmkdir -p .github/workflows\ncat > .github/workflows/ci.yml <<'EOF'\n${workflow}\nEOF`,
       shellSolution: 'echo "<h1>" > index.html\ngit add .\ngit commit -m "CI"\ngit push',
     });
     const ok = session(t, 'echo "<p>" > index.html\ngit add .\ngit commit -m "Add CI and page"\ngit push');

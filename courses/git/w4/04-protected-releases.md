@@ -35,13 +35,13 @@ error: failed to push some refs to 'https://github.com/student/shop.git'
 git switch -c ветка
 git push -u origin ветка
 gh pr create --title "Заголовок"
-gh pr merge
+gh pr merge --merge
 ```
 
 - `git switch -c ветка` — своя ветка для изменения;
 - `git push -u origin ветка` — отправка ветки: в незащищённые ветки push разрешён;
 - `gh pr create` — запрос на слияние в `main`;
-- `gh pr merge` — слияние делает хостинг, проверив правила защиты.
+- `gh pr merge --merge` — слияние делает хостинг, проверив правила защиты.
 
 ```sh example
 git switch -c about
@@ -157,7 +157,7 @@ git tag
   "hints": [
     "Раздел «Работа через pull request».",
     "Прямой push в main отклонят. Нужны ветка delivery, коммит, push ветки, PR и слияние с флагом --merge.",
-    "git switch -c delivery, echo \"…\" > delivery.md, git add, git commit -m \"…\", git push -u origin delivery, gh pr create --fill, gh pr merge --merge --…"
+    "git switch -c …, файл и коммит, git push -u origin …, gh pr create --fill, gh pr merge --merge --…."
   ]
 }
 ```
@@ -175,7 +175,7 @@ git init -q
 echo "# Магазин чая" > README.md
 git add README.md
 git commit -q -m "Описание"
-gh repo create shop --source=. --push
+gh repo create shop --public --source=. --push
 hosting protect student/shop main
 ```
 
@@ -217,7 +217,7 @@ git init -q
 echo "# Магазин чая" > README.md
 git add README.md
 git commit -q -m "Описание"
-gh repo create shop --source=. --push
+gh repo create shop --public --source=. --push
 hosting protect student/shop main
 echo "Пуэр — 500 ₽" > prices.txt
 git add prices.txt
@@ -256,7 +256,7 @@ git init -q
 echo "# Магазин чая" > README.md
 git add README.md
 git commit -q -m "Описание"
-gh repo create shop --source=. --push
+gh repo create shop --public --source=. --push
 hosting protect student/shop main --approvals 1
 git clone -q https://github.com/student/shop.git /tmp/anna
 cd /tmp/anna
@@ -287,7 +287,11 @@ git pull
     "Раздел «Релиз».",
     "Тег, заголовок и описание задаются в одной команде gh release create.",
     "gh release create v1.0 --title \"…\" --notes \"…\""
-  ]
+  ],
+  "check": {
+    "localTags": true,
+    "titles": true
+  }
 }
 ```
 
@@ -308,7 +312,7 @@ git commit -q -m "Прайс"
 echo "Доставка по городу бесплатно" > delivery.md
 git add delivery.md
 git commit -q -m "Условия доставки"
-gh repo create shop --source=. --push
+gh repo create shop --public --source=. --push
 hosting protect student/shop main
 ```
 

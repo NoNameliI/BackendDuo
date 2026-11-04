@@ -34,6 +34,8 @@ export interface Run {
   title: string;
   status: 'success' | 'failure';
   jobs: Job[];
+  /** Why the configuration was rejected (GitLab marks such a pipeline "yaml invalid" and runs no jobs). */
+  error?: string;
 }
 
 export interface CiEvent {
@@ -127,6 +129,14 @@ export function evalExpression(expr: string, ctx: Contexts, jobFailed: boolean):
 
 const passes = (v: boolean | string) => v !== false && v !== '';
 
+/** GitHub adds an implicit success() to an `if` that names no status function. */
+function runsAfter(condition: unknown, ctx: Contexts, failed: boolean): boolean {
+  if (condition === undefined) return !failed;
+  const text = String(condition);
+  const explicit = /(success|failure|always|cancelled)\(\)/.test(text);
+  return (explicit || !failed) && passes(evalExpression(text, ctx, failed));
+}
+
 function substitute(text: string, ctx: Contexts): string {
   return text.replace(/\$\{\{([\s\S]*?)\}\}/g, (_, e: string) => String(evalExpression(e, ctx, false)));
 }
@@ -157,7 +167,11 @@ function invalid(file: string, workflow: string, message: string, event: CiEvent
     pr: event.pr,
     title,
     status: 'failure',
-    jobs: [{ name: 'Invalid workflow file', status: 'failure', steps: [{ name: 'Разбор файла', status: 'failure', log: [`Invalid workflow file: ${file}`, message] }] }],
+    jobs:
+      workflow === 'pipeline'
+        ? []
+        : [{ name: 'Invalid workflow file', status: 'failure', steps: [{ name: 'Разбор файла', status: 'failure', log: [`Invalid workflow file: ${file}`, message] }] }],
+    error: workflow === 'pipeline' ? `yaml invalid: ${message}` : `Invalid workflow file: ${file}`,
   };
 }
 
@@ -211,11 +225,9 @@ function runGithubWorkflow(hosting: Hosting, project: Project, file: string, sou
     results.set(ready, job);
     const env: Env = { ...baseEnv, ...Object.fromEntries(Object.entries((spec.env as Env) ?? {}).map(([k, v]) => [k, String(v)])) };
     const ctx: Contexts = { github, env, runner: { os: 'Linux' } };
-    if (asList(spec.needs).some((n) => results.get(n)?.status !== 'success')) {
-      job.status = 'skipped';
-      continue;
-    }
-    if (spec.if !== undefined && !passes(evalExpression(String(spec.if), ctx, false))) {
+    // A failed dependency skips the job unless its `if` asks for it (always(), failure()).
+    const needsFailed = asList(spec.needs).some((n) => results.get(n)?.status !== 'success');
+    if (!runsAfter(spec.if, ctx, needsFailed)) {
       job.status = 'skipped';
       continue;
     }
@@ -233,8 +245,7 @@ function runGithubWorkflow(hosting: Hosting, project: Project, file: string, sou
       const stepName = typeof s.name === 'string' ? substitute(s.name, ctx) : run ? `Run ${run.split('\n')[0]}` : uses ?? `Step ${i + 1}`;
       const step: Step = { name: stepName, status: 'success', log: [] };
       job.steps.push(step);
-      const condition = s.if === undefined ? !failed : evalExpression(String(s.if), ctx, failed);
-      if (!passes(condition)) {
+      if (!runsAfter(s.if, ctx, failed)) {
         step.status = 'skipped';
         continue;
       }

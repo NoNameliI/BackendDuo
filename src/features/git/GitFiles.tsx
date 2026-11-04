@@ -42,7 +42,7 @@ function tree(world: World, root: string): Row[] {
     const dir = entry.endsWith('/');
     const path = dir ? entry.slice(0, -1) : entry;
     const rel = path.slice(prefix.length);
-    if (rel === '.git' || rel.startsWith('.git/')) continue;
+    if (rel.split('/').includes('.git')) continue;
     rows.push({ path, name: rel.split('/').pop()!, depth: rel.split('/').length - 1, dir });
   }
   return rows;

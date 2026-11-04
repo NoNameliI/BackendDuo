@@ -168,7 +168,7 @@ glab ci view
 
 ### Когда файл не принят
 
-Если в `.gitlab-ci.yml` ошибка, задания не выполняются. В пайплайне одно задание `Invalid workflow file`, а в журнале причина:
+Если в `.gitlab-ci.yml` ошибка, задания не выполняются: пайплайн получает отметку `yaml invalid` и сразу считается упавшим, а причина видна на его странице:
 
 ```text
 This GitLab CI configuration is invalid: publish job: chosen stage deploys does not exist; available stages are .pre, build, test, deploy, .post
@@ -282,7 +282,7 @@ glab ci view
 }
 ```
 
-В проекте `~/wiki` на учебном GitLab пайплайн из трёх стадий: `build`, `test`, `deploy`. После последнего push вместо заданий в нём одно задание `Invalid workflow file`. Терминал открыт в папке проекта.
+В проекте `~/wiki` на учебном GitLab пайплайн из трёх стадий: `build`, `test`, `deploy`. После последнего push пайплайн упал с отметкой `yaml invalid`, ни одно задание не запустилось. Терминал открыт в папке проекта.
 
 Найдите ошибку в `.gitlab-ci.yml` (журнал — во вкладке «Хостинг» → CI/CD), исправьте её в редакторе, закоммитьте и отправьте. Задания `pages`, `links` и `publish` должны выполниться, пайплайн на `main` — пройти.
 
@@ -408,7 +408,12 @@ publish:
     "Раздел «variables и before_script».",
     "Задание check использует $PAGE, но переменная нигде не объявлена — команда получает пустую строку вместо имени файла. Добавьте раздел variables на верхнем уровне файла.",
     "В начало файла:\nvariables:\n  PAGE: …\nЗатем git add, git commit -m \"…\", git push."
-  ]
+  ],
+  "check": {
+    "files": [
+      ".gitlab-ci.yml"
+    ]
+  }
 }
 ```
 

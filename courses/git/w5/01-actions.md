@@ -11,7 +11,7 @@ GitHub Actions читает файлы из папки `.github/workflows` в о
 1. Вы делаете `git push`.
 2. Хостинг находит workflow, которые реагируют на это событие, и создаёт **запуск** (run).
 3. Запуск выполняет **задания** (jobs), задание — **шаги** (steps), шаг — одну или несколько команд.
-4. Если любая команда шага завершилась ошибкой, шаг и задание помечаются ✗, а запуск — упавшим.
+4. Если любая команда шага завершилась ошибкой, шаг и задание помечаются как упавшие (в терминале — буквой `X`, во вкладке «Хостинг» — ✗), а запуск — упавшим.
 
 Workflow лежит в репозитории, поэтому его меняют обычными коммитами, как любой другой файл.
 
@@ -234,7 +234,7 @@ EOF
 echo "# Сайт фотостудии «Кадр»" > README.md
 git add index.html README.md
 git commit -q -m "Первая версия сайта"
-gh repo create site --source=. --push
+gh repo create site --public --source=. --push
 ```
 
 ```sh solution
@@ -298,7 +298,7 @@ jobs:
 EOF
 git add post1.md .github/workflows/ci.yml
 git commit -q -m "Первый пост и CI"
-gh repo create blog --source=. --push
+gh repo create blog --public --source=. --push
 echo "Весна пришла" > post2.md
 git add post2.md
 git commit -q -m "Пост о весне"
@@ -353,7 +353,7 @@ jobs:
 EOF
 git add README.md .github/workflows/ci.yml
 git commit -q -m "Заметки и CI"
-gh repo create notes --source=. --push
+gh repo create notes --public --source=. --push
 ```
 
 ```sh solution

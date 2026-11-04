@@ -39,7 +39,7 @@ git commit -q -m "Start"`);
 describe('hosting', () => {
   it('creates a repository, pushes over https and runs the workflow', () => {
     const engine = site();
-    expect(out(engine, 'gh repo create site --source=. --push')).toEqual([
+    expect(out(engine, 'gh repo create site --public --source=. --push')).toEqual([
       '✓ Created repository student/site on GitHub',
       '  https://github.com/student/site',
       '✓ Added remote https://github.com/student/site.git',
@@ -53,7 +53,8 @@ describe('hosting', () => {
 
   it('rejects pushes to a protected branch and asks for a pull request', () => {
     const engine = site();
-    engine.run('gh repo create site --source=. --push');
+    engine.run('gh repo create site --public --source=. --push');
+    engine.world.privileged = true; // stands in for the hosting settings page
     engine.run('hosting protect student/site main --approvals 1 --checks');
     engine.run('echo more >> index.html && git commit -q -am "Direct"');
     const result = engine.run('git push');
@@ -70,7 +71,8 @@ describe('hosting', () => {
 
   it('merges a reviewed pull request with passing checks and closes the issue', () => {
     const engine = site();
-    engine.run('gh repo create site --source=. --push');
+    engine.run('gh repo create site --public --source=. --push');
+    engine.world.privileged = true; // stands in for the hosting settings page
     engine.run('hosting protect student/site main --approvals 1 --checks');
     engine.run('gh issue create --title "Нет подвала" --body "Добавьте footer"');
     engine.run('git switch -q -c footer && echo "<footer>" >> index.html && git commit -q -am "Add footer"');
@@ -79,9 +81,11 @@ describe('hosting', () => {
     expect(out(engine, 'gh pr create --title "Подвал" --body "Closes #1"').at(-1)).toBe('https://github.com/student/site/pull/2');
     expect(engine.run('gh pr merge 2').lines[0].text).toContain('нужно одобрений: 1, есть: 0');
     expect(out(engine, 'gh pr review 2 --approve')).toEqual(['Can not approve your own pull request']);
+    engine.world.privileged = true; // stands in for the hosting settings page
     expect(out(engine, 'as mentor gh pr review 2 --approve')).toEqual(['✓ Approved pull request #2']);
     expect(out(engine, 'gh pr merge 2 --delete-branch')).toEqual([
       '✓ Merged pull request student/site#2 (Подвал)',
+      '✓ Deleted local branch footer and switched to branch main',
       '✓ Deleted remote branch footer',
     ]);
     const project = hostingOf(engine.world).find('student/site')!;
@@ -89,13 +93,13 @@ describe('hosting', () => {
     expect(merge.message).toBe('Merge pull request #2 from student/footer\n\nПодвал\n');
     expect(merge.committer.name).toBe('GitHub');
     expect(project.issues[0].state).toBe('closed');
-    engine.run('git switch -q main');
     expect(out(engine, 'git pull -q && git log --oneline -1')[0]).toMatch(/Merge pull request #2 from student\/footer/);
   });
 
   it('blocks a pull request whose checks fail', () => {
     const engine = site();
-    engine.run('gh repo create site --source=. --push');
+    engine.run('gh repo create site --public --source=. --push');
+    engine.world.privileged = true; // stands in for the hosting settings page
     engine.run('hosting protect student/site main --checks');
     engine.run('git switch -q -c broken && echo "<p>no title</p>" > index.html && git commit -q -am "Drop title" && git push -q -u origin broken');
     engine.run('gh pr create --fill');
@@ -120,6 +124,7 @@ rm -r team-site`);
     expect(out(engine, 'gh pr create --fill').at(-1)).toBe('https://github.com/team/site/pull/1');
     const team = hostingOf(engine.world).find('team/site')!;
     expect(team.pulls[0].head).toEqual({ project: 'student/site', branch: 'typo' });
+    engine.world.privileged = true; // stands in for the hosting settings page
     expect(out(engine, 'as team gh pr merge 1 -R team/site')[0]).toBe('✓ Merged pull request team/site#1 (Fix greeting)');
   });
 
@@ -166,9 +171,15 @@ git push -q -u origin main`);
 
   it('creates releases and tags on the hosting', () => {
     const engine = site();
-    engine.run('gh repo create site --source=. --push');
+    engine.run('gh repo create site --public --source=. --push');
     expect(out(engine, 'gh release create v1.0 --title "Первый релиз" --notes "Готово"')).toEqual(['https://github.com/student/site/releases/tag/v1.0']);
     expect(out(engine, 'git fetch')).toContain(' * [new tag]         v1.0       -> v1.0');
+  });
+
+  it('keeps service commands out of the learner terminal', () => {
+    const engine = new GitSandboxEngine();
+    expect(engine.run('as mentor gh pr review 1 --approve').lines[0].text).toBe('bash: as: command not found');
+    expect(engine.run('hosting flavor gitlab').exit).toBe(127);
   });
 
   it('never asks for credentials', () => {
