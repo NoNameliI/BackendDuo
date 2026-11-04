@@ -1,0 +1,15 @@
+[
+  { "pattern": "^fatal: not a git repository", "hint": "Вы не в папке репозитория. Перейдите в неё командой cd (где вы — покажет pwd) или создайте репозиторий: git init." },
+  { "pattern": "did not match any file", "hint": "Такого файла Git не видит. Проверьте имя командой ls или git status — регистр букв важен." },
+  { "pattern": "^bash: .*: command not found", "hint": "Такой команды нет в учебной оболочке. Есть: cd, pwd, ls, cat, echo, mkdir, touch, rm, mv, git, gh, glab." },
+  { "pattern": "is not a git command", "hint": "Похоже на опечатку в названии команды git. Сверьтесь со шпаргалкой урока." },
+  { "pattern": "^(nothing to commit|nothing added to commit|no changes added to commit)", "hint": "В индексе нет изменений для коммита: сначала добавьте файлы командой git add <файл>, потом выполните git commit." },
+  { "pattern": "нет текстового редактора", "hint": "Сообщение коммита пишется прямо в команде: git commit -m \"Что изменилось\"." },
+  { "pattern": "would be overwritten by", "hint": "У вас есть несохранённые изменения в этих файлах. Закоммитьте их (git commit) или отложите (git stash), затем повторите." },
+  { "pattern": "^Automatic merge failed|^CONFLICT", "hint": "Конфликт: откройте файл, оставьте нужные строки и удалите маркеры <<<<<<<, =======, >>>>>>>. Затем git add <файл> и git commit." },
+  { "pattern": "[(](fetch first|non-fast-forward)[)]", "hint": "На сервере есть коммиты, которых нет у вас. Сначала заберите их: git pull, затем снова git push." },
+  { "pattern": "has no upstream branch", "hint": "Новую ветку в первый раз отправляют с флагом -u: git push -u origin <ветка>." },
+  { "pattern": "(GH006|protected branch)", "hint": "Ветка защищена: прямой push запрещён. Создайте свою ветку, отправьте её и откройте pull request (на GitLab — merge request)." },
+  { "pattern": "not fully merged", "hint": "Коммиты этой ветки ещё не слиты. Если она точно не нужна, удалите её принудительно: git branch -D <ветка>." },
+  { "pattern": "(unknown revision|ambiguous argument|invalid reference|not something we can merge)", "hint": "Нет такой ветки или коммита. Посмотрите, что есть: git branch -a и git log --oneline --all." }
+]

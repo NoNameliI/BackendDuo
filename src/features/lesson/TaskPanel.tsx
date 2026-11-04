@@ -18,6 +18,11 @@ export const TASK_KIND: Record<Task['type'], string> = {
   plan: 'Оптимизируй запрос',
   choice: 'Тест',
   review: 'Найди баг',
+  graph: 'Git · история',
+  worktree: 'Git · файлы',
+  commands: 'Git · команды',
+  hosting: 'Хостинг',
+  ci: 'CI',
 };
 
 const tabs = [
@@ -69,7 +74,9 @@ export function TaskPanel() {
 function TaskView({ task }: { task: Task }) {
   const { verdict, schema, explainTarget, revealHint, revealSolution, setCode, status } = useWorkspace();
   const progress = useProgress(selectTask(task));
-  const canShowSolution = 'solution' in task && (progress.attempts > 0 || progress.hintsUsed >= task.hints.length);
+  const after = courseById(task.courseId).solutionAfterAttempts ?? 1;
+  const solvable = 'solution' in task || 'shellSolution' in task;
+  const canShowSolution = solvable && (progress.attempts >= after || progress.hintsUsed >= task.hints.length);
 
   return (
     <article className="space-y-5">
@@ -82,7 +89,7 @@ function TaskView({ task }: { task: Task }) {
         <h2 className="text-[19px] font-semibold leading-snug tracking-tight">{task.title}</h2>
       </header>
 
-      {'solution' in task && <Markdown source={task.prompt} />}
+      {solvable && <Markdown source={task.prompt} />}
 
       {task.type === 'plan' && (
         <section aria-label="Целевой запрос" className="space-y-2">
@@ -128,6 +135,9 @@ function TaskView({ task }: { task: Task }) {
               Подсказка {progress.hintsUsed + 1} из {task.hints.length}
             </Button>
           )}
+          {!canShowSolution && solvable && after > 1 && progress.attempts > 0 && progress.hintsUsed < task.hints.length && (
+            <span className="self-center text-[12px] text-faint">Решение откроется после {after} попыток (сейчас {progress.attempts})</span>
+          )}
           {canShowSolution && !progress.solutionShown && (
             <Button variant="outline" onClick={revealSolution}>Показать решение</Button>
           )}
@@ -137,6 +147,13 @@ function TaskView({ task }: { task: Task }) {
             <SectionLabel>Эталонное решение</SectionLabel>
             <pre className="md-code" dangerouslySetInnerHTML={{ __html: highlightSql(task.solution) }} />
             <Button variant="outline" onClick={() => setCode(task.solution)}>Вставить в редактор</Button>
+          </div>
+        )}
+        {'shellSolution' in task && progress.solutionShown && (
+          <div className="space-y-2">
+            <SectionLabel>Эталонное решение</SectionLabel>
+            <pre className="md-code whitespace-pre-wrap">{task.shellSolution}</pre>
+            <p className="text-[12.5px] text-dim">Наберите эти команды в терминале по одной; «Сбросить» вернёт песочницу к началу задания.</p>
           </div>
         )}
       </section>

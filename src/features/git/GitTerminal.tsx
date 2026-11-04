@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { commonPrefix, completions, prompt } from '@/engine/git/complete';
 import type { OutputLine } from '@/engine/git/shell';
-import { useGitSandbox } from './gitSandbox';
+import { useSandbox } from './gitSandbox';
 
 /** git prints progress and advice to stderr too; only real errors are red. */
 function tone(line: OutputLine): string {
@@ -15,6 +15,7 @@ function tone(line: OutputLine): string {
 
 /** Command line of the Git sandbox: prompt, history on ↑/↓, Tab completion, Ctrl+L to clear. */
 export function GitTerminal() {
+  const useGitSandbox = useSandbox();
   const entries = useGitSandbox((s) => s.entries);
   const engine = useGitSandbox((s) => s.engine);
   useGitSandbox((s) => s.version);
@@ -106,6 +107,7 @@ export function GitTerminal() {
                 {line.text}
               </p>
             ))}
+            {entry.hint && <p className="whitespace-pre-wrap text-amber">Подсказка: {entry.hint}</p>}
           </div>
         ))}
       </div>

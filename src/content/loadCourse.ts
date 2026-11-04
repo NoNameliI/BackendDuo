@@ -10,6 +10,7 @@ import {
   type Level,
   type OnboardingData,
   type ParsedTask,
+  terminalHintsSchema,
 } from './schema';
 
 export type Task = ParsedTask & {
@@ -22,6 +23,7 @@ export type Task = ParsedTask & {
 
 export type SqlTask = Extract<Task, { solution: string }>;
 export type ChoiceTask = Extract<Task, { type: 'choice' | 'review' }>;
+export type GitTask = Extract<Task, { shellSolution: string }>;
 
 export interface Lesson {
   id: string;
@@ -29,7 +31,7 @@ export interface Lesson {
   worldId: string;
   title: string;
   theory: string;
-  /** Database the theory examples run on: the setup of the lesson's first SQL task. */
+  /** Starting state of the theory examples: the setup of the lesson's first task that has one. */
   exampleSetup: string;
   requires: string[];
   tasks: Task[];
@@ -71,6 +73,10 @@ export interface Course {
   placement: Placement | null;
   onboarding: Onboarding | null;
   errorHints: Record<string, string>;
+  /** Git course: explanations for terminal error lines. */
+  terminalHints: { pattern: RegExp; hint: string }[];
+  /** Failed checks after which the solution may be shown (undefined: after the first attempt). */
+  solutionAfterAttempts?: number;
 }
 
 export class CourseError extends Error {
@@ -120,8 +126,19 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
   }
 
   const errorsPath = `${root}/${manifest.errors}`;
-  const hints = errorHintsSchema.safeParse(readJson(files, errorsPath, problems) ?? {});
+  const errorsJson = readJson(files, errorsPath, problems);
+  const hints = errorHintsSchema.safeParse(manifest.engine === 'git' ? {} : (errorsJson ?? {}));
   if (!hints.success) problems.push(...formatIssues(errorsPath, hints.error.issues));
+  const terminal = terminalHintsSchema.safeParse(manifest.engine === 'git' ? (errorsJson ?? []) : []);
+  if (!terminal.success) problems.push(...formatIssues(errorsPath, terminal.error.issues));
+  const terminalHints = (terminal.success ? terminal.data : []).flatMap((h) => {
+    try {
+      return [{ pattern: new RegExp(h.pattern), hint: h.hint }];
+    } catch {
+      problems.push(`${errorsPath}: некорректное регулярное выражение «${h.pattern}»`);
+      return [];
+    }
+  });
 
   const seen = new Set<string>();
   const unique = (kind: string, id: string) => {
@@ -137,6 +154,10 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     }
     const task = result.data;
     unique('задание', task.id);
+    const gitTask = 'shellSolution' in task;
+    if (gitTask !== (manifest.engine === 'git') && task.type !== 'choice' && task.type !== 'review') {
+      problems.push(`${where}: тип «${task.type}» не подходит для курса с движком ${manifest.engine}`);
+    }
     let setupSql = '';
     if ('solution' in task) {
       if (task.dataset && datasets[task.dataset] === undefined) {
@@ -191,7 +212,8 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
         const task = buildTask(rawTask, `${path} › ${String(rawTask.id)}`, ref.id, w.id);
         if (task) lesson.tasks.push(task);
       }
-      lesson.exampleSetup = lesson.tasks.find((t) => 'solution' in t)?.setupSql ?? '';
+      const first = lesson.tasks.find((t) => 'solution' in t || 'shellSolution' in t);
+      lesson.exampleSetup = first && 'shellSolution' in first ? first.shellSetup : (first?.setupSql ?? '');
       return lesson;
     });
     return {
@@ -298,6 +320,8 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     placement,
     onboarding,
     errorHints: hints.success ? hints.data : {},
+    terminalHints,
+    solutionAfterAttempts: manifest.solutionAfterAttempts,
   };
 }
 

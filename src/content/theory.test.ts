@@ -8,11 +8,17 @@ describe('splitTheory', () => {
     const theory = `Вступление.\n\n${fence}sql example\nSELECT 1;\n${fence}\n\nШаблон:\n\n${fence}sql\nSELECT столбцы FROM таблица;\n${fence}\n\n${fence}sql example\nSELECT 2;\n${fence}`;
     expect(splitTheory(theory)).toEqual([
       { kind: 'markdown', text: 'Вступление.' },
-      { kind: 'example', sql: 'SELECT 1;' },
+      { kind: 'example', lang: 'sql', code: 'SELECT 1;' },
       { kind: 'markdown', text: `Шаблон:\n\n${fence}sql\nSELECT столбцы FROM таблица;\n${fence}` },
-      { kind: 'example', sql: 'SELECT 2;' },
+      { kind: 'example', lang: 'sql', code: 'SELECT 2;' },
     ]);
     expect(theoryExamples(theory)).toEqual(['SELECT 1;', 'SELECT 2;']);
+  });
+
+  it('recognizes shell examples of the Git course', () => {
+    expect(splitTheory(`${fence}sh example
+git status
+${fence}`)).toEqual([{ kind: 'example', lang: 'sh', code: 'git status' }]);
   });
 
   it('returns plain theory unchanged', () => {

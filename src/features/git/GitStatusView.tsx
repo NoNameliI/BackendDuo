@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { computeStatus } from '@/engine/git/status';
 import { EmptyState } from '@/ui/Panel';
-import { useGitSandbox } from './gitSandbox';
+import { useSandbox } from './gitSandbox';
 
 const KIND: Record<string, string> = { added: 'новый', modified: 'изменён', deleted: 'удалён', renamed: 'переименован' };
 
@@ -24,6 +24,7 @@ function Zone({ title, hint, items, tone }: { title: string; hint: string; items
 
 /** The three areas of Git — working tree, index and commits — for the repository in the current directory. */
 export function GitStatusView() {
+  const useGitSandbox = useSandbox();
   const engine = useGitSandbox((s) => s.engine);
   const version = useGitSandbox((s) => s.version);
   const repo = engine.world.repoAt(engine.world.cwd);

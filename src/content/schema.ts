@@ -92,8 +92,82 @@ const reviewTask = z.object({
   lines: z.array(z.number().int().positive()).default([]),
 });
 
+// Git course: setup and solution are shell scripts for the Git sandbox (```sh setup / ```sh solution).
+const gitTaskBase = {
+  ...taskBase,
+  shellSetup: z.string().default(''),
+  shellSolution: z.string().trim().min(1),
+};
+/** Repository the check looks at; by default the directory where the setup script ends. */
+const repoPath = z.string().regex(/^[~/]/, 'путь начинается с ~ или /').optional();
+const pattern = z.object({ pattern: z.string().min(1), message: z.string().min(1) });
+
+const graphTask = z.object({
+  ...gitTaskBase,
+  type: z.literal('graph'),
+  check: z
+    .object({
+      repo: repoPath,
+      /** Branches to compare; all branches of the reference result by default. */
+      refs: z.array(z.string().min(1)).optional(),
+      messages: z.enum(['exact', 'ignore']).default('exact'),
+      head: z.boolean().default(true),
+      tags: z.boolean().default(true),
+      remotes: z.boolean().default(false),
+    })
+    .prefault({}),
+});
+
+const worktreeTask = z.object({
+  ...gitTaskBase,
+  type: z.literal('worktree'),
+  check: z
+    .object({
+      repo: repoPath,
+      /** Files whose content is compared; every file by default. */
+      files: z.array(z.string().min(1)).optional(),
+      index: z.boolean().default(true),
+      untracked: z.boolean().default(true),
+    })
+    .prefault({}),
+});
+
+const commandsTask = z.object({
+  ...gitTaskBase,
+  type: z.literal('commands'),
+  /** Regular expressions over the commands typed in the terminal (successful ones for `require`). */
+  check: z.object({ require: z.array(pattern).min(1), forbid: z.array(pattern).default([]) }),
+});
+
+const hostingTask = z.object({
+  ...gitTaskBase,
+  type: z.literal('hosting'),
+  check: z
+    .object({
+      project: z.string().regex(/^[\w.-]+\/[\w.-]+$/).optional(),
+      branches: z.boolean().default(true),
+      pulls: z.boolean().default(true),
+      issues: z.boolean().default(true),
+      releases: z.boolean().default(true),
+      protections: z.boolean().default(true),
+    })
+    .prefault({}),
+});
+
+const ciTask = z.object({
+  ...gitTaskBase,
+  type: z.literal('ci'),
+  check: z
+    .object({
+      project: z.string().regex(/^[\w.-]+\/[\w.-]+$/).optional(),
+      /** Branch whose latest runs are compared; the default branch of the project by default. */
+      branch: z.string().min(1).optional(),
+    })
+    .prefault({}),
+});
+
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask])
   .superRefine((task, ctx) => {
     if (task.type !== 'choice' && task.type !== 'review') return;
     if (task.answer.some((i) => i >= task.options.length)) {
@@ -120,7 +194,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),
@@ -150,7 +224,7 @@ export const levelsSchema = z
 export const manifestSchema = z.object({
   id: slug,
   title: z.string().min(1),
-  engine: z.literal('postgres'),
+  engine: z.enum(['postgres', 'git']),
   datasets: z.record(slug, z.string().regex(/\.sql$/)).default({}),
   errors: z.string().regex(/\.json$/),
   /** One or two sentences for the course card in the hub. */
@@ -160,6 +234,8 @@ export const manifestSchema = z.object({
   badges: z.array(badgeSchema).default([]),
   placement: z.string().regex(/\.json$/).optional(),
   onboarding: z.string().regex(/\.json$/).optional(),
+  /** Failed checks after which the reference solution may be shown; by default after the first attempt. */
+  solutionAfterAttempts: z.number().int().positive().optional(),
 });
 
 /** Cross-course settings: which courses the hub shows (in order) and the shared level ladder. */
@@ -215,6 +291,9 @@ export const onboardingSchema = z.object({
 
 /** SQLSTATE (or its two-character class) → hint shown under PostgreSQL's own message. */
 export const errorHintsSchema = z.record(z.string().regex(/^[0-9A-Z]{2}([0-9A-Z]{3})?$/), z.string().min(1));
+
+/** Git course: a pattern over terminal error lines → explanation shown under git's own message. */
+export const terminalHintsSchema = z.array(z.object({ pattern: z.string().min(1), hint: z.string().min(1) }));
 
 export type TaskInput = z.input<typeof taskSchema>;
 export type ParsedTask = z.output<typeof taskSchema>;

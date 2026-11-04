@@ -4,7 +4,7 @@ import { fullName, hostingOf, type Hosting, type Project, type PullRequest } fro
 import { Button } from '@/ui/Button';
 import { Markdown } from '@/ui/Markdown';
 import { EmptyState } from '@/ui/Panel';
-import { useGitSandbox } from './gitSandbox';
+import { useSandbox } from './gitSandbox';
 
 type Page = 'code' | 'pulls' | 'issues' | 'ci' | 'releases' | 'settings';
 
@@ -80,6 +80,7 @@ function RunView({ run }: { run: Run }) {
 }
 
 function PullView({ hosting, base, pr, cli }: { hosting: Hosting; base: Project; pr: PullRequest; cli: 'gh' | 'glab' }) {
+  const useGitSandbox = useSandbox();
   const run = useGitSandbox((s) => s.run);
   const touch = useGitSandbox((s) => s.touch);
   const blockers = pr.state === 'open' ? hosting.blockers(base, pr) : [];
@@ -147,6 +148,7 @@ function PullView({ hosting, base, pr, cli }: { hosting: Hosting; base: Project;
 
 /** Pages of the training hosting: code, pull/merge requests, issues, CI, releases and branch protection. */
 export function GitHosting() {
+  const useGitSandbox = useSandbox();
   const engine = useGitSandbox((s) => s.engine);
   useGitSandbox((s) => s.version);
   const run = useGitSandbox((s) => s.run);

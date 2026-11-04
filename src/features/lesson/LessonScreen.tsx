@@ -13,7 +13,9 @@ import { QuizPanel } from './QuizPanel';
 import { ResultPanel } from './ResultPanel';
 import { TaskPanel } from './TaskPanel';
 import { Terminal } from './Terminal';
-import { useWorkspace, type EngineStatus } from './workspace';
+import { lessonSandbox, useWorkspace, type EngineStatus } from './workspace';
+import { SandboxContext } from '@/features/git/gitSandbox';
+import { GitWorkbench } from '@/features/git/GitWorkbench';
 
 const SqlEditor = lazy(() => import('./SqlEditor'));
 
@@ -53,6 +55,27 @@ export function LessonScreen() {
             <Terminal />
           </Panel>
         </Split>
+      </Split>
+    );
+  }
+
+  if (task && 'shellSolution' in task) {
+    return (
+      <Split direction="row" storageKey="git-lesson-columns" initial={[30, 70]} min={20}>
+        <TaskPanel />
+        <SandboxContext.Provider value={lessonSandbox}>
+          <GitWorkbench
+            prefix="git-lesson"
+            actions={
+              <>
+                <Button aria-label="Вернуть песочницу к началу задания" title="Сбросить песочницу" icon={<ResetIcon />} onClick={() => void resetDatabase()} />
+                <Button variant="check" icon={<CheckIcon />} shortcut="Ctrl ⇧ ↵" onClick={() => void check()}>
+                  Проверить
+                </Button>
+              </>
+            }
+          />
+        </SandboxContext.Provider>
       </Split>
     );
   }

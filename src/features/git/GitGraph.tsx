@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { EmptyState } from '@/ui/Panel';
 import { layoutGraph, type GraphEdge } from './graphLayout';
-import { useGitSandbox } from './gitSandbox';
+import { useSandbox } from './gitSandbox';
 
 const ROW = 30;
 const LANE = 18;
@@ -30,6 +30,7 @@ function RefChip({ name }: { name: string }) {
 
 /** Commit graph of the repository in the current directory. */
 export function GitGraph() {
+  const useGitSandbox = useSandbox();
   const engine = useGitSandbox((s) => s.engine);
   const version = useGitSandbox((s) => s.version);
   const repo = engine.world.repoAt(engine.world.cwd);

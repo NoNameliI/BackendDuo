@@ -32,6 +32,7 @@ const course: Course = {
   description: 'D',
   engine: 'postgres',
   errorHints: {},
+  terminalHints: [],
   levels: [
     { xp: 0, title: 'Trainee' },
     { xp: 50, title: 'Writer' },

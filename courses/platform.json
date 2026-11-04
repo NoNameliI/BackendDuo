@@ -1,6 +1,7 @@
 {
   "courses": [
-    "postgres"
+    "postgres",
+    "git"
   ],
   "levels": [
     {

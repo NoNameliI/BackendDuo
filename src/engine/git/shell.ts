@@ -267,3 +267,23 @@ export function runScript(world: World, script: string): { lines: OutputLine[]; 
   }
   return { lines };
 }
+
+/** Splits a script into commands as typed one by one; a heredoc stays with its command. Comments are dropped. */
+export function splitCommands(script: string): string[] {
+  const lines = script.replace(/\r\n?/g, '\n').split('\n');
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    const heredoc = /<<-?\s*(['"]?)(\w+)\1/.exec(line);
+    if (!heredoc) {
+      out.push(line);
+      continue;
+    }
+    const block = [line];
+    while (++i < lines.length && lines[i] !== heredoc[2]) block.push(lines[i]);
+    block.push(heredoc[2]);
+    out.push(block.join('\n'));
+  }
+  return out;
+}

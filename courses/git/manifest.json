@@ -1,0 +1,34 @@
+{
+  "id": "git",
+  "title": "Git, GitHub и GitLab",
+  "description": "Контроль версий в учебной песочнице: коммиты, ветки, слияния, исправление ошибок, работа с командой на GitHub и GitLab и проверки CI.",
+  "engine": "git",
+  "errors": "errors.json",
+  "solutionAfterAttempts": 3,
+  "worlds": [
+    {
+      "id": "git-w1",
+      "title": "Первые шаги",
+      "summary": "Репозиторий, рабочая папка, индекс и коммиты. Смотрим историю и изменения.",
+      "lessons": [
+        { "id": "git-first-repo", "file": "w1/01-first-repo.md" }
+      ]
+    }
+  ],
+  "levels": [
+    { "xp": 0, "title": "Новичок в Git" },
+    { "xp": 80, "title": "Автор коммитов" },
+    { "xp": 200, "title": "Мастер веток" },
+    { "xp": 400, "title": "Командный игрок" },
+    { "xp": 650, "title": "Инженер CI" }
+  ],
+  "badges": [
+    {
+      "id": "first-commit",
+      "title": "Первый коммит",
+      "description": "Решено первое задание курса Git",
+      "glyph": "1st",
+      "rule": { "kind": "tasksSolved", "count": 1 }
+    }
+  ]
+}

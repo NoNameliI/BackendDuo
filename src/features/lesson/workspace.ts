@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { checkChoice, createChecker, SolutionError, type Answer, type Checker, type CheckResult } from '@/checker';
+import { createGitChecker } from '@/checker/git';
+import { SetupError } from '@/engine/git/GitSandboxEngine';
+import { createGitSandboxStore } from '@/features/git/gitSandbox';
 import { courseById } from '@/content/courses';
 import { allTasks, errorHint, type Lesson, type Task } from '@/content/loadCourse';
 import {
@@ -81,7 +84,22 @@ let enginePromise: Promise<{ engine: SandboxEngine; checker: Checker }> | null =
 export const lessonOf = (task: Task): Lesson =>
   courseById(task.courseId).worlds.flatMap((w) => w.lessons).find((l) => l.id === task.lessonId)!;
 
-const isSqlTask = (task: Task | null) => task !== null && task.type !== 'choice' && task.type !== 'review';
+const isSqlTask = (task: Task | null) => task !== null && 'solution' in task;
+
+/** The Git sandbox of lessons (the free playground has its own). */
+export const lessonSandbox = createGitSandboxStore();
+const gitChecker = createGitChecker();
+
+function prepareGit(task: Extract<Task, { shellSolution: string }>): string | null {
+  const sandbox = lessonSandbox.getState();
+  sandbox.setHints(courseById(task.courseId).terminalHints);
+  try {
+    sandbox.reset(task.shellSetup);
+    return null;
+  } catch (e) {
+    return e instanceof SetupError ? `Ошибка в самом задании: ${e.message}` : String(e);
+  }
+}
 
 export const useWorkspace = create<WorkspaceState>((set, get) => {
   const print = (kind: LogKind, text: string) => get().print(kind, text);
@@ -184,6 +202,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         schema: null,
         tab: 'result',
       });
+      if ('shellSolution' in task) {
+        const failure = prepareGit(task);
+        if (failure) print('error', failure);
+        return;
+      }
       if (!isSqlTask(task)) return;
       await withSandbox(async ({ engine }) => {
         if (get().task?.id !== task.id) return; // a later navigation superseded this one
@@ -213,13 +236,20 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       set({ selected: toggleSelection(selected, index, task.answer.length > 1), verdict: null });
     },
 
-    resetDatabase: () =>
-      withSandbox(async ({ engine }) => {
+    resetDatabase: () => {
+      const current = get().task;
+      if (current && 'shellSolution' in current) {
+        const failure = prepareGit(current);
+        if (failure) print('error', failure);
+        return Promise.resolve();
+      }
+      return withSandbox(async ({ engine }) => {
         await engine.reset(get().task?.setupSql ?? '');
         await refreshSchema(engine);
         set({ result: null, plan: null, error: null });
         print('info', 'База возвращена к исходному состоянию задания');
-      }),
+      });
+    },
 
     run: () =>
       withSandbox(async ({ engine }) => {
@@ -273,6 +303,20 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         const verdict = checkChoice(task, selected);
         const reward = progress.recordAttempt(task, verdict.passed);
         set({ verdict: { ...verdict, at: Date.now(), reward } });
+        announce(reward);
+        return;
+      }
+
+      if ('shellSolution' in task) {
+        let verdict: CheckResult;
+        try {
+          const { engine, commands } = lessonSandbox.getState();
+          verdict = gitChecker.check(task, engine.world, commands);
+        } catch (e) {
+          verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : String(e)] };
+        }
+        const reward = progress.recordAttempt(task, verdict.passed);
+        set({ verdict: { ...verdict, at: Date.now(), reward }, taskTab: 'task' });
         announce(reward);
         return;
       }

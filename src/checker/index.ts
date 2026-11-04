@@ -166,6 +166,8 @@ export function createChecker(engine: SandboxEngine) {
           return checkSchema(task, answer.code);
         case 'plan':
           return checkPlan(task, answer.code);
+        default:
+          throw new Error(`${task.id}: задания Git проверяет checker/git.ts`);
       }
     },
   };

@@ -5,7 +5,7 @@ import { monaco } from '@/ui/monaco/setup';
 import { displayPath } from '@/engine/git/world';
 import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/Panel';
-import { useGitSandbox } from './gitSandbox';
+import { useSandbox } from './gitSandbox';
 
 const LANGUAGES: Record<string, string> = {
   md: 'markdown',
@@ -26,6 +26,7 @@ const languageOf = (path: string) => LANGUAGES[path.split('.').pop()!.toLowerCas
 
 /** Text editor for files of the sandbox; saving writes the file into the sandbox, like a real editor would. */
 export default function GitFileEditor() {
+  const useGitSandbox = useSandbox();
   const theme = useResolvedTheme();
   const path = useGitSandbox((s) => s.openFile);
   const engine = useGitSandbox((s) => s.engine);

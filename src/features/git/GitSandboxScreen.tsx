@@ -1,70 +1,26 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Button } from '@/ui/Button';
-import { Panel } from '@/ui/Panel';
-import { Split } from '@/ui/Split';
-import { Tabs } from '@/ui/Tabs';
-import { GitFiles } from './GitFiles';
-import { GitGraph } from './GitGraph';
-import { GitHosting } from './GitHosting';
-import { PLAYGROUND_SETUP, useGitSandbox } from './gitSandbox';
-import { GitStatusView } from './GitStatusView';
-import { GitTerminal } from './GitTerminal';
+import { PLAYGROUND_SETUP, useSandbox } from './gitSandbox';
+import { GitWorkbench } from './GitWorkbench';
 
-const GitFileEditor = lazy(() => import('./GitFileEditor'));
-
-type Side = 'graph' | 'status' | 'hosting';
-const SIDE_TABS = [
-  { id: 'graph', title: 'Граф' },
-  { id: 'status', title: 'Статус' },
-  { id: 'hosting', title: 'Хостинг' },
-] as const;
-
-const SANDBOX_NOTE = 'Учебная песочница: Git смоделирован внутри приложения, команды не трогают ваши файлы и сеть';
-
-/** Free Git sandbox: files, editor, commit graph, status and a terminal. */
+/** Free Git sandbox: files, editor, commit graph, status, hosting and a terminal. */
 export default function GitSandboxScreen() {
+  const useGitSandbox = useSandbox();
   const reset = useGitSandbox((s) => s.reset);
   const started = useGitSandbox((s) => s.version > 0);
-  const [side, setSide] = useState<Side>('graph');
 
   useEffect(() => {
     if (!started) reset(PLAYGROUND_SETUP, '/home/student/site');
   }, [started, reset]);
 
   return (
-    <Split direction="row" initial={[22, 78]} storageKey="git-sandbox-cols" min={12}>
-      <Panel title="Файлы">
-        <GitFiles />
-      </Panel>
-      <Split direction="column" initial={[58, 42]} storageKey="git-sandbox-rows">
-        <Split direction="row" initial={[50, 50]} storageKey="git-sandbox-top">
-          <Panel title="Редактор">
-            <Suspense fallback={<div className="h-full bg-well" />}>
-              <GitFileEditor />
-            </Suspense>
-          </Panel>
-          <Panel tabs={<Tabs label="Состояние репозитория" items={SIDE_TABS} value={side} onChange={setSide} idPrefix="git-side" />}>
-            <div id="git-side-panel" role="tabpanel" aria-labelledby={`git-side-tab-${side}`} className="h-full">
-              {side === 'graph' ? <GitGraph /> : side === 'status' ? <GitStatusView /> : <GitHosting />}
-            </div>
-          </Panel>
-        </Split>
-        <Panel
-          title="Терминал"
-          actions={
-            <>
-              <span className="hidden font-mono text-[11px] text-faint @3xl:inline" title={SANDBOX_NOTE}>
-                учебная песочница
-              </span>
-              <Button variant="outline" onClick={() => reset(PLAYGROUND_SETUP, '/home/student/site')}>
-                Начать заново
-              </Button>
-            </>
-          }
-        >
-          <GitTerminal />
-        </Panel>
-      </Split>
-    </Split>
+    <GitWorkbench
+      prefix="git-sandbox"
+      actions={
+        <Button variant="outline" onClick={() => reset(PLAYGROUND_SETUP, '/home/student/site')}>
+          Начать заново
+        </Button>
+      }
+    />
   );
 }

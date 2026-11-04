@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { computeStatus, type Status } from '@/engine/git/status';
 import { displayPath, type World } from '@/engine/git/world';
-import { useGitSandbox } from './gitSandbox';
+import { useSandbox } from './gitSandbox';
 
 type Mark = { code: string; title: string; tone: string };
 
@@ -50,6 +50,7 @@ function tree(world: World, root: string): Row[] {
 
 /** Files of the current project with their Git state; a click opens a file in the editor. */
 export function GitFiles() {
+  const useGitSandbox = useSandbox();
   const engine = useGitSandbox((s) => s.engine);
   const version = useGitSandbox((s) => s.version);
   const openFile = useGitSandbox((s) => s.openFile);

@@ -8,21 +8,28 @@ import { PlayIcon } from '@/ui/icons';
 import { Markdown } from '@/ui/Markdown';
 import { highlightSql } from '@/ui/highlightSql';
 import { resetExamples, runExample } from './examples';
+import { resetShellExamples, runShellExample, type ShellRun } from './shellExamples';
 import { summarizeStatement } from './format';
 import { ResultTable } from './ResultTable';
 
 export function TheoryView({ lesson }: { lesson: Lesson }) {
   const segments = useMemo(() => splitTheory(lesson.theory), [lesson.theory]);
   const runnable = segments.some((s) => s.kind === 'example');
+  const shell = segments.some((s) => s.kind === 'example' && s.lang === 'sh');
 
   return (
     <div className="space-y-4">
       {runnable && (
         <p className="rounded border border-line bg-well px-3 py-2 text-[12.5px] leading-relaxed text-dim">
-          Примеры с кнопкой «Выполнить» работают в отдельной учебной базе и не трогают задание. Запускайте их по порядку
-          и меняйте прямо в тексте задания — так быстрее всего понять синтаксис.{' '}
-          <button type="button" className="text-nav underline underline-offset-2" onClick={() => void resetExamples(lesson)}>
-            Вернуть базу примеров в исходное состояние
+          {shell
+            ? 'Примеры с кнопкой «Выполнить» работают в отдельной учебной песочнице Git и не трогают задание. Запускайте их по порядку — каждый продолжает предыдущий.'
+            : 'Примеры с кнопкой «Выполнить» работают в отдельной учебной базе и не трогают задание. Запускайте их по порядку и меняйте прямо в тексте задания — так быстрее всего понять синтаксис.'}{' '}
+          <button
+            type="button"
+            className="text-nav underline underline-offset-2"
+            onClick={() => (shell ? resetShellExamples(lesson) : void resetExamples(lesson))}
+          >
+            {shell ? 'Начать примеры заново' : 'Вернуть базу примеров в исходное состояние'}
           </button>
         </p>
       )}
@@ -30,7 +37,11 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
         segment.kind === 'markdown' ? (
           <Markdown key={i} source={segment.text} />
         ) : (
-          <RunnableExample key={`${lesson.id}-${i}`} lesson={lesson} sql={segment.sql} />
+          segment.lang === 'sh' ? (
+            <ShellExample key={`${lesson.id}-${i}`} lesson={lesson} script={segment.code} />
+          ) : (
+            <RunnableExample key={`${lesson.id}-${i}`} lesson={lesson} sql={segment.code} />
+          )
         ),
       )}
     </div>
@@ -75,6 +86,36 @@ function RunnableExample({ lesson, sql }: { lesson: Lesson; sql: string }) {
           ) : (
             <p className="px-3 py-2 font-mono text-[12px] text-ok">{outcome.results.map(summarizeStatement).join(' · ') || 'Готово'}</p>
           )}
+        </div>
+      )}
+    </figure>
+  );
+}
+
+function ShellExample({ lesson, script }: { lesson: Lesson; script: string }) {
+  const [result, setResult] = useState<ShellRun[] | null>(null);
+  return (
+    <figure className="overflow-hidden rounded-md border border-line bg-well">
+      <div className="relative">
+        <pre className="md-code !rounded-none !border-0 pr-32">{script}</pre>
+        <Button variant="run" icon={<PlayIcon />} className="absolute right-2 top-2" onClick={() => setResult(runShellExample(lesson, script))}>
+          Выполнить
+        </Button>
+      </div>
+      {result && (
+        <div className="animate-rise border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed" aria-live="polite">
+          {result.map((step, i) => (
+            <div key={i}>
+              <p className="whitespace-pre-wrap">
+                <span className="text-ok">{step.prompt}</span> <span className="text-fg">{step.command}</span>
+              </p>
+              {step.lines.map((line, j) => (
+                <p key={j} className={`min-h-[1.5em] whitespace-pre-wrap ${step.exit !== 0 && line.stream === 'err' ? 'text-err' : 'text-dim'}`}>
+                  {line.text}
+                </p>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </figure>

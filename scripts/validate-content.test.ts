@@ -1,12 +1,16 @@
-// Content QA: every SQL task's reference solution must pass its own check on a fresh sandbox,
-// and the starter code must not. Run with `npm run validate:content`.
+// Content QA: every task's reference solution must pass its own check on a fresh sandbox, and the
+// starting state (SQL starter code, or the Git setup alone) must not. Theory examples must run.
+// Run with `npm run validate:content`.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
+import { createGitChecker, runReference } from '@/checker/git';
 import { loadCatalog, type Catalog } from '@/content/catalog';
 import type { Task } from '@/content/loadCourse';
 import { theoryExamples } from '@/content/theory';
+import { GitSandboxEngine } from '@/engine/git/GitSandboxEngine';
+import { splitCommands } from '@/engine/git/shell';
 import { PostgresEngine } from '@/engine/postgres/PostgresEngine';
 
 
@@ -22,6 +26,7 @@ function readTree(dir: string): Record<string, string> {
 
 const engine = new PostgresEngine();
 const checker = createChecker(engine);
+const gitChecker = createGitChecker();
 
 beforeAll(() => engine.init());
 afterAll(() => engine.dispose());
@@ -31,6 +36,15 @@ async function validateTask(task: Task) {
     expect((await checker.check(task, { kind: 'choice', selected: task.answer })).passed).toBe(true);
     const wrong = task.options.map((_, i) => i).filter((i) => !task.answer.includes(i));
     expect((await checker.check(task, { kind: 'choice', selected: wrong })).passed).toBe(false);
+    return;
+  }
+  if ('shellSolution' in task) {
+    const reference = runReference(task);
+    const solved = gitChecker.check(task, reference.world, reference.commands);
+    expect(solved.problems, 'reference solution must pass its own check').toEqual([]);
+    const untouched = new GitSandboxEngine();
+    untouched.reset(task.shellSetup);
+    expect(gitChecker.check(task, untouched.world, []).passed, 'the setup alone must not pass the check').toBe(false);
     return;
   }
   const solved = await checker.check(task, { kind: 'sql', code: task.solution });
@@ -61,6 +75,17 @@ for (const course of catalog?.courses ?? []) {
           const examples = theoryExamples(lesson.theory);
           if (examples.length > 0) {
             it('theory examples run in order without errors', async () => {
+              if (course.engine === 'git') {
+                const sandbox = new GitSandboxEngine();
+                sandbox.reset(lesson.exampleSetup);
+                for (const command of examples.flatMap(splitCommands)) {
+                  const result = command.includes('\n') ? sandbox.runScript(command) : sandbox.run(command);
+                  const failed = 'exit' in result ? result.exit !== 0 : Boolean(result.failed);
+                  const output = result.lines.map((l) => l.text).join('\n');
+                  expect(failed, `example command failed: ${command}\n${output}`).toBe(false);
+                }
+                return;
+              }
               await engine.reset(lesson.exampleSetup);
               for (const sql of examples) {
                 const out = await engine.execute(sql);
@@ -76,11 +101,13 @@ ${sql}`).toBeUndefined();
       }
     }
 
-    describe('placement and onboarding', () => {
-      const extra = [...(course?.placement?.blocks.flatMap((b) => b.questions) ?? []), ...(course?.onboarding ? [course.onboarding.firstQuery] : [])];
-      for (const task of extra) {
-        it(`${task.id} (${task.type})`, () => validateTask(task));
-      }
-    });
+    const extra = [...(course?.placement?.blocks.flatMap((b) => b.questions) ?? []), ...(course?.onboarding ? [course.onboarding.firstQuery] : [])];
+    if (extra.length) {
+      describe('placement and onboarding', () => {
+        for (const task of extra) {
+          it(`${task.id} (${task.type})`, () => validateTask(task));
+        }
+      });
+    }
   });
 }
