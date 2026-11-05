@@ -1,12 +1,11 @@
 import type { ApiRequest } from '@/engine/api/http';
-import type { PythonReply, PythonRequest } from './python.worker';
+import { CONNECT, type PythonReply, type PythonRequest } from './protocol';
 import type { AppRun } from './runtime';
 
 /** The subset of the Worker API the client relies on (lets tests substitute a fake). */
 export interface PythonWorkerLike {
-  postMessage(message: PythonRequest): void;
+  postMessage(message: typeof CONNECT, transfer: Transferable[]): void;
   terminate(): void;
-  onmessage: ((event: MessageEvent<PythonReply>) => void) | null;
   onerror: ((event: ErrorEvent) => void) | null;
 }
 
@@ -45,6 +44,7 @@ export interface PythonClient {
  */
 export function createPythonClient(spawn: () => PythonWorkerLike, limits: PythonLimits = { startMs: 90_000, runMs: 8_000 }): PythonClient {
   let worker: PythonWorkerLike | null = null;
+  let port: MessagePort | null = null;
   let ready: Promise<void> | null = null;
   let status: PythonStatus = { state: 'idle' };
   let nextId = 1;
@@ -57,6 +57,8 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
   };
 
   const stop = (reason: Error) => {
+    port?.close();
+    port = null;
     worker?.terminate();
     worker = null;
     ready = null;
@@ -70,8 +72,8 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
   type Message = PythonRequest extends infer R ? (R extends PythonRequest ? Omit<R, 'id'> : never) : never;
   const call = (message: Message, timeoutMs: number, onTimeout: () => Error) =>
     new Promise<unknown>((resolve, reject) => {
-      const w = worker;
-      if (!w) return reject(new Error('Python не запущен'));
+      const p = port;
+      if (!p) return reject(new Error('Python не запущен'));
       const id = nextId++;
       const timer = setTimeout(() => {
         pending.delete(id);
@@ -80,21 +82,31 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
         reject(error);
       }, timeoutMs);
       pending.set(id, { resolve, reject, timer });
-      w.postMessage({ ...message, id } as PythonRequest);
+      p.postMessage({ ...message, id } as PythonRequest);
     });
 
   const start = (): Promise<void> => {
     ready ??= (() => {
       const w = spawn();
+      const channel = new MessageChannel();
       worker = w;
-      w.onmessage = ({ data }) => {
+      port = channel.port1;
+      port.onmessage = ({ data }: MessageEvent<PythonReply>) => {
+        if (typeof data?.id !== 'number' || typeof data.ok !== 'boolean') return;
         const p = pending.get(data.id);
         if (!p) return;
         pending.delete(data.id);
         clearTimeout(p.timer);
         if (data.ok) p.resolve(data.value);
         else p.reject(new Error(data.error));
+        if (!data.ok && data.fatal) {
+          // Pyodide cannot recover from such an error: replace the worker, as after a timeout.
+          stop(new Error(data.error));
+          setStatus({ state: 'idle' });
+          start().catch(() => {});
+        }
       };
+      w.postMessage(CONNECT, [channel.port2]);
       w.onerror = (event) => {
         event.preventDefault?.();
         const error = new Error(event.message || 'Python остановился с ошибкой');

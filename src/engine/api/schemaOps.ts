@@ -3,6 +3,7 @@ import { SolutionError, type CheckResult } from '@/checker/index';
 import { GraphqlServer, type Collections, type GraphqlResult } from './graphqlRun';
 import type protobuf from 'protobufjs';
 import { callRpc, encodeMessage, parseProto, type Encoded, type ProtoSummary, type RpcResult } from './protoRun';
+import { jsonSize } from './http';
 import type { ServerDef } from './server';
 
 /**
@@ -46,7 +47,7 @@ function exampleLine(root: protobuf.Root, pkg: string, line: string, collections
   if (m[2]) {
     const result = callRpc(root, collections, name, m[2], value);
     if (result.status !== 'OK') return { line, ok: false, text: `${result.status}: ${result.detail ?? ''}` };
-    const json = result.messages.reduce((a, msg) => a + new TextEncoder().encode(JSON.stringify(msg)).length, 0);
+    const json = result.messages.reduce((a, msg) => a + jsonSize(msg), 0);
     const bytes = result.bytes.reduce((a, b) => a + b, 0);
     return { line, ok: true, text: [...result.messages.map((msg) => JSON.stringify(msg)), `${bytes} Б в protobuf, ${json} Б в JSON`].join('\n') };
   }

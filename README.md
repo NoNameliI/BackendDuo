@@ -1,9 +1,10 @@
 # PostgreSQL Interactive Studio
 
-Десктопная учебная платформа для Windows 10–11. Короткая теория с бизнес-кейсом и сразу практика, решение проверяется автоматически. Сейчас в ней два курса:
+Десктопная учебная платформа для Windows 10–11. Короткая теория с бизнес-кейсом и сразу практика, решение проверяется автоматически. Сейчас в ней три курса:
 
 - **PostgreSQL** — запросы выполняются в настоящем PostgreSQL прямо внутри приложения;
-- **Git, GitHub и GitLab** — коммиты, ветки, исправление ошибок, работа в команде и CI в учебной песочнице.
+- **Git, GitHub и GitLab** — коммиты, ветки, исправление ошибок, работа в команде и CI в учебной песочнице;
+- **API и основы FastAPI** — HTTP и REST, первое приложение на настоящем FastAPI, связь фронтенда с бэкендом (fetch, CORS, токены), GraphQL и gRPC.
 
 Общие для курсов возможности:
 
@@ -30,9 +31,21 @@
 
 Чем песочница отличается от настоящего Git, подробно описано в [docs/engine-differences.md](docs/engine-differences.md).
 
+## Курс «API и основы FastAPI»
+
+Курс для начинающего backend-разработчика: что такое API, как фронтенд разговаривает с бэкендом, чем отличаются REST, GraphQL и gRPC. Всё работает офлайн внутри приложения: ни Python, ни WSL, ни Docker, ни сети не нужно, а токены и ключи в курсе только учебные.
+
+- **Учебные серверы.** Магазин, доставка, трекер задач и мессенджер описаны данными (`courses/api/servers`) и отвечают как приложение на FastAPI: коды статусов, ошибки 422 с переводом на понятный язык, авторизация, CORS. Настоящих сетевых запросов нет.
+- **Рабочая область:** композер запроса (метод, адрес, Params, Headers, Body), ответ сервера, лента запросов в стиле DevTools и схема обмена «клиент — сервер»; симулятор браузера для CORS с preflight.
+- **FastAPI на настоящем Python.** Python 3.14 и FastAPI работают в WebAssembly ([Pyodide](https://pyodide.org)) в отдельном потоке без сети, хранилищ и выполнения кода из строк. Загружаются при первом уроке с FastAPI, около двух секунд. Ученик пишет `main.py`, отправляет запросы в своё приложение, а проверка прогоняет скрытые тестовые запросы.
+- **GraphQL и gRPC:** настоящие graphql-js и protobufjs в отдельном потоке — запросы и мутации к схеме, разбор `.proto`, размер сообщения в байтах против JSON, учебный вызов методов gRPC.
+- **Типы заданий:** запрос (`request`), ответ сервера (`response`), настройка CORS (`cors`), `graphql`, `proto`, приложение FastAPI (`fastapi`), тесты и ревью. Решение открывается после трёх попыток.
+
+Отличия учебных серверов и среды FastAPI от настоящих описаны в [docs/engine-differences.md](docs/engine-differences.md).
+
 ## Запуск
 
-Нужны Node.js 22+ и npm. Для десктопной сборки дополнительно — Rust (toolchain `stable-msvc`), Visual Studio Build Tools с компонентом «Разработка классических приложений на C++» и WebView2 (в Windows 11 уже есть).
+Нужны Node.js 22+ и npm. При первом `npm run dev`, `build`, `test` или `validate:content` скрипт `scripts/pyodide/prepare.mjs` один раз скачивает пакеты Python для курса API (проверяя их контрольные суммы) и собирает их в `public/pyodide`; дальше сеть не нужна. Для десктопной сборки дополнительно — Rust (toolchain `stable-msvc`), Visual Studio Build Tools с компонентом «Разработка классических приложений на C++» и WebView2 (в Windows 11 уже есть).
 
 ```bash
 npm install
@@ -46,7 +59,7 @@ npm run tauri build  # установщики MSI и NSIS в src-tauri/target/re
 ```bash
 npm run build             # типы и production-сборка
 npm test                  # юнит-тесты: движки, проверка решений, геймификация, парсеры
-npm run validate:content  # эталон каждого задания проходит свою проверку, стартовое состояние — нет
+npm run validate:content  # эталон каждого задания проходит свою проверку, стартовое состояние — нет; примеры теории выполняются (FastAPI — в Pyodide под Node)
 npm run test:git-parity   # только для разработчика: сверка песочницы с установленным Git
 ```
 
@@ -54,7 +67,7 @@ npm run test:git-parity   # только для разработчика: све
 
 | Клавиши | Действие |
 |---|---|
-| `Ctrl+Enter` | выполнить запрос (SQL) |
+| `Ctrl+Enter` | выполнить запрос (SQL), отправить запрос или выполнить GraphQL (курс API) |
 | `Ctrl+Shift+Enter` | проверить решение |
 | `Ctrl+K` | палитра: курсы, уроки, задания, разделы, действия |
 | `Alt+←` / `Alt+→` | предыдущее / следующее задание |
@@ -66,23 +79,25 @@ npm run test:git-parity   # только для разработчика: све
 ```
 courses/
   platform.json          порядок курсов в хабе, общие уровни и бейджи платформы
-  postgres/, git/        курсы — только данные
+  postgres/, git/, api/  курсы — только данные
     manifest.json        миры, уроки, уровни, бейджи, движок курса
     w1 … w5/*.md         уроки: теория и задания
     placement.json/.md   вступительный тест
     onboarding.json      сценарий для новичков
-    errors.json          подсказки к ошибкам (коды PostgreSQL или строки вывода git)
+    errors.json          подсказки к ошибкам (коды PostgreSQL, строки вывода git, коды HTTP)
+    servers/             учебные серверы курса API (JSON, .graphql, .proto)
 src/
-  engine/                SandboxEngine для PostgreSQL (PGlite в Web Worker) и песочница Git (engine/git)
-  checker/               проверка решений: SQL-задания, задания Git (git.ts), тесты
+  engine/                SandboxEngine для PostgreSQL (PGlite в Web Worker), песочница Git (engine/git),
+                         учебные серверы, GraphQL и protobuf (engine/api), FastAPI в Pyodide (engine/python)
+  checker/               проверка решений: SQL-задания, задания Git (git.ts), курса API (api.ts, apiSchema.ts, fastapi.ts)
   content/               zod-схемы, парсер уроков, загрузчик курсов и каталога
   progress/              хранимый прогресс по курсам и правила геймификации
-  features/              экраны: хаб, урок, карта, профиль, онбординг, ERD, песочница Git, палитра
+  features/              экраны: хаб, урок, карта, профиль, онбординг, ERD, песочница Git, рабочая область API, палитра
   platform/              единственная точка доступа к API оболочки (Tauri) с веб-фолбэками
   ui/                    общие компоненты
 src-tauri/               оболочка Tauri 2: окно, трей, уведомления, хранилище
-scripts/                 validate-content и сверка с Git (git-parity)
-docs/                    правила контента и отличия песочницы Git
+scripts/                 validate-content, сверка с Git (git-parity), подготовка Python (pyodide)
+docs/                    правила контента и отличия учебных сред от настоящих
 ```
 
 ## Как добавить урок
@@ -113,13 +128,13 @@ docs/                    правила контента и отличия пе�
 2. Добавьте урок в `manifest.json` в нужный мир: `{ "id": "w2-case", "file": "w2/04-case.md" }`. По умолчанию урок открывается после предыдущего; другой порядок задаётся полем `requires`.
 3. Запустите `npm run validate:content`.
 
-Блоки SQL-задания: `json` — параметры, `sql setup` — подготовка базы, `sql starter` — код в редакторе при открытии, `sql solution` — эталон, `sql check` — запросы для проверки состояния, `sql query` — запрос для задач на оптимизацию, `<язык> code` — фрагмент кода для ревью. В курсе Git вместо них `sh setup` и `sh solution` — команды для песочницы. Запускаемые примеры в теории — блоки `sql example` и `sh example`. Полная схема — в `src/content/schema.ts`, правила текстов — в [docs/content-guide.md](docs/content-guide.md).
+Блоки SQL-задания: `json` — параметры, `sql setup` — подготовка базы, `sql starter` — код в редакторе при открытии, `sql solution` — эталон, `sql check` — запросы для проверки состояния, `sql query` — запрос для задач на оптимизацию, `<язык> code` — фрагмент кода для ревью. В курсе Git вместо них `sh setup` и `sh solution` — команды для песочницы; в курсе API — `http`, `graphql`, `proto`, `python` и `json` с ролями `starter`, `solution`, `setup`, `tests`. Запускаемые примеры в теории — блоки `sql example`, `sh example`, `http example`, `graphql example`, `proto example` и `python example`. Полная схема — в `src/content/schema.ts`, правила текстов — в [docs/content-guide.md](docs/content-guide.md).
 
 ## Как добавить курс
 
 1. Создайте папку `courses/<id>/` с `manifest.json` (поля `id`, `title`, `description`, `engine`, `errors`, `worlds`, `levels`, `badges`; по желанию `placement`, `onboarding`, `solutionAfterAttempts`) и уроками по формату выше.
 2. Добавьте `<id>` в список `courses` в `courses/platform.json` — курс появится в хабе. Прогресс по курсам хранится раздельно, общий XP и уровень платформы считаются по всем курсам.
-3. Если курс использует уже существующий движок (`postgres` или `git`), больше ничего не нужно. Для новой технологии:
+3. Если курс использует уже существующий движок (`postgres`, `git` или `api`), больше ничего не нужно. Для новой технологии:
    - реализуйте её песочницу (для SQL-подобных — интерфейс `SandboxEngine` из `src/engine/types.ts`, по образцу `src/engine/git` — собственную модель) и добавьте вид движка в `EngineKind` и в поле `engine` схемы манифеста;
    - добавьте типы заданий в `src/content/schema.ts` и их проверку в `src/checker/`;
    - научите `scripts/validate-content.test.ts` прогонять эталоны нового движка.

@@ -26,7 +26,7 @@ export function ExchangeDiagram() {
 
   return (
     <div className="h-full overflow-auto p-3">
-      <svg viewBox={`0 0 ${W} ${height}`} width="100%" role="img" aria-label="Схема обмена между клиентом и сервером" className="max-w-[560px] font-mono text-[12px]">
+      <svg viewBox={`0 0 ${W} ${height}`} width="100%" role="img" aria-label="Схема обмена между клиентом и сервером" aria-describedby="exchange-steps" className="max-w-[560px] font-mono text-[12px]">
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="var(--dim)" />
@@ -78,6 +78,16 @@ export function ExchangeDiagram() {
           );
         })}
       </svg>
+      <ol id="exchange-steps" className="sr-only">
+        {shown.map((e) => (
+          <li key={e.id}>
+            {e.kind === 'preflight' ? 'Preflight: ' : ''}
+            {client} отправляет {e.request.method} {splitUrl(e.request.url).path}.{' '}
+            {e.response ? `Сервер отвечает ${e.response.status} ${statusText(e.response.status)}.` : ''}
+            {e.error ? ` Ответ не получен: ${e.explain ?? e.error}` : ''}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

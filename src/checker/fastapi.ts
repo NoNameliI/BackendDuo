@@ -1,7 +1,7 @@
 import type { ApiTask } from '@/content/loadCourse';
 import { explain422 } from '@/engine/api/explain';
 import { sameJson } from './api';
-import { findHeader, parseRequest, splitUrl, type ApiRequest } from '@/engine/api/http';
+import { bodyValue as json, differentHeaders, parseRequest, splitUrl, type ApiRequest } from '@/engine/api/http';
 import { splitRequests } from '@/engine/api/server';
 import { explainPythonError } from '@/engine/python/explain';
 import type { AppRun, AppRunner, PyResponse } from '@/engine/python/runtime';
@@ -23,14 +23,6 @@ export function testRequests(task: FastapiTask): ApiRequest[] {
 const label = (req: ApiRequest) => {
   const { path, query } = splitUrl(req.url);
   return `${req.method} ${path}${query.length ? `?${query.map(([k, v]) => `${k}=${v}`).join('&')}` : ''}`;
-};
-
-const json = (body: string): unknown => {
-  try {
-    return JSON.parse(body);
-  } catch {
-    return body;
-  }
 };
 
 const short = (v: unknown) => {
@@ -63,11 +55,8 @@ function difference(req: ApiRequest, want: PyResponse, got: PyResponse, task: Fa
   if (task.check.body === 'json' && !sameJson(json(want.body), json(got.body))) {
     return `${at}: ответ ${short(json(got.body))}, а ожидается ${short(json(want.body))}`;
   }
-  for (const name of task.check.headers) {
-    const w = findHeader(want.headers, name);
-    const g = findHeader(got.headers, name);
-    if (w !== g) return `${at}: заголовок ${name} ${g === undefined ? 'не передан' : `«${g}»`}, а ожидается «${w}»`;
-  }
+  const [header] = differentHeaders(task.check.headers, want.headers, got.headers);
+  if (header) return `${at}: заголовок ${header.name} ${header.got === undefined ? 'не передан' : `«${header.got}»`}, а ожидается «${header.want}»`;
   return null;
 }
 

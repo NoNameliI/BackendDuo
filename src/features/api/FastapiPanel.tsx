@@ -23,13 +23,15 @@ export function PythonStatusLine() {
     status.state === 'ready'
       ? ['text-ok', 'Python готов']
       : status.state === 'loading'
-        ? ['text-amber', `Загружаю Python и FastAPI… ${Math.max(0, Math.round((now - status.since) / 1000))} с`]
+        ? ['text-amber', 'Загружаю Python и FastAPI…']
         : status.state === 'failed'
           ? ['text-err', `Python не запустился: ${status.error}`]
           : ['text-faint', 'Python запустится при первом запросе'];
+  // Screen readers hear the state changes; the running seconds are for the eyes only.
   return (
-    <span role="status" className={`truncate font-mono text-[12px] ${tone}`}>
-      {text}
+    <span className={`truncate font-mono text-[12px] ${tone}`}>
+      <span role="status">{text}</span>
+      {status.state === 'loading' && <span aria-hidden="true"> {Math.max(0, Math.round((now - status.since) / 1000))} с</span>}
     </span>
   );
 }

@@ -49,7 +49,6 @@ export function resetHttpExamples(lesson: Lesson): void {
 }
 
 export interface SchemaRun {
-  ok: boolean;
   /** Answer, encoded bytes or call results to show under the example. */
   lines: { text: string; ok: boolean }[];
   summary?: ProtoSummary;
@@ -68,17 +67,16 @@ function collectionsOf(lesson: Lesson): Collections {
 
 export async function runGraphqlExample(lesson: Lesson, query: string): Promise<SchemaRun> {
   const sdl = lesson.exampleServer ? courseById(lesson.courseId).servers[lesson.exampleServer]?.graphql : undefined;
-  if (!sdl) return { ok: false, lines: [{ text: 'У сервера урока нет GraphQL-схемы', ok: false }] };
+  if (!sdl) return { lines: [{ text: 'У сервера урока нет GraphQL-схемы', ok: false }] };
   try {
     const { result, collections, explained } = await schemaClient().graphql(sdl, collectionsOf(lesson), query, {});
     data = { lesson: lesson.id, collections };
     const body = JSON.stringify({ ...(result.data !== undefined ? { data: result.data } : {}), ...(result.errors ? { errors: result.errors.map((e) => ({ message: e.message })) } : {}) });
     return {
-      ok: !result.errors,
       lines: [{ text: prettyBody(body), ok: true }, ...explained.map((text) => ({ text, ok: false })), { text: `Обращений к источнику данных: ${result.calls}`, ok: true }],
     };
   } catch (e) {
-    return { ok: false, lines: [{ text: (e as Error).message, ok: false }] };
+    return { lines: [{ text: (e as Error).message, ok: false }] };
   }
 }
 
@@ -86,10 +84,10 @@ export async function runProtoExample(lesson: Lesson, text: string): Promise<Sch
   try {
     const out = await schemaClient().protoExample(text, collectionsOf(lesson));
     data = { lesson: lesson.id, collections: out.collections };
-    if (out.error) return { ok: false, lines: [{ text: out.error, ok: false }] };
-    return { ok: out.outputs.every((o) => o.ok), summary: out.summary, lines: out.outputs.map((o) => ({ text: `${o.line}\n${o.text}`, ok: o.ok })) };
+    if (out.error) return { lines: [{ text: out.error, ok: false }] };
+    return { summary: out.summary, lines: out.outputs.map((o) => ({ text: `${o.line}\n${o.text}`, ok: o.ok })) };
   } catch (e) {
-    return { ok: false, lines: [{ text: (e as Error).message, ok: false }] };
+    return { lines: [{ text: (e as Error).message, ok: false }] };
   }
 }
 

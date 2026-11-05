@@ -18,6 +18,19 @@ export function useSelectedExchange(): Exchange | undefined {
   return exchanges.find((e) => e.id === selected) ?? exchanges.at(-1);
 }
 
+/** What is wrong in a request rejected with 422, in plain Russian (the response view and theory examples). */
+export function ValidationProblems({ body, className = '' }: { body: string; className?: string }) {
+  const lines = explain422(body);
+  if (!lines) return null;
+  return (
+    <ul aria-label="Что не так в запросе" className={`space-y-0.5 text-amber ${className}`}>
+      {lines.map((p, i) => (
+        <li key={i}>• {p}</li>
+      ))}
+    </ul>
+  );
+}
+
 type Tab = 'body' | 'headers';
 const TABS = [
   { id: 'body', title: 'Тело' },
@@ -58,13 +71,7 @@ export function ResponseView() {
         <div className="shrink-0 space-y-1 border-b border-line px-3 py-2 text-[12.5px]">
           {error && <p className="break-words font-mono text-[12px] text-err">CORS: браузер не отдал ответ странице. {error}</p>}
           {cors && <p className="text-amber">{cors}</p>}
-          {problems && (
-            <ul aria-label="Что не так в запросе" className="space-y-0.5 text-amber">
-              {problems.map((p, i) => (
-                <li key={i}>• {p}</li>
-              ))}
-            </ul>
-          )}
+          {problems && <ValidationProblems body={response.body} />}
           {hint && !problems && <p className="text-dim">{hint}</p>}
           {exchange.notes?.map((n, i) => (
             <p key={i} className={n.warn ? 'text-amber' : 'text-dim'}>

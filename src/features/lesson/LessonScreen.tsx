@@ -25,6 +25,7 @@ export function LessonScreen() {
   const { task, code, error, status, setCode, run, check, explain, resetDatabase, clearLog, openTask, goRelative, toggleOption } =
     useWorkspace();
   const busy = status === 'busy' || status === 'starting';
+  const checking = useWorkspace((s) => s.checking);
 
   useEffect(() => {
     const course = activeCourse();
@@ -71,8 +72,8 @@ export function LessonScreen() {
             actions={
               <>
                 <Button aria-label="Вернуть запрос к началу задания" title="Сбросить" icon={<ResetIcon />} onClick={() => void resetDatabase()} />
-                <Button variant="check" icon={<CheckIcon />} shortcut="Ctrl ⇧ ↵" onClick={() => void check()}>
-                  Проверить
+                <Button variant="check" icon={<CheckIcon />} shortcut="Ctrl ⇧ ↵" disabled={checking} onClick={() => void check()}>
+                  {checking ? 'Проверяю…' : 'Проверить'}
                 </Button>
               </>
             }

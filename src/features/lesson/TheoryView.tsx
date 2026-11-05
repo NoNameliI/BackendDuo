@@ -13,8 +13,7 @@ import { resetHttpExamples, runGraphqlExample, runHttpExample, runProtoExample, 
 import { pythonClient } from '@/engine/python/pythonClient';
 import { PythonStatusLine } from '@/features/api/FastapiPanel';
 import { prettyBody, statusText } from '@/engine/api/http';
-import { statusTone } from '@/features/api/ResponseView';
-import { explain422 } from '@/engine/api/explain';
+import { statusTone, ValidationProblems } from '@/features/api/ResponseView';
 import { summarizeStatement } from './format';
 import { ResultTable } from './ResultTable';
 
@@ -125,8 +124,10 @@ function ShellExample({ lesson, script }: { lesson: Lesson; script: string }) {
           Выполнить
         </Button>
       </div>
-      {result && (
-        <div className="animate-rise border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed" aria-live="polite">
+      {/* Mounted before the result arrives, so screen readers announce the first result too. */}
+      <div aria-live="polite">
+        {result && (
+        <div className="animate-rise border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed">
           {result.map((step, i) => (
             <div key={i}>
               <p className="whitespace-pre-wrap">
@@ -141,6 +142,7 @@ function ShellExample({ lesson, script }: { lesson: Lesson; script: string }) {
           ))}
         </div>
       )}
+      </div>
     </figure>
   );
 }
@@ -170,8 +172,9 @@ function HttpExample({ lesson, text, python = false }: { lesson: Lesson; text: s
           <PythonStatusLine />
         </div>
       )}
-      {result && (
-        <div className="animate-rise space-y-2 border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed" aria-live="polite">
+      <div aria-live="polite">
+        {result && (
+        <div className="animate-rise space-y-2 border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed">
           {result.map((run, i) =>
             run.response ? (
               <div key={i}>
@@ -183,12 +186,7 @@ function HttpExample({ lesson, text, python = false }: { lesson: Lesson; text: s
                     {h.name}: {h.value}
                   </p>
                 ))}
-                {run.response.status === 422 &&
-                  explain422(run.response.body)?.map((line, j) => (
-                    <p key={`e${j}`} className="font-sans text-amber">
-                      • {line}
-                    </p>
-                  ))}
+                {run.response.status === 422 && <ValidationProblems body={run.response.body} className="font-sans" />}
                 {run.error && <p className="font-sans text-amber">{run.error}</p>}
                 {run.response.body && <pre className="mt-1 whitespace-pre-wrap text-fg">{prettyBody(run.response.body)}</pre>}
                 {run.output && <pre className="mt-1 whitespace-pre-wrap text-dim">{run.output}</pre>}
@@ -201,6 +199,7 @@ function HttpExample({ lesson, text, python = false }: { lesson: Lesson; text: s
           )}
         </div>
       )}
+      </div>
     </figure>
   );
 }
@@ -225,8 +224,9 @@ function SchemaExample({ lesson, lang, text }: { lesson: Lesson; lang: 'graphql'
           {lang === 'graphql' ? 'Выполнить' : 'Разобрать'}
         </Button>
       </div>
-      {result && (
-        <div className="animate-rise space-y-2 border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed" aria-live="polite">
+      <div aria-live="polite">
+        {result && (
+        <div className="animate-rise space-y-2 border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed">
           {result.summary?.messages.map((m) => (
             <p key={m.name} className="text-dim">
               message {m.name}: {m.fields.map((f) => `${f.name} = ${f.number}`).join(', ') || 'без полей'}
@@ -239,6 +239,7 @@ function SchemaExample({ lesson, lang, text }: { lesson: Lesson; lang: 'graphql'
           ))}
         </div>
       )}
+      </div>
     </figure>
   );
 }

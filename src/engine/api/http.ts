@@ -140,13 +140,31 @@ export function withQuery(url: string, query: [string, string][]): string {
   return `${origin}${path}${q ? `?${q}` : ''}`;
 }
 
-/** Pretty JSON when the body is JSON, the text itself otherwise. */
-export function prettyBody(body: string): string {
+/** The parsed JSON of a body, or the text itself when it is not JSON. */
+export function bodyValue(body: string): unknown {
   try {
-    return JSON.stringify(JSON.parse(body), null, 2);
+    return JSON.parse(body);
   } catch {
     return body;
   }
+}
+
+/** Pretty JSON when the body is JSON, the text itself otherwise. */
+export function prettyBody(body: string): string {
+  const value = bodyValue(body);
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+}
+
+/** Size of a value sent as JSON, in bytes. */
+export const jsonSize = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+
+/** Headers (by name) whose values differ between two header lists. */
+export function differentHeaders(names: string[], want: HttpHeader[], got: HttpHeader[]): { name: string; want?: string; got?: string }[] {
+  return names.flatMap((name) => {
+    const w = findHeader(want, name);
+    const g = findHeader(got, name);
+    return w === g ? [] : [{ name, want: w, got: g }];
+  });
 }
 
 /** "application/json; charset=utf-8" → "application/json" */

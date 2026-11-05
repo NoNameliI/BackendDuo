@@ -1,24 +1,17 @@
-import type { ApiRequest } from '@/engine/api/http';
 import { cutOff, noCodeFromStrings } from '../isolate';
+import { CONNECT, type PythonReply, type PythonRequest } from './protocol';
 import { setupRuntime, type AppRunner, type PyodideLike } from './runtime';
 
-export type PythonRequest =
-  | { id: number; op: 'init' }
-  | { id: number; op: 'run'; source: string; requests: ApiRequest[]; keep: boolean }
-  | { id: number; op: 'forget' };
-
-export type PythonReply = { id: number; ok: true; value: unknown } | { id: number; ok: false; error: string };
-
 const scope = self as unknown as {
-  onmessage: (event: MessageEvent<PythonRequest>) => void;
-  postMessage: (message: PythonReply) => void;
+  onmessage: ((event: MessageEvent) => void) | null;
   location: Location;
 };
 
 let runtime: Promise<{ run: AppRunner; forget: () => void; loadMs: number }> | null = null;
 
 // Python, its standard library and the precompiled packages are files of the app (public/pyodide). They are
-// loaded first; then the worker loses every way out (network, storage, nested workers) before any learner code runs.
+// loaded first; then the worker loses every way out (network, storage, nested workers, its own postMessage)
+// before any learner code runs. Only the private port below still talks to the app.
 async function start() {
   const started = performance.now();
   const base = new URL('/pyodide/', scope.location.href).href;
@@ -35,28 +28,38 @@ async function start() {
   const ready = setupRuntime(pyodide, archive);
   // The first import of FastAPI is the slow part; doing it here makes the learner's first run fast.
   await ready.run('from fastapi import FastAPI\napp = FastAPI()', []);
-  cutOff(self);
+  cutOff(self, ['postMessage', 'onmessage', 'onmessageerror', 'close']);
   noCodeFromStrings(self);
   return { ...ready, loadMs: Math.round(performance.now() - started) };
 }
 
-scope.onmessage = async ({ data }) => {
-  try {
-    if (data.op === 'init') {
-      runtime ??= start();
-      const { loadMs } = await runtime;
-      scope.postMessage({ id: data.id, ok: true, value: { loadMs } });
-      return;
+function serve(port: MessagePort) {
+  const reply = (message: PythonReply) => port.postMessage(message);
+  port.onmessage = async ({ data }: MessageEvent<PythonRequest>) => {
+    try {
+      if (data.op === 'init') {
+        runtime ??= start();
+        const { loadMs } = await runtime;
+        reply({ id: data.id, ok: true, value: { loadMs } });
+        return;
+      }
+      if (!runtime) throw new Error('Python ещё не запущен');
+      const { run, forget } = await runtime;
+      if (data.op === 'forget') {
+        forget();
+        reply({ id: data.id, ok: true, value: null });
+        return;
+      }
+      reply({ id: data.id, ok: true, value: await run(data.source, data.requests, { keep: data.keep }) });
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      reply({ id: data.id, ok: false, error, fatal: /fatal error/i.test(error) });
     }
-    if (!runtime) throw new Error('Python ещё не запущен');
-    const { run, forget } = await runtime;
-    if (data.op === 'forget') {
-      forget();
-      scope.postMessage({ id: data.id, ok: true, value: null });
-      return;
-    }
-    scope.postMessage({ id: data.id, ok: true, value: await run(data.source, data.requests, { keep: data.keep }) });
-  } catch (e) {
-    scope.postMessage({ id: data.id, ok: false, error: e instanceof Error ? e.message : String(e) });
-  }
+  };
+}
+
+scope.onmessage = ({ data, ports }) => {
+  if (data !== CONNECT || !ports[0]) return;
+  scope.onmessage = null;
+  serve(ports[0]);
 };

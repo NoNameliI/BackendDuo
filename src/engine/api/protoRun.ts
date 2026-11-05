@@ -1,5 +1,6 @@
 import protobuf from 'protobufjs';
 import type { Collections } from './graphqlRun';
+import { jsonSize } from './http';
 
 /**
  * Protocol Buffers for the course: parse a .proto file into a readable structure, encode a message to bytes
@@ -113,7 +114,7 @@ export function encodeMessage(root: protobuf.Root, typeName: string, value: Reco
   return {
     bytes: bytes.length,
     hex: [...bytes].map((b) => b.toString(16).padStart(2, '0')).join(' '),
-    jsonBytes: new TextEncoder().encode(JSON.stringify(value)).length,
+    jsonBytes: jsonSize(value),
     decoded: type.toObject(type.decode(bytes), { defaults: true, longs: Number, enums: String }),
   };
 }

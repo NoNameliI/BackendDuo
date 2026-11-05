@@ -28,27 +28,19 @@ export function NetworkLog() {
             const { path, query } = splitUrl(e.request.url);
             const active = e.id === current?.id;
             return (
-              <tr
-                key={e.id}
-                aria-selected={active}
-                tabIndex={0}
-                onClick={() => select(e.id)}
-                onKeyDown={(ev) => {
-                  if (ev.key === 'Enter' || ev.key === ' ') {
-                    ev.preventDefault();
-                    select(e.id);
-                  }
-                }}
-                className={`cursor-pointer border-t border-line ${active ? 'bg-raised' : 'hover:bg-raised/60'}`}
-              >
-                <td className="px-3 py-1.5 text-nav">{e.request.method}</td>
+              <tr key={e.id} onClick={() => select(e.id)} className={`cursor-pointer border-t border-line ${active ? 'bg-raised' : 'hover:bg-raised/60'}`}>
+                <td className="px-3 py-1.5 text-nav">
+                  <button type="button" aria-current={active ? 'true' : undefined} aria-label={`${e.request.method} ${path}: показать ответ`} onClick={() => select(e.id)} className="text-nav">
+                    {e.request.method}
+                  </button>
+                </td>
                 <td className="max-w-[16rem] truncate px-2 py-1.5 text-fg">
                   {path}
-                  {query.length ? <span className="text-faint">?{query.map(([k, v]) => `${k}=${v}`).join('&')}</span> : null}
+                  {query.length ? <span className={active ? 'text-dim' : 'text-faint'}>?{query.map(([k, v]) => `${k}=${v}`).join('&')}</span> : null}
                 </td>
                 <td className={`px-2 py-1.5 ${e.response ? statusTone(e.response.status) : 'text-err'}`}>{e.response ? e.response.status : 'ошибка'}</td>
-                <td className="px-2 py-1.5 text-faint">{e.kind === 'preflight' ? 'preflight' : e.protocol === 'graphql' ? 'GraphQL' : e.protocol === 'grpc' ? 'gRPC' : e.origin ? 'fetch' : 'запрос'}</td>
-                <td className="px-3 py-1.5 text-right text-faint">{e.response ? `${e.response.timeMs} мс` : '—'}</td>
+                <td className={`px-2 py-1.5 ${active ? 'text-dim' : 'text-faint'}`}>{e.kind === 'preflight' ? 'preflight' : e.protocol === 'graphql' ? 'GraphQL' : e.protocol === 'grpc' ? 'gRPC' : e.origin ? 'fetch' : 'запрос'}</td>
+                <td className={`px-3 py-1.5 text-right ${active ? 'text-dim' : 'text-faint'}`}>{e.response ? `${e.response.timeMs} мс` : '—'}</td>
               </tr>
             );
           })}

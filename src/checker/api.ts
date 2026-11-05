@@ -1,7 +1,7 @@
 import type { ApiTask } from '@/content/loadCourse';
 import { corsConfigSchema } from '@/content/schema';
 import { browserFetch, explainCors, fetchSucceeded } from '@/engine/api/cors';
-import { findHeader, mediaType, parseRequest, RequestFormatError, splitUrl, statusText, type ApiRequest } from '@/engine/api/http';
+import { bodyValue, differentHeaders, findHeader, mediaType, parseRequest, RequestFormatError, splitUrl, statusText, type ApiRequest } from '@/engine/api/http';
 import { HttpSimServer, sendTo, splitRequests, type CorsConfig, type ServerDef } from '@/engine/api/server';
 import { SolutionError, type CheckResult } from './index';
 
@@ -139,19 +139,11 @@ export function checkResponse(task: Extract<ApiTask, { type: 'response' }>, serv
   if (task.check.status && got.status !== want.status) {
     problems.push(`Сервер ответил ${got.status} ${statusText(got.status)}, а нужен ответ ${want.status} ${statusText(want.status)}`);
   }
-  for (const name of task.check.headers) {
-    const w = findHeader(want.headers, name);
-    const g = findHeader(got.headers, name);
-    if (w !== g) problems.push(`Заголовок ответа ${name}: ожидается ${show(w ?? '(нет)')}, у вас ${show(g ?? '(нет)')}`);
+  for (const h of differentHeaders(task.check.headers, want.headers, got.headers)) {
+    problems.push(`Заголовок ответа ${h.name}: ожидается ${show(h.want ?? '(нет)')}, у вас ${show(h.got ?? '(нет)')}`);
   }
   if (task.check.body === 'json' && !problems.length) {
-    let same = want.body === got.body;
-    try {
-      same ||= sameJson(JSON.parse(want.body), JSON.parse(got.body));
-    } catch {
-      /* not JSON: text comparison above */
-    }
-    if (!same) problems.push(`Тело ответа не то: ожидается ${describeBody(want.body)}, а пришло ${describeBody(got.body)}`);
+    if (!sameJson(bodyValue(want.body), bodyValue(got.body))) problems.push(`Тело ответа не то: ожидается ${describeBody(want.body)}, а пришло ${describeBody(got.body)}`);
   }
   for (const name of task.check.state) {
     if (!sameJson(wantServer.data[name] ?? [], gotServer.data[name] ?? [])) problems.push(`Данные «${name}» на сервере после запроса отличаются от ожидаемых`);

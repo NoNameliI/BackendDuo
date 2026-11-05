@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { browserFetch } from '@/engine/api/cors';
 import type { Collections } from '@/engine/api/graphqlRun';
-import { parseRequest, RequestFormatError, splitUrl, type ApiRequest, type Exchange } from '@/engine/api/http';
+import { jsonSize, parseRequest, RequestFormatError, splitUrl, type ApiRequest, type Exchange } from '@/engine/api/http';
 import type { Encoded, ProtoSummary } from '@/engine/api/protoRun';
 import { schemaClient } from '@/engine/api/schemaClient';
 import { sendTo, type CorsConfig, type HttpSimServer } from '@/engine/api/server';
@@ -142,7 +142,6 @@ export function readJsonObject(text: string, what: string): Record<string, unkno
 }
 
 const GRPC_CODES = { OK: 0, INVALID_ARGUMENT: 3, NOT_FOUND: 5, UNIMPLEMENTED: 12 } as const;
-const jsonSize = (v: unknown) => new TextEncoder().encode(JSON.stringify(v)).length;
 
 const fromText = (text: string): ApiRequest => {
   try {
@@ -154,6 +153,12 @@ const fromText = (text: string): ApiRequest => {
 
 export function createApiSandboxStore(): ApiSandboxStore {
   return create<ApiSandboxState>((set, get) => {
+    // Bumped by reset: an answer that arrives after the task changed belongs to the old task and is dropped.
+    let generation = 0;
+    const current = () => {
+      const started = generation;
+      return () => started === generation;
+    };
     const record = (produced: Omit<Exchange, 'id'>[]) => {
       const group = nextId;
       const withIds = produced.map((e) => ({ ...e, id: nextId++, group }));
@@ -185,12 +190,15 @@ export function createApiSandboxStore(): ApiSandboxStore {
         }
       },
       send: async () => {
-        const { draft, engine } = get();
+        const { draft, engine, sending } = get();
+        if (sending) return;
+        const alive = current();
         set({ sending: true });
         try {
-          record(await engine.send(draft));
+          const produced = await engine.send(draft);
+          if (alive()) record(produced);
         } finally {
-          set({ sending: false });
+          if (alive()) set({ sending: false });
         }
       },
       setCorsConfig: (config) => {
@@ -218,18 +226,21 @@ export function createApiSandboxStore(): ApiSandboxStore {
           return;
         }
         request.body = JSON.stringify(Object.keys(variables).length ? { query: graphql.query, variables } : { query: graphql.query }, null, 2);
+        if (get().sending) return;
+        const alive = current();
         set({ sending: true });
         try {
           const { result, collections, explained } = await schemaClient().graphql(graphql.sdl, graphql.collections, graphql.query, variables);
+          if (!alive()) return;
           const notes = explained.map((text) => ({ text, warn: true }));
           notes.push({ text: `Обращений к источнику данных: ${result.calls}`, warn: false });
           const body = JSON.stringify({ ...(result.data !== undefined ? { data: result.data } : {}), ...(result.errors ? { errors: result.errors } : {}) });
-          set({ graphql: { ...get().graphql!, collections } });
+          set({ graphql: { ...graphql, ...get().graphql, collections } });
           record([{ kind: 'request', protocol: 'graphql', request, response: { status: 200, headers: [{ name: 'content-type', value: 'application/json' }], body, timeMs: 6 + result.calls }, notes }]);
         } catch (e) {
-          record([{ kind: 'request', protocol: 'graphql', request, response: null, error: (e as Error).message }]);
+          if (alive()) record([{ kind: 'request', protocol: 'graphql', request, response: null, error: (e as Error).message }]);
         } finally {
-          set({ sending: false });
+          if (alive()) set({ sending: false });
         }
       },
       setProtoSource: async (source) => {
@@ -244,13 +255,15 @@ export function createApiSandboxStore(): ApiSandboxStore {
       encodeProto: async (type, json) => {
         const proto = get().proto;
         if (!proto) return;
+        const alive = current();
         let encoded: Encoded | { error: string };
         try {
           encoded = await schemaClient().encode(proto.source, type, readJsonObject(json, 'Значение'));
         } catch (e) {
           encoded = { error: (e as Error).message };
         }
-        set({ proto: { ...get().proto!, encoded } });
+        const now = get().proto;
+        if (alive() && now) set({ proto: { ...now, encoded } });
       },
       callRpc: async (service, method, json) => {
         const proto = get().proto;
@@ -264,8 +277,11 @@ export function createApiSandboxStore(): ApiSandboxStore {
           ],
           body: json,
         };
+        const alive = current();
         try {
           const { result, collections } = await schemaClient().rpc(proto.source, proto.collections, service, method, readJsonObject(json, 'Запрос'));
+          const now = get().proto;
+          if (!alive() || !now) return;
           const code = GRPC_CODES[result.status];
           const notes = [{ text: `gRPC-статус ${code} ${result.status}${result.detail ? `: ${result.detail}` : ''}`, warn: result.status !== 'OK' }];
           if (result.status === 'OK') {
@@ -273,7 +289,7 @@ export function createApiSandboxStore(): ApiSandboxStore {
             const stream = result.messages.length > 1 ? `Сообщений в потоке: ${result.messages.length}. ` : '';
             notes.push({ text: `${stream}В protobuf — ${bytes} Б, тот же ответ в JSON — ${result.messages.reduce((a, m) => a + jsonSize(m), 0)} Б`, warn: false });
           }
-          set({ proto: { ...get().proto!, collections } });
+          set({ proto: { ...now, collections } });
           const body = result.messages.length > 1 ? `[${result.messages.map((m) => JSON.stringify(m)).join(',')}]` : JSON.stringify(result.messages[0] ?? {});
           record([
             {
@@ -285,7 +301,7 @@ export function createApiSandboxStore(): ApiSandboxStore {
             },
           ]);
         } catch (e) {
-          record([{ kind: 'request', protocol: 'grpc', request, response: null, error: (e as Error).message }]);
+          if (alive()) record([{ kind: 'request', protocol: 'grpc', request, response: null, error: (e as Error).message }]);
         }
       },
       select: (selected) => set({ selected }),
@@ -293,7 +309,9 @@ export function createApiSandboxStore(): ApiSandboxStore {
         const server = options.server ?? null;
         const graphql = options.graphql;
         const python = options.python ?? null;
+        generation++;
         set({
+          sending: false,
           draft: fromText(starter),
           exchanges: [],
           selected: null,

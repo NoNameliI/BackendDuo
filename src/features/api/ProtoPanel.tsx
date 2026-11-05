@@ -190,7 +190,7 @@ export function ProtoPanel() {
         </div>
         <div id="proto-side-panel" role="tabpanel" aria-labelledby={`proto-side-tab-${side}`} className="min-h-0 flex-1 overflow-auto p-3">
           {proto.error ? (
-            <p role="alert" className="text-[13px] text-err">
+            <p role="status" className="text-[13px] text-err">
               {proto.error}
             </p>
           ) : !proto.summary ? (

@@ -12,6 +12,10 @@ const OUTSIDE = [
   'BroadcastChannel',
   'indexedDB',
   'caches',
+  // navigator.storage (persistent OPFS files) and navigator.locks; fonts load from any URL.
+  'navigator',
+  'FontFace',
+  'fonts',
 ];
 
 /**
@@ -47,8 +51,8 @@ export function noCodeFromStrings(scope: typeof globalThis): void {
  * Removes network, storage and nested-worker APIs from a worker's global scope, own properties and those
  * inherited from WorkerGlobalScope alike, so code running later (a learner's Python included) cannot get them back.
  */
-export function cutOff(scope: object): void {
-  for (const name of OUTSIDE) {
+export function cutOff(scope: object, extra: string[] = []): void {
+  for (const name of [...OUTSIDE, ...extra]) {
     for (let obj: object | null = scope; obj; obj = Object.getPrototypeOf(obj)) {
       try {
         delete (obj as Record<string, unknown>)[name];

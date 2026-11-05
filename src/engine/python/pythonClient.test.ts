@@ -1,22 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import type { PythonReply, PythonRequest } from './python.worker';
+import type { PythonReply, PythonRequest } from './protocol';
 import { createPythonClient, PythonTimeoutError, type PythonStatus, type PythonWorkerLike } from './pythonClient';
 
-/** A worker that loads instantly and answers runs, or hangs on code containing "while True". */
+/**
+ * A worker that loads instantly and answers runs over the port it is given; it hangs on code containing
+ * "while True" and breaks fatally on "recursion".
+ */
 function fakeWorker(log: string[]): PythonWorkerLike {
-  const w: PythonWorkerLike = {
-    onmessage: null,
+  return {
     onerror: null,
     terminate: () => log.push('terminate'),
-    postMessage(msg: PythonRequest) {
-      log.push(msg.op);
-      if (msg.op === 'run' && msg.source.includes('while True')) return;
-      const value = msg.op === 'init' ? { loadMs: 5 } : { load: { ok: true }, responses: [], output: '' };
-      const reply: PythonReply = { id: msg.id, ok: true, value };
-      queueMicrotask(() => w.onmessage?.({ data: reply } as MessageEvent<PythonReply>));
+    postMessage(_message, [port]) {
+      const p = port as MessagePort;
+      p.onmessage = ({ data: msg }: MessageEvent<PythonRequest>) => {
+        log.push(msg.op);
+        if (msg.op === 'run' && msg.source.includes('while True')) return;
+        const reply: PythonReply =
+          msg.op === 'run' && msg.source.includes('recursion')
+            ? { id: msg.id, ok: false, error: 'Pyodide has suffered a fatal error', fatal: true }
+            : { id: msg.id, ok: true, value: msg.op === 'init' ? { loadMs: 5 } : { load: { ok: true }, responses: [], output: '' } };
+        p.postMessage(reply);
+      };
     },
   };
-  return w;
 }
 
 describe('python client', () => {
@@ -36,8 +42,17 @@ describe('python client', () => {
     const log: string[] = [];
     const client = createPythonClient(() => fakeWorker(log), { startMs: 1000, runMs: 30 });
     await expect(client.run('while True: pass', [])).rejects.toBeInstanceOf(PythonTimeoutError);
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 20));
     expect(log).toEqual(['init', 'run', 'terminate', 'init']);
     expect((await client.run('app = 1', [])).load).toEqual({ ok: true });
+  });
+
+  it('replaces the worker after a fatal error', async () => {
+    const log: string[] = [];
+    const client = createPythonClient(() => fakeWorker(log));
+    await expect(client.run('recursion', [])).rejects.toThrow(/fatal/);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(log).toEqual(['init', 'run', 'terminate', 'init']);
+    expect(client.status().state).toBe('ready');
   });
 });
