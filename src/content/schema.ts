@@ -178,8 +178,32 @@ const ciTask = z.object({
     .prefault({}),
 });
 
+// API course: requests are written as text (see src/engine/api/http.ts) in ```http starter / solution blocks.
+const apiTaskBase = {
+  ...taskBase,
+  /** Virtual server of the task (manifest `servers`); requests with a relative URL go there. */
+  server: slug.optional(),
+  httpStarter: z.string().default('GET /'),
+  httpSolution: z.string().trim().min(1),
+};
+
+const requestTask = z.object({
+  ...apiTaskBase,
+  type: z.literal('request'),
+  check: z
+    .object({
+      /** exact: the same query parameters; ignore: only method and path matter. */
+      query: z.enum(['exact', 'ignore']).default('exact'),
+      /** Headers that must be present with the reference values (names are case-insensitive). */
+      headers: z.array(z.string().min(1)).default([]),
+      /** json: the same JSON value; text: the same text; ignore: any body. */
+      body: z.enum(['json', 'text', 'ignore']).default('json'),
+    })
+    .prefault({}),
+});
+
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask])
   .superRefine((task, ctx) => {
     if (task.type !== 'choice' && task.type !== 'review') return;
     if (task.answer.some((i) => i >= task.options.length)) {
@@ -206,7 +230,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),
@@ -236,7 +260,7 @@ export const levelsSchema = z
 export const manifestSchema = z.object({
   id: slug,
   title: z.string().min(1),
-  engine: z.enum(['postgres', 'git']),
+  engine: z.enum(['postgres', 'git', 'api']),
   datasets: z.record(slug, z.string().regex(/\.sql$/)).default({}),
   errors: z.string().regex(/\.json$/),
   /** One or two sentences for the course card in the hub. */
@@ -332,8 +356,11 @@ export const gitOnboardingSchema = z.object({
   outro: z.object(titled),
 });
 
-/** SQLSTATE (or its two-character class) → hint shown under PostgreSQL's own message. */
-export const errorHintsSchema = z.record(z.string().regex(/^[0-9A-Z]{2}([0-9A-Z]{3})?$/), z.string().min(1));
+/**
+ * SQLSTATE (or its two-character class) → hint shown under PostgreSQL's own message; in the API course,
+ * an HTTP status code → explanation shown with the response.
+ */
+export const errorHintsSchema = z.record(z.string().regex(/^([0-9A-Z]{2}([0-9A-Z]{3})?|[1-5]\d\d)$/), z.string().min(1));
 
 /** Git course: a pattern over terminal error lines → explanation shown under git's own message. */
 export const terminalHintsSchema = z.array(z.object({ pattern: z.string().min(1), hint: z.string().min(1) }));

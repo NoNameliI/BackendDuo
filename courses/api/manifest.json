@@ -1,0 +1,55 @@
+{
+  "id": "api",
+  "title": "API и основы FastAPI",
+  "description": "Как фронтенд разговаривает с бэкендом: HTTP, REST, первые шаги в FastAPI, CORS и токены, GraphQL и gRPC. Учебные серверы и Python работают прямо в приложении.",
+  "engine": "api",
+  "errors": "errors.json",
+  "solutionAfterAttempts": 3,
+  "worlds": [
+    {
+      "id": "api-w1",
+      "title": "Что такое API и HTTP",
+      "summary": "Клиент и сервер, анатомия запроса и ответа, коды статусов и JSON.",
+      "lessons": [
+        {
+          "id": "api-what-is-api",
+          "file": "w1/01-what-is-api.md"
+        }
+      ]
+    }
+  ],
+  "levels": [
+    {
+      "xp": 0,
+      "title": "Слушатель"
+    },
+    {
+      "xp": 80,
+      "title": "Автор запросов"
+    },
+    {
+      "xp": 200,
+      "title": "Проектировщик REST"
+    },
+    {
+      "xp": 400,
+      "title": "Бэкенд-новичок"
+    },
+    {
+      "xp": 650,
+      "title": "Архитектор API"
+    }
+  ],
+  "badges": [
+    {
+      "id": "first-request",
+      "title": "Первый запрос",
+      "description": "Решено первое задание курса API",
+      "glyph": "GET",
+      "rule": {
+        "kind": "tasksSolved",
+        "count": 1
+      }
+    }
+  ]
+}

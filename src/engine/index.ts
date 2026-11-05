@@ -1,8 +1,8 @@
 import type { SandboxEngine } from './types';
 import { WorkerEngine, type WorkerLike } from './WorkerEngine';
 
-/** Course technologies. SQL courses run in a worker engine; the Git sandbox runs in the page (src/engine/git). */
-export type EngineKind = 'postgres' | 'git';
+/** Course technologies. SQL runs in a worker engine; the Git sandbox (src/engine/git) and the API engines (src/engine/api) have their own. */
+export type EngineKind = 'postgres' | 'git' | 'api';
 
 const workers: Record<'postgres', () => WorkerLike> = {
   postgres: () =>

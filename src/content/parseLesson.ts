@@ -14,6 +14,8 @@
  *   ```
  *   ```sh setup | solution      (Git course: shell scripts for the Git sandbox)
  *   ```
+ *   ```http starter | solution  (API course; also graphql, proto, python)
+ *   ```
  *   ```<language> code      (review tasks: the snippet to inspect)
  *   ```
  */
@@ -30,6 +32,11 @@ const TASK_HEADING = /^## task[ \t]+(\S+)[ \t]*$/;
 const FENCE = /^```([\w-]+)(?:[ \t]+(\w+))?[ \t]*\n([\s\S]*?)^```[ \t]*$\n?/gm;
 
 const SHELL_ROLES: Record<string, string> = { setup: 'shellSetup', solution: 'shellSolution' };
+
+/** API course: ```http starter → httpStarter, ```graphql solution → graphqlSolution, … */
+const API_LANGS = new Set(['http', 'graphql', 'proto', 'python']);
+const API_ROLES = new Set(['starter', 'solution']);
+const apiKey = (lang: string, role: string) => `${lang}${role[0].toUpperCase()}${role.slice(1)}`;
 
 const SQL_ROLES: Record<string, string> = {
   setup: 'setup',
@@ -70,7 +77,7 @@ function parseTask(id: string, body: string): Record<string, unknown> {
       }
       return '';
     }
-    const key = role === 'code' ? 'code' : lang === 'sql' && role ? SQL_ROLES[role] : lang === 'sh' && role ? SHELL_ROLES[role] : undefined;
+    const key = role === 'code' ? 'code' : lang === 'sql' && role ? SQL_ROLES[role] : lang === 'sh' && role ? SHELL_ROLES[role] : role && API_LANGS.has(lang) && API_ROLES.has(role) ? apiKey(lang, role) : undefined;
     if (!key) return block;
     if (key in task) throw new LessonParseError(`задание ${id}: блок «${role}» встречается дважды`);
     task[key] = content.trim();

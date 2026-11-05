@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { checkChoice, createChecker, SolutionError, type Answer, type Checker, type CheckResult } from '@/checker';
+import { checkRequest } from '@/checker/api';
 import { createGitChecker } from '@/checker/git';
+import { createApiSandboxStore } from '@/features/api/apiStore';
 import { SetupError } from '@/engine/git/GitSandboxEngine';
 import { createGitSandboxStore } from '@/features/git/gitSandbox';
 import { courseById } from '@/content/courses';
@@ -88,6 +90,8 @@ const isSqlTask = (task: Task | null) => task !== null && 'solution' in task;
 
 /** The Git sandbox of lessons (the free playground has its own). */
 export const lessonSandbox = createGitSandboxStore();
+/** Request composer and network log of API lessons. */
+export const lessonApi = createApiSandboxStore();
 const gitChecker = createGitChecker();
 
 function prepareGit(task: Extract<Task, { shellSolution: string }>): string | null {
@@ -207,6 +211,10 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         if (failure) print('error', failure);
         return;
       }
+      if ('httpSolution' in task) {
+        lessonApi.getState().reset(task.httpStarter);
+        return;
+      }
       if (!isSqlTask(task)) return;
       await withSandbox(async ({ engine }) => {
         if (get().task?.id !== task.id) return; // a later navigation superseded this one
@@ -241,6 +249,10 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       if (current && 'shellSolution' in current) {
         const failure = prepareGit(current);
         if (failure) print('error', failure);
+        return Promise.resolve();
+      }
+      if (current && 'httpSolution' in current) {
+        lessonApi.getState().reset(current.httpStarter);
         return Promise.resolve();
       }
       return withSandbox(async ({ engine }) => {
@@ -303,6 +315,19 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         const verdict = checkChoice(task, selected);
         const reward = progress.recordAttempt(task, verdict.passed);
         set({ verdict: { ...verdict, at: Date.now(), reward } });
+        announce(reward);
+        return;
+      }
+
+      if ('httpSolution' in task) {
+        let verdict: CheckResult;
+        try {
+          verdict = checkRequest(task, lessonApi.getState().draft);
+        } catch (e) {
+          verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : String(e)] };
+        }
+        const reward = progress.recordAttempt(task, verdict.passed);
+        set({ verdict: { ...verdict, at: Date.now(), reward }, taskTab: 'task' });
         announce(reward);
         return;
       }

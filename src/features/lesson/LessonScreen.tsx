@@ -13,7 +13,9 @@ import { QuizPanel } from './QuizPanel';
 import { ResultPanel } from './ResultPanel';
 import { TaskPanel } from './TaskPanel';
 import { Terminal } from './Terminal';
-import { lessonSandbox, useWorkspace, type EngineStatus } from './workspace';
+import { lessonApi, lessonSandbox, useWorkspace, type EngineStatus } from './workspace';
+import { ApiSandboxContext } from '@/features/api/apiStore';
+import { ApiWorkbench } from '@/features/api/ApiWorkbench';
 import { SandboxContext } from '@/features/git/gitSandbox';
 import { GitWorkbench } from '@/features/git/GitWorkbench';
 
@@ -55,6 +57,27 @@ export function LessonScreen() {
             <Terminal />
           </Panel>
         </Split>
+      </Split>
+    );
+  }
+
+  if (task && 'httpSolution' in task) {
+    return (
+      <Split direction="row" storageKey="api-lesson-columns" initial={[30, 70]} min={20}>
+        <TaskPanel />
+        <ApiSandboxContext.Provider value={lessonApi}>
+          <ApiWorkbench
+            prefix="api-lesson"
+            actions={
+              <>
+                <Button aria-label="Вернуть запрос к началу задания" title="Сбросить" icon={<ResetIcon />} onClick={() => void resetDatabase()} />
+                <Button variant="check" icon={<CheckIcon />} shortcut="Ctrl ⇧ ↵" onClick={() => void check()}>
+                  Проверить
+                </Button>
+              </>
+            }
+          />
+        </ApiSandboxContext.Provider>
       </Split>
     );
   }

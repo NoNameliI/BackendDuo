@@ -9,7 +9,7 @@ import { Panel } from '@/ui/Panel';
 import { Tabs } from '@/ui/Tabs';
 import { highlightSql } from '@/ui/highlightSql';
 import { TheoryView } from './TheoryView';
-import { useWorkspace, type Verdict } from './workspace';
+import { lessonApi, useWorkspace, type Verdict } from './workspace';
 
 export const TASK_KIND: Record<Task['type'], string> = {
   result: 'SQL · выборка',
@@ -23,6 +23,7 @@ export const TASK_KIND: Record<Task['type'], string> = {
   commands: 'Git · команды',
   hosting: 'Хостинг',
   ci: 'CI',
+  request: 'HTTP · запрос',
 };
 
 const tabs = [
@@ -75,7 +76,7 @@ function TaskView({ task }: { task: Task }) {
   const { verdict, schema, explainTarget, revealHint, revealSolution, setCode, status } = useWorkspace();
   const progress = useProgress(selectTask(task));
   const after = courseById(task.courseId).solutionAfterAttempts ?? 1;
-  const solvable = 'solution' in task || 'shellSolution' in task;
+  const solvable = 'solution' in task || 'shellSolution' in task || 'httpSolution' in task;
   const canShowSolution = solvable && (progress.attempts >= after || progress.hintsUsed >= task.hints.length);
 
   return (
@@ -147,6 +148,13 @@ function TaskView({ task }: { task: Task }) {
             <SectionLabel>Эталонное решение</SectionLabel>
             <pre className="md-code" dangerouslySetInnerHTML={{ __html: highlightSql(task.solution) }} />
             <Button variant="outline" onClick={() => setCode(task.solution)}>Вставить в редактор</Button>
+          </div>
+        )}
+        {'httpSolution' in task && progress.solutionShown && (
+          <div className="space-y-2">
+            <SectionLabel>Эталонный запрос</SectionLabel>
+            <pre className="md-code whitespace-pre-wrap">{task.httpSolution}</pre>
+            <Button variant="outline" onClick={() => lessonApi.getState().setDraftText(task.httpSolution)}>Вставить в композер</Button>
           </div>
         )}
         {'shellSolution' in task && progress.solutionShown && (

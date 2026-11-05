@@ -5,7 +5,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
+import { checkRequest, readRequest } from '@/checker/api';
 import { createGitChecker, runReference, stoppedOnConflict } from '@/checker/git';
+import { parseRequest } from '@/engine/api/http';
 import { loadCatalog, type Catalog } from '@/content/catalog';
 import type { Task } from '@/content/loadCourse';
 import { theoryExamples } from '@/content/theory';
@@ -36,6 +38,14 @@ async function validateTask(task: Task) {
     expect((await checker.check(task, { kind: 'choice', selected: task.answer })).passed).toBe(true);
     const wrong = task.options.map((_, i) => i).filter((i) => !task.answer.includes(i));
     expect((await checker.check(task, { kind: 'choice', selected: wrong })).passed).toBe(false);
+    return;
+  }
+  if ('httpSolution' in task) {
+    const solved = checkRequest(task, parseRequest(task.httpSolution));
+    expect(solved.problems, 'reference request must pass its own check').toEqual([]);
+    const starter = readRequest(task.httpStarter);
+    const untouched = 'method' in starter ? checkRequest(task, starter) : starter;
+    expect(untouched.passed, 'the starter request must not pass the check').toBe(false);
     return;
   }
   if ('shellSolution' in task) {

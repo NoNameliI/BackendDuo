@@ -26,6 +26,12 @@ export type Task = ParsedTask & {
 export type SqlTask = Extract<Task, { solution: string }>;
 export type ChoiceTask = Extract<Task, { type: 'choice' | 'review' }>;
 export type GitTask = Extract<Task, { shellSolution: string }>;
+export type ApiTask = Extract<Task, { httpSolution: string }>;
+
+/** Which course engine a practical task belongs to. */
+export function engineOf(task: ParsedTask): EngineKind {
+  return 'shellSolution' in task ? 'git' : 'httpSolution' in task ? 'api' : 'postgres';
+}
 
 export interface Lesson {
   id: string;
@@ -158,8 +164,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     }
     const task = result.data;
     unique('задание', task.id);
-    const gitTask = 'shellSolution' in task;
-    if (gitTask !== (manifest.engine === 'git') && task.type !== 'choice' && task.type !== 'review') {
+    if (task.type !== 'choice' && task.type !== 'review' && engineOf(task) !== manifest.engine) {
       problems.push(`${where}: тип «${task.type}» не подходит для курса с движком ${manifest.engine}`);
     }
     let setupSql = '';
