@@ -42,6 +42,10 @@ export interface Exchange {
   group?: number;
   /** A plain-Russian explanation of `error`. */
   explain?: string;
+  /** GraphQL and gRPC calls are logged as the HTTP requests they travel in. */
+  protocol?: 'graphql' | 'grpc';
+  /** What to notice about the answer (explained errors, data lookups, sizes). */
+  notes?: { text: string; warn?: boolean }[];
 }
 
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;

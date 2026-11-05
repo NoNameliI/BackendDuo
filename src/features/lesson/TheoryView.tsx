@@ -9,7 +9,7 @@ import { Markdown } from '@/ui/Markdown';
 import { highlightSql } from '@/ui/highlightSql';
 import { resetExamples, runExample } from './examples';
 import { resetShellExamples, runShellExample, type ShellRun } from './shellExamples';
-import { resetHttpExamples, runHttpExample, type HttpRun } from './httpExamples';
+import { resetHttpExamples, runGraphqlExample, runHttpExample, runProtoExample, type HttpRun, type SchemaRun } from './httpExamples';
 import { prettyBody, statusText } from '@/engine/api/http';
 import { statusTone } from '@/features/api/ResponseView';
 import { explain422 } from '@/engine/api/explain';
@@ -20,14 +20,14 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
   const segments = useMemo(() => splitTheory(lesson.theory), [lesson.theory]);
   const runnable = segments.some((s) => s.kind === 'example');
   const shell = segments.some((s) => s.kind === 'example' && s.lang === 'sh');
-  const http = segments.some((s) => s.kind === 'example' && s.lang === 'http');
+  const http = segments.some((s) => s.kind === 'example' && (s.lang === 'http' || s.lang === 'graphql' || s.lang === 'proto'));
 
   return (
     <div className="space-y-4">
       {runnable && (
         <p className="rounded border border-line bg-well px-3 py-2 text-[12.5px] leading-relaxed text-dim">
           {http
-            ? 'Запросы с кнопкой «Отправить» уходят на учебный сервер внутри приложения, сети нет. Сервер примеров отдельный и не трогает задание; запускайте примеры по порядку.'
+            ? 'Примеры запускаются на учебном сервере внутри приложения, сети нет. Сервер примеров отдельный и не трогает задание; запускайте примеры по порядку.'
             : shell
             ? 'Примеры с кнопкой «Выполнить» работают в отдельной учебной песочнице Git и не трогают задание. Запускайте их по порядку — каждый продолжает предыдущий.'
             : 'Примеры с кнопкой «Выполнить» работают в отдельной учебной базе и не трогают задание. Запускайте их по порядку и меняйте прямо в тексте задания — так быстрее всего понять синтаксис.'}{' '}
@@ -48,6 +48,8 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
             <ShellExample key={`${lesson.id}-${i}`} lesson={lesson} script={segment.code} />
           ) : segment.lang === 'http' ? (
             <HttpExample key={`${lesson.id}-${i}`} lesson={lesson} text={segment.code} />
+          ) : segment.lang === 'graphql' || segment.lang === 'proto' ? (
+            <SchemaExample key={`${lesson.id}-${i}`} lesson={lesson} lang={segment.lang} text={segment.code} />
           ) : (
             <RunnableExample key={`${lesson.id}-${i}`} lesson={lesson} sql={segment.code} />
           )
@@ -168,6 +170,44 @@ function HttpExample({ lesson, text }: { lesson: Lesson; text: string }) {
               </p>
             ),
           )}
+        </div>
+      )}
+    </figure>
+  );
+}
+
+/** `graphql example` runs the query on the lesson server's schema; `proto example` parses, encodes and calls. */
+function SchemaExample({ lesson, lang, text }: { lesson: Lesson; lang: 'graphql' | 'proto'; text: string }) {
+  const [result, setResult] = useState<SchemaRun | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      setResult(lang === 'graphql' ? await runGraphqlExample(lesson, text) : await runProtoExample(lesson, text));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <figure className="overflow-hidden rounded-md border border-line bg-well">
+      <div className="relative">
+        <pre className="md-code !rounded-none !border-0 pr-32">{text}</pre>
+        <Button variant="run" icon={<PlayIcon />} className="absolute right-2 top-2" disabled={busy} onClick={() => void run()}>
+          {lang === 'graphql' ? 'Выполнить' : 'Разобрать'}
+        </Button>
+      </div>
+      {result && (
+        <div className="animate-rise space-y-2 border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed" aria-live="polite">
+          {result.summary?.messages.map((m) => (
+            <p key={m.name} className="text-dim">
+              message {m.name}: {m.fields.map((f) => `${f.name} = ${f.number}`).join(', ') || 'без полей'}
+            </p>
+          ))}
+          {result.lines.map((line, i) => (
+            <pre key={i} className={`whitespace-pre-wrap ${line.ok ? 'text-fg' : 'font-sans text-amber'}`}>
+              {line.text}
+            </pre>
+          ))}
         </div>
       )}
     </figure>

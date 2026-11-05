@@ -59,6 +59,12 @@ export interface ServerDef {
   cors?: CorsConfig;
   /** Requests allowed before answers become 429 (per server instance). */
   rateLimit?: number;
+  /** GraphQL schema (SDL) over the same collections; loaded from `graphqlFile`. */
+  graphql?: string;
+  graphqlFile?: string;
+  /** .proto source of the server's gRPC services; loaded from `protoFile`. */
+  proto?: string;
+  protoFile?: string;
 }
 
 export interface ValidationIssue {

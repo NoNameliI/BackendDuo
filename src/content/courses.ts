@@ -1,7 +1,7 @@
 import { loadCatalog } from './catalog';
 import type { Course } from './loadCourse';
 
-const files = import.meta.glob<string>('/courses/**/*.{json,md,sql}', {
+const files = import.meta.glob<string>('/courses/**/*.{json,md,sql,graphql,proto}', {
   query: '?raw',
   import: 'default',
   eager: true,

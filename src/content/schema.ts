@@ -248,10 +248,42 @@ const corsTask = z.object({
     .prefault({}),
 });
 
+const graphqlTask = z.object({
+  ...apiTaskBase,
+  type: z.literal('graphql'),
+  httpSolution: z.string().default('POST /graphql'),
+  graphqlStarter: z.string().default('{\n  \n}'),
+  graphqlSolution: z.string().trim().min(1),
+  /** Variables of the query, as JSON values. */
+  variables: z.record(z.string(), z.unknown()).default({}),
+  check: z
+    .object({
+      /** The learner's query may select only the fields the reference selects (no over-fetching). */
+      exactFields: z.boolean().default(false),
+      /** Collections that must match the reference after a mutation. */
+      state: z.array(z.string().min(1)).default([]),
+    })
+    .prefault({}),
+});
+
+const protoTask = z.object({
+  ...apiTaskBase,
+  type: z.literal('proto'),
+  httpSolution: z.string().default('POST /'),
+  protoStarter: z.string().default('syntax = "proto3";\n'),
+  protoSolution: z.string().trim().min(1),
+  check: z
+    .object({
+      /** Field numbers must match the reference (they are the wire format). */
+      fieldNumbers: z.boolean().default(true),
+    })
+    .prefault({}),
+});
+
 export const corsConfigSchema = corsConfig;
 
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask])
   .superRefine((task, ctx) => {
     if (task.type !== 'choice' && task.type !== 'review') return;
     if (task.answer.some((i) => i >= task.options.length)) {
@@ -278,7 +310,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),
@@ -451,6 +483,10 @@ export const serverDefSchema = z.object({
   auth: z.object({ tokens: z.array(z.string()).optional(), apiKeys: z.array(z.string()).optional() }).optional(),
   cors: corsConfig.optional(),
   rateLimit: z.number().int().positive().optional(),
+  /** A GraphQL schema over the same collections (file next to the server). */
+  graphqlFile: z.string().regex(/\.graphql$/).optional(),
+  /** A .proto file describing gRPC services over the same collections. */
+  protoFile: z.string().regex(/\.proto$/).optional(),
 });
 
 export type TaskInput = z.input<typeof taskSchema>;

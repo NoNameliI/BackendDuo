@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { readCorsConfig } from '@/checker/api';
 import { courseById } from '@/content/courses';
 import { allTasks, errorHint, type Task } from '@/content/loadCourse';
 import { selectCourse, selectTask, useProgress } from '@/progress/store';
@@ -26,6 +27,8 @@ export const TASK_KIND: Record<Task['type'], string> = {
   request: 'HTTP · запрос',
   response: 'HTTP · ответ сервера',
   cors: 'CORS',
+  graphql: 'GraphQL',
+  proto: 'Protobuf',
 };
 
 const tabs = [
@@ -152,13 +155,7 @@ function TaskView({ task }: { task: Task }) {
             <Button variant="outline" onClick={() => setCode(task.solution)}>Вставить в редактор</Button>
           </div>
         )}
-        {'httpSolution' in task && progress.solutionShown && (
-          <div className="space-y-2">
-            <SectionLabel>Эталонный запрос</SectionLabel>
-            <pre className="md-code whitespace-pre-wrap">{task.httpSolution}</pre>
-            <Button variant="outline" onClick={() => lessonApi.getState().setDraftText(task.httpSolution)}>Вставить в композер</Button>
-          </div>
-        )}
+        {'httpSolution' in task && progress.solutionShown && <ApiSolution task={task} />}
         {'shellSolution' in task && progress.solutionShown && (
           <div className="space-y-2">
             <SectionLabel>Эталонное решение</SectionLabel>
@@ -265,5 +262,29 @@ function TaskStepper() {
         );
       })}
     </nav>
+  );
+}
+
+type ApiTask = Extract<Task, { httpSolution: string }>;
+
+/** The reference answer of an API task and a button that puts it into the sandbox. */
+function ApiSolution({ task }: { task: ApiTask }) {
+  const api = lessonApi.getState();
+  const [label, text, insert, action] =
+    task.type === 'graphql'
+      ? ['Эталонный запрос', task.graphqlSolution, () => api.setGraphql({ query: task.graphqlSolution }), 'Вставить в редактор']
+      : task.type === 'proto'
+        ? ['Эталонный .proto', task.protoSolution, () => void api.setProtoSource(task.protoSolution), 'Вставить в редактор']
+        : task.type === 'cors'
+          ? ['Эталонные настройки', task.jsonSolution, () => api.setCorsConfig(readCorsConfig(task.jsonSolution)), 'Применить']
+          : ['Эталонный запрос', task.httpSolution, () => api.setDraftText(task.httpSolution), 'Вставить в композер'];
+  return (
+    <div className="space-y-2">
+      <SectionLabel>{label}</SectionLabel>
+      <pre className="md-code whitespace-pre-wrap">{text}</pre>
+      <Button variant="outline" onClick={insert}>
+        {action}
+      </Button>
+    </div>
   );
 }

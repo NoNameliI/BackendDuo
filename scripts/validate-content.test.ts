@@ -6,12 +6,14 @@ import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
 import { checkApiTask, readCorsConfig, readRequest } from '@/checker/api';
+import { checkGraphql, checkProto } from '@/checker/apiSchema';
+import { schemaOps } from '@/engine/api/schemaOps';
 import { HttpSimServer, sendTo, splitRequests, type ServerDef } from '@/engine/api/server';
 import { createGitChecker, runReference, stoppedOnConflict } from '@/checker/git';
 import { parseRequest } from '@/engine/api/http';
 import { loadCatalog, type Catalog } from '@/content/catalog';
 import type { Task } from '@/content/loadCourse';
-import { theoryExamples } from '@/content/theory';
+import { theoryExampleBlocks, theoryExamples } from '@/content/theory';
 import { GitSandboxEngine } from '@/engine/git/GitSandboxEngine';
 import { splitCommands } from '@/engine/git/shell';
 import { PostgresEngine } from '@/engine/postgres/PostgresEngine';
@@ -39,6 +41,17 @@ async function validateTask(task: Task, servers: Record<string, ServerDef>) {
     expect((await checker.check(task, { kind: 'choice', selected: task.answer })).passed).toBe(true);
     const wrong = task.options.map((_, i) => i).filter((i) => !task.answer.includes(i));
     expect((await checker.check(task, { kind: 'choice', selected: wrong })).passed).toBe(false);
+    return;
+  }
+  if (task.type === 'graphql') {
+    const server = task.server ? servers[task.server] : undefined;
+    expect(checkGraphql(task, server, { query: task.graphqlSolution, variables: task.variables }).problems, 'reference must pass its own check').toEqual([]);
+    expect(checkGraphql(task, server, { query: task.graphqlStarter, variables: task.variables }).passed, 'the starter must not pass the check').toBe(false);
+    return;
+  }
+  if (task.type === 'proto') {
+    expect(checkProto(task, task.protoSolution).problems, 'reference must pass its own check').toEqual([]);
+    expect(checkProto(task, task.protoStarter).passed, 'the starter must not pass the check').toBe(false);
     return;
   }
   if ('httpSolution' in task) {
@@ -91,10 +104,26 @@ for (const course of catalog?.courses ?? []) {
                 const def = lesson.exampleServer ? course.servers[lesson.exampleServer] : undefined;
                 expect(def, 'http examples need a server (a task of the lesson with "server")').toBeDefined();
                 const server = new HttpSimServer(def!);
-                for (const text of examples.flatMap(splitRequests)) {
-                  const res = sendTo(server, parseRequest(text));
-                  expect(typeof res === 'string' ? res : null, `example failed:
+                let collections = structuredClone(def!.collections ?? {});
+                for (const { lang, code } of theoryExampleBlocks(lesson.theory)) {
+                  if (lang === 'graphql') {
+                    expect(def!.graphql, 'graphql examples need a server with graphqlFile').toBeDefined();
+                    const out = schemaOps.graphql(def!.graphql!, collections, code, {});
+                    collections = out.collections;
+                    expect(out.explained, `example failed:
+${code}`).toEqual([]);
+                  } else if (lang === 'proto') {
+                    const out = schemaOps.protoExample(code, collections);
+                    collections = out.collections;
+                    expect([out.error, ...out.outputs.filter((o) => !o.ok).map((o) => `${o.line}: ${o.text}`)].filter(Boolean), `example failed:
+${code}`).toEqual([]);
+                  } else {
+                    for (const text of splitRequests(code)) {
+                      const res = sendTo(server, parseRequest(text));
+                      expect(typeof res === 'string' ? res : null, `example failed:
 ${text}`).toBeNull();
+                    }
+                  }
                 }
                 return;
               }

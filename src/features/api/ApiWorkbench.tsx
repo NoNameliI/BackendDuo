@@ -5,7 +5,9 @@ import { Tabs } from '@/ui/Tabs';
 import { useApiSandbox } from './apiStore';
 import { CorsPanel } from './CorsPanel';
 import { ExchangeDiagram } from './ExchangeDiagram';
+import { GraphqlPanel } from './GraphqlPanel';
 import { NetworkLog } from './NetworkLog';
+import { ProtoPanel } from './ProtoPanel';
 import { RequestComposer } from './RequestComposer';
 import { ResponseView } from './ResponseView';
 
@@ -18,11 +20,12 @@ const SIDE = [
 /** Request composer, response, network log and exchange diagram of the sandbox in ApiSandboxContext. */
 export function ApiWorkbench({ actions, prefix }: { actions: ReactNode; prefix: string }) {
   const [side, setSide] = useState<Side>('log');
-  const cors = useApiSandbox()((s) => s.cors !== null);
+  const mode = useApiSandbox()((s) => (s.cors ? 'cors' : s.graphql ? 'graphql' : s.proto ? 'proto' : 'http'));
+  const top = { cors: ['CORS', <CorsPanel />], graphql: ['GraphQL', <GraphqlPanel />], proto: ['Protobuf', <ProtoPanel />], http: ['Запрос', <RequestComposer />] } as const;
   return (
     <Split direction="column" initial={[52, 48]} storageKey={`${prefix}-rows`}>
-      <Panel title={cors ? 'CORS' : 'Запрос'} actions={actions}>
-        {cors ? <CorsPanel /> : <RequestComposer />}
+      <Panel title={top[mode][0]} actions={actions}>
+        {top[mode][1]}
       </Panel>
       <Split direction="row" initial={[50, 50]} storageKey={`${prefix}-bottom`}>
         <Panel title="Ответ">

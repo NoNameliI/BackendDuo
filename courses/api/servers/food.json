@@ -1,5 +1,7 @@
 {
   "baseUrl": "https://api.food.local",
+  "graphqlFile": "food.graphql",
+  "protoFile": "food.proto",
   "collections": {
     "restaurants": [
       {

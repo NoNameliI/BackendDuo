@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { checkChoice, createChecker, SolutionError, type Answer, type Checker, type CheckResult } from '@/checker';
 import { checkApiTask, freshServer, readCorsConfig } from '@/checker/api';
 import { createGitChecker } from '@/checker/git';
-import { createApiSandboxStore } from '@/features/api/apiStore';
+import { createApiSandboxStore, readJsonObject } from '@/features/api/apiStore';
+import { schemaClient } from '@/engine/api/schemaClient';
 import { SetupError } from '@/engine/git/GitSandboxEngine';
 import { createGitSandboxStore } from '@/features/git/gitSandbox';
 import { courseById } from '@/content/courses';
@@ -99,7 +100,10 @@ function prepareApi(task: Extract<Task, { httpSolution: string }>): string | nul
   try {
     const server = task.server ? freshServer(task, courseById(task.courseId).servers) : null;
     const cors = task.type === 'cors' ? { config: readCorsConfig(task.jsonStarter), call: task.fetch } : null;
-    lessonApi.getState().reset(task.httpStarter, { server, cors });
+    const def = task.server ? courseById(task.courseId).servers[task.server] : undefined;
+    const graphql = task.type === 'graphql' ? { query: task.graphqlStarter, variables: task.variables, sdl: def?.graphql ?? '', collections: def?.collections ?? {} } : undefined;
+    const proto = task.type === 'proto' ? { source: task.protoStarter, collections: def?.collections ?? {} } : undefined;
+    lessonApi.getState().reset(task.httpStarter, { server, cors, graphql, proto });
     return null;
   } catch (e) {
     return `Ошибка в самом задании: ${e instanceof Error ? e.message : String(e)}`;
@@ -277,8 +281,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       });
     },
 
-    run: () =>
-      withSandbox(async ({ engine }) => {
+    run: () => {
+      const task = get().task;
+      if (task && 'httpSolution' in task) {
+        const api = lessonApi.getState();
+        return task.type === 'graphql' ? api.runGraphql() : task.type === 'cors' ? Promise.resolve(api.runFrontend()) : task.type === 'proto' ? Promise.resolve() : api.send();
+      }
+      return withSandbox(async ({ engine }) => {
         const { code } = get();
         if (!code.trim() || !isSqlTask(get().task)) return;
         print('cmd', firstLine(code));
@@ -291,7 +300,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         const shown = out.results.findLast((r) => r.columns.length > 0) ?? null;
         set({ result: shown ?? get().result, error: out.error ?? null, ...(shown ? { tab: 'result' as const } : {}) });
         if (out.results.length > 0) await refreshSchema(engine);
-      }),
+      });
+    },
 
     explain: () =>
       withSandbox(async ({ engine }) => {
@@ -336,11 +346,19 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       if ('httpSolution' in task) {
         let verdict: CheckResult;
         try {
-          const { draft, cors } = lessonApi.getState();
-          verdict = checkApiTask(task, courseById(task.courseId).servers, { draft, cors: cors?.config ?? null });
+          const { draft, cors, graphql, proto } = lessonApi.getState();
+          const servers = courseById(task.courseId).servers;
+          if (task.type === 'graphql') {
+            verdict = await schemaClient().checkGraphql(task, task.server ? servers[task.server] : undefined, {
+              query: graphql?.query ?? '',
+              variables: readJsonObject(graphql?.variables ?? '', 'Переменные'),
+            });
+          } else if (task.type === 'proto') verdict = await schemaClient().checkProto(task, proto?.source ?? '');
+          else verdict = checkApiTask(task, servers, { draft, cors: cors?.config ?? null });
         } catch (e) {
-          verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : String(e)] };
+          verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };
         }
+        if (get().task?.id !== task.id) return;
         const reward = progress.recordAttempt(task, verdict.passed);
         set({ verdict: { ...verdict, at: Date.now(), reward }, taskTab: 'task' });
         announce(reward);

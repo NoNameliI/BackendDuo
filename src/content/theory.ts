@@ -1,12 +1,13 @@
 /**
  * Theory may contain runnable examples: fenced blocks with the info string `sql example` (SQL courses),
- * `sh example` (Git course) or `http example` (API course, sent to the lesson's virtual server). They run in
- * order on the lesson's example sandbox (setup or server of its first task).
+ * `sh example` (Git course) or `http example`, `graphql example`, `proto example` (API course: the lesson's
+ * virtual server, its GraphQL schema; a .proto with lines to encode or call after `###`). They run in order on
+ * the lesson's example sandbox (setup or server of its first task).
  */
-export type ExampleLang = 'sql' | 'sh' | 'http';
+export type ExampleLang = 'sql' | 'sh' | 'http' | 'graphql' | 'proto';
 export type TheorySegment = { kind: 'markdown'; text: string } | { kind: 'example'; lang: ExampleLang; code: string };
 
-const EXAMPLE = /^```(sql|sh|http)[ \t]+example[ \t]*\n([\s\S]*?)^```[ \t]*$\n?/gm;
+const EXAMPLE = /^```(sql|sh|http|graphql|proto)[ \t]+example[ \t]*\n([\s\S]*?)^```[ \t]*$\n?/gm;
 
 export function splitTheory(theory: string): TheorySegment[] {
   const segments: TheorySegment[] = [];
@@ -20,6 +21,10 @@ export function splitTheory(theory: string): TheorySegment[] {
   const tail = theory.slice(last).trim();
   if (tail) segments.push({ kind: 'markdown', text: tail });
   return segments;
+}
+
+export function theoryExampleBlocks(theory: string): { lang: ExampleLang; code: string }[] {
+  return splitTheory(theory).flatMap((s) => (s.kind === 'example' ? [{ lang: s.lang, code: s.code }] : []));
 }
 
 export function theoryExamples(theory: string): string[] {

@@ -47,7 +47,7 @@ export function NetworkLog() {
                   {query.length ? <span className="text-faint">?{query.map(([k, v]) => `${k}=${v}`).join('&')}</span> : null}
                 </td>
                 <td className={`px-2 py-1.5 ${e.response ? statusTone(e.response.status) : 'text-err'}`}>{e.response ? e.response.status : 'ошибка'}</td>
-                <td className="px-2 py-1.5 text-faint">{e.kind === 'preflight' ? 'preflight' : e.origin ? 'fetch' : 'запрос'}</td>
+                <td className="px-2 py-1.5 text-faint">{e.kind === 'preflight' ? 'preflight' : e.protocol === 'graphql' ? 'GraphQL' : e.protocol === 'grpc' ? 'gRPC' : e.origin ? 'fetch' : 'запрос'}</td>
                 <td className="px-3 py-1.5 text-right text-faint">{e.response ? `${e.response.timeMs} мс` : '—'}</td>
               </tr>
             );

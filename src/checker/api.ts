@@ -182,7 +182,7 @@ export function checkCors(task: Extract<ApiTask, { type: 'cors' }>, servers: Rec
   return verdict(problems);
 }
 
-/** Every API task type in one place: the learner's composer draft or CORS form against the reference. */
+/** HTTP task types (request, response, cors); GraphQL and protobuf tasks are checked in checker/apiSchema.ts. */
 export function checkApiTask(task: ApiTask, servers: Record<string, ServerDef>, input: { draft: ApiRequest; cors: CorsConfig | null }): CheckResult {
   switch (task.type) {
     case 'request':
@@ -191,5 +191,7 @@ export function checkApiTask(task: ApiTask, servers: Record<string, ServerDef>, 
       return checkResponse(task, servers, input.draft);
     case 'cors':
       return input.cors ? checkCors(task, servers, input.cors) : verdict(['Настройте CORS в форме справа']);
+    default:
+      throw new Error(`${task.id}: задания ${task.type} проверяет checker/apiSchema.ts`);
   }
 }

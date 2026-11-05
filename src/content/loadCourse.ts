@@ -145,8 +145,20 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
   for (const [name, file] of Object.entries(manifest.servers)) {
     const path = `${root}/${file}`;
     const parsed = serverDefSchema.safeParse(readJson(files, path, problems));
-    if (parsed.success) servers[name] = parsed.data as ServerDef;
-    else if (files[path] !== undefined) problems.push(...formatIssues(path, parsed.error.issues));
+    if (!parsed.success) {
+      if (files[path] !== undefined) problems.push(...formatIssues(path, parsed.error.issues));
+      continue;
+    }
+    const def: ServerDef = { ...(parsed.data as ServerDef) };
+    const dir = path.slice(0, path.lastIndexOf('/'));
+    for (const [key, fileKey] of [['graphql', 'graphqlFile'], ['proto', 'protoFile']] as const) {
+      const ref = def[fileKey];
+      if (!ref) continue;
+      const text = files[`${dir}/${ref}`];
+      if (text === undefined) problems.push(`${dir}/${ref}: файл не найден`);
+      else def[key] = text;
+    }
+    servers[name] = def;
   }
 
   const errorsPath = `${root}/${manifest.errors}`;
@@ -183,6 +195,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     }
     if ('httpSolution' in task && task.server && !manifest.servers[task.server]) problems.push(`${where}: неизвестный сервер «${task.server}»`);
     if ((task.type === 'response' || task.type === 'cors') && !task.server) problems.push(`${where}: заданию типа ${task.type} нужен сервер (поле server)`);
+    if (task.type === 'graphql' && !(task.server && servers[task.server]?.graphql)) problems.push(`${where}: заданию graphql нужен сервер с GraphQL-схемой (graphqlFile)`);
     let setupSql = '';
     if ('solution' in task) {
       if (task.dataset && datasets[task.dataset] === undefined) {

@@ -19,6 +19,17 @@
           "file": "w1/01-what-is-api.md"
         }
       ]
+    },
+    {
+      "id": "api-w5",
+      "title": "За пределами REST",
+      "summary": "GraphQL, gRPC и protobuf, WebSocket и SSE: когда что выбирать.",
+      "lessons": [
+        {
+          "id": "api-graphql-grpc",
+          "file": "w5/01-graphql-grpc.md"
+        }
+      ]
     }
   ],
   "levels": [

@@ -1,0 +1,19 @@
+syntax = "proto3";
+package food;
+
+message Restaurant {
+  int32 id = 1;
+  string name = 2;
+  string city = 3;
+  string cuisine = 4;
+  double rating = 5;
+}
+
+message RestaurantRequest { int32 id = 1; }
+message RestaurantsRequest { string city = 1; }
+message RestaurantList { repeated Restaurant restaurants = 1; }
+
+service RestaurantService {
+  rpc GetRestaurant (RestaurantRequest) returns (Restaurant);
+  rpc ListRestaurants (RestaurantsRequest) returns (RestaurantList);
+}

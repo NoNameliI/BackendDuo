@@ -1,0 +1,31 @@
+type Restaurant {
+  id: ID!
+  name: String!
+  city: String!
+  cuisine: String!
+  rating: Float!
+  orders: [Order!]!
+}
+
+type Order {
+  id: ID!
+  dish: String!
+  quantity: Int!
+  restaurant: Restaurant
+}
+
+input OrderInput {
+  restaurant_id: ID!
+  dish: String!
+  quantity: Int!
+}
+
+type Query {
+  restaurants(city: String, cuisine: String, limit: Int): [Restaurant!]!
+  restaurant(id: ID!): Restaurant
+  orders: [Order!]!
+}
+
+type Mutation {
+  createOrder(input: OrderInput!): Order!
+}
