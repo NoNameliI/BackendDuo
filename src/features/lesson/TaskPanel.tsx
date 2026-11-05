@@ -29,6 +29,7 @@ export const TASK_KIND: Record<Task['type'], string> = {
   cors: 'CORS',
   graphql: 'GraphQL',
   proto: 'Protobuf',
+  fastapi: 'FastAPI',
 };
 
 const tabs = [
@@ -275,6 +276,8 @@ function ApiSolution({ task }: { task: ApiTask }) {
       ? ['Эталонный запрос', task.graphqlSolution, () => api.setGraphql({ query: task.graphqlSolution }), 'Вставить в редактор']
       : task.type === 'proto'
         ? ['Эталонный .proto', task.protoSolution, () => void api.setProtoSource(task.protoSolution), 'Вставить в редактор']
+        : task.type === 'fastapi'
+          ? ['Эталонный main.py', task.pythonSolution, () => api.setPythonSource(task.pythonSolution), 'Вставить в редактор']
         : task.type === 'cors'
           ? ['Эталонные настройки', task.jsonSolution, () => api.setCorsConfig(readCorsConfig(task.jsonSolution)), 'Применить']
           : ['Эталонный запрос', task.httpSolution, () => api.setDraftText(task.httpSolution), 'Вставить в композер'];

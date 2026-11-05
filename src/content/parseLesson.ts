@@ -35,7 +35,7 @@ const SHELL_ROLES: Record<string, string> = { setup: 'shellSetup', solution: 'sh
 
 /** API course: ```http starter → httpStarter, ```graphql solution → graphqlSolution, … */
 const API_LANGS = new Set(['http', 'graphql', 'proto', 'python', 'json']);
-const API_ROLES = new Set(['setup', 'starter', 'solution']);
+const API_ROLES = new Set(['setup', 'starter', 'solution', 'tests']);
 const apiKey = (lang: string, role: string) => `${lang}${role[0].toUpperCase()}${role.slice(1)}`;
 
 const SQL_ROLES: Record<string, string> = {

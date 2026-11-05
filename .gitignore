@@ -24,3 +24,6 @@ Thumbs.db
 
 # Tauri
 src-tauri/gen/
+
+# Python runtime prepared by scripts/pyodide/prepare.mjs
+public/pyodide/

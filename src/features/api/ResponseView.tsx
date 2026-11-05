@@ -54,7 +54,7 @@ export function ResponseView() {
         <span className="text-faint">{size} Б</span>
         {exchange.kind === 'preflight' && <span className="text-amber">preflight</span>}
       </p>
-      {(problems || hint || error || exchange.notes?.length) && (
+      {(problems || hint || error || Boolean(exchange.notes?.length)) && (
         <div className="shrink-0 space-y-1 border-b border-line px-3 py-2 text-[12.5px]">
           {error && <p className="break-words font-mono text-[12px] text-err">CORS: браузер не отдал ответ странице. {error}</p>}
           {cors && <p className="text-amber">{cors}</p>}

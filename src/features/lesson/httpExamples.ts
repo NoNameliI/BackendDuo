@@ -4,12 +4,17 @@ import type { Collections } from '@/engine/api/graphqlRun';
 import { parseRequest, prettyBody, type ApiRequest, type ApiResponse } from '@/engine/api/http';
 import type { ProtoSummary } from '@/engine/api/protoRun';
 import { schemaClient } from '@/engine/api/schemaClient';
+import { splitPythonExample } from '@/engine/python/example';
+import { explainPythonError } from '@/engine/python/explain';
+import { pythonClient } from '@/engine/python/pythonClient';
 import { HttpSimServer, sendTo, splitRequests } from '@/engine/api/server';
 
 export interface HttpRun {
   request: ApiRequest;
   response: ApiResponse | null;
   error?: string;
+  /** What print() wrote (python examples). */
+  output?: string;
 }
 
 // The `http example` blocks of a lesson share one virtual server and run in order, like requests sent by hand.
@@ -85,5 +90,31 @@ export async function runProtoExample(lesson: Lesson, text: string): Promise<Sch
     return { ok: out.outputs.every((o) => o.ok), summary: out.summary, lines: out.outputs.map((o) => ({ text: `${o.line}\n${o.text}`, ok: o.ok })) };
   } catch (e) {
     return { ok: false, lines: [{ text: (e as Error).message, ok: false }] };
+  }
+}
+
+/** A `python example`: the app runs afresh with its requests; nothing is kept between examples. */
+export async function runPythonExample(text: string): Promise<HttpRun[]> {
+  let example: ReturnType<typeof splitPythonExample>;
+  try {
+    example = splitPythonExample(text);
+  } catch (e) {
+    return [{ request: { method: '?', url: '', headers: [], body: '' }, response: null, error: (e as Error).message }];
+  }
+  try {
+    const run = await pythonClient().run(example.source, example.requests);
+    const output = run.output.trim() ? `Вывод print: ${run.output.trim()}` : undefined;
+    if (!run.load.ok) return [{ request: { method: 'python', url: 'main.py', headers: [], body: '' }, response: null, error: explainPythonError(run.load.error) }];
+    return example.requests.map((request, i) => {
+      const res = run.responses[i];
+      return {
+        request,
+        response: { status: res.status, headers: res.headers, body: res.body, timeMs: Math.round(res.ms) },
+        ...(res.error ? { error: explainPythonError(res.error) } : {}),
+        ...(i === example.requests.length - 1 && output ? { output } : {}),
+      };
+    });
+  } catch (e) {
+    return [{ request: { method: 'python', url: 'main.py', headers: [], body: '' }, response: null, error: (e as Error).message }];
   }
 }

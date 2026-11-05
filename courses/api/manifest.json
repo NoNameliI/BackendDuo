@@ -21,6 +21,17 @@
       ]
     },
     {
+      "id": "api-w3",
+      "title": "FastAPI: первые шаги",
+      "summary": "Приложение, обработчики, параметры пути и ответы с ошибками на настоящем FastAPI.",
+      "lessons": [
+        {
+          "id": "api-first-fastapi",
+          "file": "w3/01-first-fastapi.md"
+        }
+      ]
+    },
+    {
       "id": "api-w5",
       "title": "За пределами REST",
       "summary": "GraphQL, gRPC и protobuf, WebSocket и SSE: когда что выбирать.",

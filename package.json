@@ -4,10 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/pyodide/prepare.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/pyodide/prepare.mjs",
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.node.json && vite build",
     "preview": "vite preview",
+    "pretest": "node scripts/pyodide/prepare.mjs",
     "test": "vitest run",
+    "prevalidate:content": "node scripts/pyodide/prepare.mjs",
     "validate:content": "vitest run --config vitest.content.config.ts",
     "tauri": "tauri",
     "test:git-parity": "vitest run --config vitest.git-parity.config.ts"
@@ -26,6 +30,7 @@
     "monaco-editor": "^0.57.0",
     "node-diff3": "^3.2.1",
     "protobufjs": "^8.8.1",
+    "pyodide": "314.0.7",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "yaml": "^2.9.1",

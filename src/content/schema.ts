@@ -280,10 +280,31 @@ const protoTask = z.object({
     .prefault({}),
 });
 
+/** FastAPI tasks: the learner writes main.py; hidden requests (```http tests) go to it and to the reference app. */
+const fastapiTask = z.object({
+  ...apiTaskBase,
+  type: z.literal('fastapi'),
+  /** The composer's starting request (sent to the learner's own app). */
+  httpSolution: z.string().default('GET /'),
+  pythonStarter: z.string().default(''),
+  pythonSolution: z.string().trim().min(1),
+  /** Test requests separated by lines `###`; the answers of the reference app are the expected ones. */
+  httpTests: z.string().trim().min(1),
+  check: z
+    .object({
+      body: z.enum(['json', 'ignore']).default('json'),
+      /** Response headers that must match the reference. */
+      headers: z.array(z.string().min(1)).default([]),
+      /** Rules on the code itself: `pattern` (a regular expression) must be found, or with `forbid` must not. */
+      code: z.array(z.object({ pattern: z.string().min(1), message: z.string().min(1), forbid: z.boolean().default(false) })).default([]),
+    })
+    .prefault({}),
+});
+
 export const corsConfigSchema = corsConfig;
 
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask])
   .superRefine((task, ctx) => {
     if (task.type !== 'choice' && task.type !== 'review') return;
     if (task.answer.some((i) => i >= task.options.length)) {
@@ -310,7 +331,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),

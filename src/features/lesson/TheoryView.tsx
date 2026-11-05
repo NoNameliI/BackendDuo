@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { courseById } from '@/content/courses';
 import { errorHint, type Lesson } from '@/content/loadCourse';
 import { splitTheory } from '@/content/theory';
@@ -9,7 +9,9 @@ import { Markdown } from '@/ui/Markdown';
 import { highlightSql } from '@/ui/highlightSql';
 import { resetExamples, runExample } from './examples';
 import { resetShellExamples, runShellExample, type ShellRun } from './shellExamples';
-import { resetHttpExamples, runGraphqlExample, runHttpExample, runProtoExample, type HttpRun, type SchemaRun } from './httpExamples';
+import { resetHttpExamples, runGraphqlExample, runHttpExample, runProtoExample, runPythonExample, type HttpRun, type SchemaRun } from './httpExamples';
+import { pythonClient } from '@/engine/python/pythonClient';
+import { PythonStatusLine } from '@/features/api/FastapiPanel';
 import { prettyBody, statusText } from '@/engine/api/http';
 import { statusTone } from '@/features/api/ResponseView';
 import { explain422 } from '@/engine/api/explain';
@@ -20,14 +22,22 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
   const segments = useMemo(() => splitTheory(lesson.theory), [lesson.theory]);
   const runnable = segments.some((s) => s.kind === 'example');
   const shell = segments.some((s) => s.kind === 'example' && s.lang === 'sh');
-  const http = segments.some((s) => s.kind === 'example' && (s.lang === 'http' || s.lang === 'graphql' || s.lang === 'proto'));
+  const http = segments.some((s) => s.kind === 'example' && (s.lang === 'http' || s.lang === 'graphql' || s.lang === 'proto' || s.lang === 'python'));
+  const python = segments.some((s) => s.kind === 'example' && s.lang === 'python');
+
+  // Python takes seconds to load: it starts while the learner reads the theory.
+  useEffect(() => {
+    if (python) pythonClient().prewarm();
+  }, [python]);
 
   return (
     <div className="space-y-4">
       {runnable && (
         <p className="rounded border border-line bg-well px-3 py-2 text-[12.5px] leading-relaxed text-dim">
           {http
-            ? 'Примеры запускаются на учебном сервере внутри приложения, сети нет. Сервер примеров отдельный и не трогает задание; запускайте примеры по порядку.'
+            ? python
+              ? 'Примеры на FastAPI выполняются настоящим Python внутри приложения, сети нет. Каждый пример запускает своё приложение заново и не трогает задание.'
+              : 'Примеры запускаются на учебном сервере внутри приложения, сети нет. Сервер примеров отдельный и не трогает задание; запускайте примеры по порядку.'
             : shell
             ? 'Примеры с кнопкой «Выполнить» работают в отдельной учебной песочнице Git и не трогают задание. Запускайте их по порядку — каждый продолжает предыдущий.'
             : 'Примеры с кнопкой «Выполнить» работают в отдельной учебной базе и не трогают задание. Запускайте их по порядку и меняйте прямо в тексте задания — так быстрее всего понять синтаксис.'}{' '}
@@ -48,6 +58,8 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
             <ShellExample key={`${lesson.id}-${i}`} lesson={lesson} script={segment.code} />
           ) : segment.lang === 'http' ? (
             <HttpExample key={`${lesson.id}-${i}`} lesson={lesson} text={segment.code} />
+          ) : segment.lang === 'python' ? (
+            <HttpExample key={`${lesson.id}-${i}`} lesson={lesson} text={segment.code} python />
           ) : segment.lang === 'graphql' || segment.lang === 'proto' ? (
             <SchemaExample key={`${lesson.id}-${i}`} lesson={lesson} lang={segment.lang} text={segment.code} />
           ) : (
@@ -133,16 +145,31 @@ function ShellExample({ lesson, script }: { lesson: Lesson; script: string }) {
   );
 }
 
-function HttpExample({ lesson, text }: { lesson: Lesson; text: string }) {
+/** `http example` sends requests to the lesson's server; `python example` runs a FastAPI main.py and sends requests to it. */
+function HttpExample({ lesson, text, python = false }: { lesson: Lesson; text: string; python?: boolean }) {
   const [result, setResult] = useState<HttpRun[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      setResult(python ? await runPythonExample(text) : runHttpExample(lesson, text));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <figure className="overflow-hidden rounded-md border border-line bg-well">
       <div className="relative">
         <pre className="md-code !rounded-none !border-0 pr-32">{text}</pre>
-        <Button variant="run" icon={<PlayIcon />} className="absolute right-2 top-2" onClick={() => setResult(runHttpExample(lesson, text))}>
-          Отправить
+        <Button variant="run" icon={<PlayIcon />} className="absolute right-2 top-2" disabled={busy} onClick={() => void run()}>
+          {python ? 'Запустить' : 'Отправить'}
         </Button>
       </div>
+      {python && busy && (
+        <div className="border-t border-line bg-panel px-3 py-2">
+          <PythonStatusLine />
+        </div>
+      )}
       {result && (
         <div className="animate-rise space-y-2 border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed" aria-live="polite">
           {result.map((run, i) =>
@@ -162,7 +189,9 @@ function HttpExample({ lesson, text }: { lesson: Lesson; text: string }) {
                       • {line}
                     </p>
                   ))}
+                {run.error && <p className="font-sans text-amber">{run.error}</p>}
                 {run.response.body && <pre className="mt-1 whitespace-pre-wrap text-fg">{prettyBody(run.response.body)}</pre>}
+                {run.output && <pre className="mt-1 whitespace-pre-wrap text-dim">{run.output}</pre>}
               </div>
             ) : (
               <p key={i} className="text-err">

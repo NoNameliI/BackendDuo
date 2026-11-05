@@ -8,6 +8,9 @@ import { createChecker } from '@/checker';
 import { checkApiTask, readCorsConfig, readRequest } from '@/checker/api';
 import { checkGraphql, checkProto } from '@/checker/apiSchema';
 import { schemaOps } from '@/engine/api/schemaOps';
+import { checkFastapi } from '@/checker/fastapi';
+import { splitPythonExample } from '@/engine/python/example';
+import { nodePython } from './pyodide/node';
 import { HttpSimServer, sendTo, splitRequests, type ServerDef } from '@/engine/api/server';
 import { createGitChecker, runReference, stoppedOnConflict } from '@/checker/git';
 import { parseRequest } from '@/engine/api/http';
@@ -41,6 +44,12 @@ async function validateTask(task: Task, servers: Record<string, ServerDef>) {
     expect((await checker.check(task, { kind: 'choice', selected: task.answer })).passed).toBe(true);
     const wrong = task.options.map((_, i) => i).filter((i) => !task.answer.includes(i));
     expect((await checker.check(task, { kind: 'choice', selected: wrong })).passed).toBe(false);
+    return;
+  }
+  if (task.type === 'fastapi') {
+    const { run } = await nodePython();
+    expect((await checkFastapi(task, task.pythonSolution, run)).problems, 'reference must pass its own check').toEqual([]);
+    expect((await checkFastapi(task, task.pythonStarter, run)).passed, 'the starter must not pass the check').toBe(false);
     return;
   }
   if (task.type === 'graphql') {
@@ -112,6 +121,13 @@ for (const course of catalog?.courses ?? []) {
                     collections = out.collections;
                     expect(out.explained, `example failed:
 ${code}`).toEqual([]);
+                  } else if (lang === 'python') {
+                    const { source, requests, crashes } = splitPythonExample(code);
+                    const out = await (await nodePython()).run(source, requests);
+                    const failed = out.load.ok
+                      ? out.responses.flatMap((r, i) => (Boolean(r.error) !== crashes[i] ? [`request ${i + 1}: ${r.error ? `${r.error.type}: ${r.error.message}` : 'expected a crash (### 500)'}`] : []))
+                      : [`${out.load.error.type}: ${out.load.error.message}`];
+                    expect(failed, `example failed: ${code}`).toEqual([]);
                   } else if (lang === 'proto') {
                     const out = schemaOps.protoExample(code, collections);
                     collections = out.collections;

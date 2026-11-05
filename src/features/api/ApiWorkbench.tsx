@@ -5,6 +5,7 @@ import { Tabs } from '@/ui/Tabs';
 import { useApiSandbox } from './apiStore';
 import { CorsPanel } from './CorsPanel';
 import { ExchangeDiagram } from './ExchangeDiagram';
+import { FastapiPanel } from './FastapiPanel';
 import { GraphqlPanel } from './GraphqlPanel';
 import { NetworkLog } from './NetworkLog';
 import { ProtoPanel } from './ProtoPanel';
@@ -20,8 +21,8 @@ const SIDE = [
 /** Request composer, response, network log and exchange diagram of the sandbox in ApiSandboxContext. */
 export function ApiWorkbench({ actions, prefix }: { actions: ReactNode; prefix: string }) {
   const [side, setSide] = useState<Side>('log');
-  const mode = useApiSandbox()((s) => (s.cors ? 'cors' : s.graphql ? 'graphql' : s.proto ? 'proto' : 'http'));
-  const top = { cors: ['CORS', <CorsPanel />], graphql: ['GraphQL', <GraphqlPanel />], proto: ['Protobuf', <ProtoPanel />], http: ['Запрос', <RequestComposer />] } as const;
+  const mode = useApiSandbox()((s) => (s.cors ? 'cors' : s.graphql ? 'graphql' : s.proto ? 'proto' : s.python ? 'python' : 'http'));
+  const top = { cors: ['CORS', <CorsPanel />], graphql: ['GraphQL', <GraphqlPanel />], proto: ['Protobuf', <ProtoPanel />], python: ['FastAPI', <FastapiPanel />], http: ['Запрос', <RequestComposer />] } as const;
   return (
     <Split direction="column" initial={[52, 48]} storageKey={`${prefix}-rows`}>
       <Panel title={top[mode][0]} actions={actions}>

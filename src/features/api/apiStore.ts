@@ -2,10 +2,12 @@ import { createContext, useContext } from 'react';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { browserFetch } from '@/engine/api/cors';
 import type { Collections } from '@/engine/api/graphqlRun';
-import { parseRequest, RequestFormatError, type ApiRequest, type Exchange } from '@/engine/api/http';
+import { parseRequest, RequestFormatError, splitUrl, type ApiRequest, type Exchange } from '@/engine/api/http';
 import type { Encoded, ProtoSummary } from '@/engine/api/protoRun';
 import { schemaClient } from '@/engine/api/schemaClient';
 import { sendTo, type CorsConfig, type HttpSimServer } from '@/engine/api/server';
+import { explainPythonError } from '@/engine/python/explain';
+import { PYTHON_BASE_URL, pythonClient } from '@/engine/python/pythonClient';
 
 /** Sends a request somewhere inside the app (a virtual server, a simulated browser) — never to the network. */
 export interface ApiEngine {
@@ -25,6 +27,29 @@ export function serverEngine(server: HttpSimServer): ApiEngine {
     async send(request) {
       const res = sendTo(server, request);
       return [typeof res === 'string' ? { kind: 'request', request, response: null, error: res } : { kind: 'request', request, response: res }];
+    },
+  };
+}
+
+/**
+ * Requests go to the learner's own FastAPI app (main.py). The app is kept between sends, so a POST is seen by
+ * the next GET; editing the code starts it afresh, like uvicorn --reload.
+ */
+export function pythonEngine(source: () => string): ApiEngine {
+  return {
+    async send(request) {
+      const origin = splitUrl(request.url).origin;
+      if (origin && origin !== PYTHON_BASE_URL) return [{ kind: 'request', request, response: null, error: `Запрос ушёл на ${origin}, а приложение запущено на ${PYTHON_BASE_URL}` }];
+      try {
+        const run = await pythonClient().run(source(), [request], { keep: true });
+        const output = run.output.trim() ? [{ text: `Вывод print: ${run.output.trim()}`, warn: false }] : [];
+        if (!run.load.ok) return [{ kind: 'request', request, response: null, error: explainPythonError(run.load.error), notes: output }];
+        const res = run.responses[0];
+        const notes = [...(res.error ? [{ text: explainPythonError(res.error), warn: true }] : []), ...output];
+        return [{ kind: 'request', request, response: { status: res.status, headers: res.headers, body: res.body, timeMs: Math.max(1, Math.round(res.ms)) }, notes }];
+      } catch (e) {
+        return [{ kind: 'request', request, response: null, error: (e as Error).message }];
+      }
     },
   };
 }
@@ -67,6 +92,9 @@ export interface ApiSandboxState {
   cors: { config: CorsConfig; call: FrontendCall } | null;
   graphql: GraphqlSandbox | null;
   proto: ProtoSandbox | null;
+  /** FastAPI tasks: the learner's main.py. */
+  python: { source: string } | null;
+  setPythonSource: (source: string) => void;
   setDraft: (patch: Partial<ApiRequest>) => void;
   /** Replaces the draft with a request written as text; returns the error message for bad text. */
   setDraftText: (text: string) => string | null;
@@ -90,6 +118,7 @@ export interface ApiSandboxState {
       cors?: { config: CorsConfig; call: FrontendCall } | null;
       graphql?: Omit<GraphqlSandbox, 'variables'> & { variables: Record<string, unknown> };
       proto?: { source: string; collections: Collections };
+      python?: { source: string };
     },
   ) => void;
 }
@@ -141,6 +170,10 @@ export function createApiSandboxStore(): ApiSandboxStore {
       cors: null,
       graphql: null,
       proto: null,
+      python: null,
+      setPythonSource: (source) => {
+        if (get().python) set({ python: { source } });
+      },
       setDraft: (patch) => set({ draft: { ...get().draft, ...patch } }),
       setDraftText: (text) => {
         try {
@@ -259,18 +292,24 @@ export function createApiSandboxStore(): ApiSandboxStore {
       reset: (starter, options = {}) => {
         const server = options.server ?? null;
         const graphql = options.graphql;
+        const python = options.python ?? null;
         set({
           draft: fromText(starter),
           exchanges: [],
           selected: null,
           server,
-          engine: server ? serverEngine(server) : noServer,
-          baseUrl: server?.def.baseUrl ?? '',
+          engine: python ? pythonEngine(() => get().python?.source ?? '') : server ? serverEngine(server) : noServer,
+          baseUrl: python ? PYTHON_BASE_URL : (server?.def.baseUrl ?? ''),
+          python,
           cors: options.cors ?? null,
           graphql: graphql ? { ...graphql, variables: Object.keys(graphql.variables).length ? JSON.stringify(graphql.variables, null, 2) : '' } : null,
           proto: options.proto ? { ...options.proto, summary: null, error: null, encoded: null } : null,
         });
         if (options.proto) void get().setProtoSource(options.proto.source);
+        if (python) {
+          pythonClient().prewarm();
+          void pythonClient().forget().catch(() => {});
+        }
       },
     };
   });
