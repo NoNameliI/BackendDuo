@@ -34,6 +34,7 @@ const course: Course = {
   engine: 'postgres',
   errorHints: {},
   terminalHints: [],
+  servers: {},
   levels: [
     { xp: 0, title: 'Trainee' },
     { xp: 50, title: 'Writer' },

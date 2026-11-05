@@ -40,6 +40,8 @@ export interface Exchange {
   error?: string;
   /** Exchanges caused by one send (a preflight and its request) share a group. */
   group?: number;
+  /** A plain-Russian explanation of `error`. */
+  explain?: string;
 }
 
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;

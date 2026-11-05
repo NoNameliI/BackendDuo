@@ -1,4 +1,5 @@
 import type { EngineKind } from '@/engine';
+import type { ServerDef } from '@/engine/api/server';
 import { LessonParseError, parseLesson } from './parseLesson';
 import {
   errorHintsSchema,
@@ -12,6 +13,7 @@ import {
   type ParsedTask,
   terminalHintsSchema,
   gitOnboardingSchema,
+  serverDefSchema,
   type GitOnboardingData,
 } from './schema';
 
@@ -41,6 +43,8 @@ export interface Lesson {
   theory: string;
   /** Starting state of the theory examples: the setup of the lesson's first task that has one. */
   exampleSetup: string;
+  /** API course: the server the lesson's `http example` blocks talk to (its first task's server). */
+  exampleServer?: string;
   requires: string[];
   tasks: Task[];
 }
@@ -87,6 +91,8 @@ export interface Course {
   terminalHints: { pattern: RegExp; hint: string }[];
   /** Failed checks after which the solution may be shown (undefined: after the first attempt). */
   solutionAfterAttempts?: number;
+  /** API course: virtual servers by name. */
+  servers: Record<string, ServerDef>;
 }
 
 export class CourseError extends Error {
@@ -135,6 +141,14 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     else datasets[name] = sql;
   }
 
+  const servers: Record<string, ServerDef> = {};
+  for (const [name, file] of Object.entries(manifest.servers)) {
+    const path = `${root}/${file}`;
+    const parsed = serverDefSchema.safeParse(readJson(files, path, problems));
+    if (parsed.success) servers[name] = parsed.data as ServerDef;
+    else if (files[path] !== undefined) problems.push(...formatIssues(path, parsed.error.issues));
+  }
+
   const errorsPath = `${root}/${manifest.errors}`;
   const errorsJson = readJson(files, errorsPath, problems);
   const hints = errorHintsSchema.safeParse(manifest.engine === 'git' ? {} : (errorsJson ?? {}));
@@ -167,6 +181,8 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     if (task.type !== 'choice' && task.type !== 'review' && engineOf(task) !== manifest.engine) {
       problems.push(`${where}: тип «${task.type}» не подходит для курса с движком ${manifest.engine}`);
     }
+    if ('httpSolution' in task && task.server && !manifest.servers[task.server]) problems.push(`${where}: неизвестный сервер «${task.server}»`);
+    if ((task.type === 'response' || task.type === 'cors') && !task.server) problems.push(`${where}: заданию типа ${task.type} нужен сервер (поле server)`);
     let setupSql = '';
     if ('solution' in task) {
       if (task.dataset && datasets[task.dataset] === undefined) {
@@ -223,6 +239,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
       }
       const first = lesson.tasks.find((t) => 'solution' in t || 'shellSolution' in t);
       lesson.exampleSetup = first && 'shellSolution' in first ? first.shellSetup : (first?.setupSql ?? '');
+      lesson.exampleServer = lesson.tasks.find((t): t is ApiTask => 'httpSolution' in t && Boolean(t.server))?.server ?? Object.keys(servers)[0];
       return lesson;
     });
     return {
@@ -355,6 +372,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     errorHints: hints.success ? hints.data : {},
     terminalHints,
     solutionAfterAttempts: manifest.solutionAfterAttempts,
+    servers,
   };
 }
 

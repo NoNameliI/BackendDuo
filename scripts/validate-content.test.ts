@@ -5,7 +5,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
-import { checkRequest, readRequest } from '@/checker/api';
+import { checkApiTask, readCorsConfig, readRequest } from '@/checker/api';
+import { HttpSimServer, sendTo, splitRequests, type ServerDef } from '@/engine/api/server';
 import { createGitChecker, runReference, stoppedOnConflict } from '@/checker/git';
 import { parseRequest } from '@/engine/api/http';
 import { loadCatalog, type Catalog } from '@/content/catalog';
@@ -33,7 +34,7 @@ const gitChecker = createGitChecker();
 beforeAll(() => engine.init());
 afterAll(() => engine.dispose());
 
-async function validateTask(task: Task) {
+async function validateTask(task: Task, servers: Record<string, ServerDef>) {
   if (task.type === 'choice' || task.type === 'review') {
     expect((await checker.check(task, { kind: 'choice', selected: task.answer })).passed).toBe(true);
     const wrong = task.options.map((_, i) => i).filter((i) => !task.answer.includes(i));
@@ -41,11 +42,12 @@ async function validateTask(task: Task) {
     return;
   }
   if ('httpSolution' in task) {
-    const solved = checkRequest(task, parseRequest(task.httpSolution));
-    expect(solved.problems, 'reference request must pass its own check').toEqual([]);
+    const cors = (text: string) => (task.type === 'cors' ? readCorsConfig(text) : null);
+    const solved = checkApiTask(task, servers, { draft: parseRequest(task.httpSolution), cors: cors(task.type === 'cors' ? task.jsonSolution : '') });
+    expect(solved.problems, 'reference must pass its own check').toEqual([]);
     const starter = readRequest(task.httpStarter);
-    const untouched = 'method' in starter ? checkRequest(task, starter) : starter;
-    expect(untouched.passed, 'the starter request must not pass the check').toBe(false);
+    const untouched = 'method' in starter ? checkApiTask(task, servers, { draft: starter, cors: cors(task.type === 'cors' ? task.jsonStarter : '') }) : starter;
+    expect(untouched.passed, 'the starter must not pass the check').toBe(false);
     return;
   }
   if ('shellSolution' in task) {
@@ -85,6 +87,17 @@ for (const course of catalog?.courses ?? []) {
           const examples = theoryExamples(lesson.theory);
           if (examples.length > 0) {
             it('theory examples run in order without errors', async () => {
+              if (course.engine === 'api') {
+                const def = lesson.exampleServer ? course.servers[lesson.exampleServer] : undefined;
+                expect(def, 'http examples need a server (a task of the lesson with "server")').toBeDefined();
+                const server = new HttpSimServer(def!);
+                for (const text of examples.flatMap(splitRequests)) {
+                  const res = sendTo(server, parseRequest(text));
+                  expect(typeof res === 'string' ? res : null, `example failed:
+${text}`).toBeNull();
+                }
+                return;
+              }
               if (course.engine === 'git') {
                 const sandbox = new GitSandboxEngine();
                 sandbox.reset(lesson.exampleSetup);
@@ -105,7 +118,7 @@ ${sql}`).toBeUndefined();
             });
           }
           for (const task of lesson.tasks) {
-            it(`${task.id} (${task.type})`, () => validateTask(task));
+            it(`${task.id} (${task.type})`, () => validateTask(task, course.servers));
           }
         });
       }
@@ -115,7 +128,7 @@ ${sql}`).toBeUndefined();
     if (extra.length) {
       describe('placement and onboarding', () => {
         for (const task of extra) {
-          it(`${task.id} (${task.type})`, () => validateTask(task));
+          it(`${task.id} (${task.type})`, () => validateTask(task, course.servers));
         }
       });
     }

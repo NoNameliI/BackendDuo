@@ -4,6 +4,9 @@
   "description": "Как фронтенд разговаривает с бэкендом: HTTP, REST, первые шаги в FastAPI, CORS и токены, GraphQL и gRPC. Учебные серверы и Python работают прямо в приложении.",
   "engine": "api",
   "errors": "errors.json",
+  "servers": {
+    "food": "servers/food.json"
+  },
   "solutionAfterAttempts": 3,
   "worlds": [
     {

@@ -1,0 +1,152 @@
+{
+  "baseUrl": "https://api.food.local",
+  "collections": {
+    "restaurants": [
+      {
+        "id": 1,
+        "name": "Пицца у Тони",
+        "city": "Казань",
+        "cuisine": "italian",
+        "rating": 4.6
+      },
+      {
+        "id": 2,
+        "name": "Суши-бар",
+        "city": "Казань",
+        "cuisine": "japanese",
+        "rating": 4.8
+      },
+      {
+        "id": 3,
+        "name": "Чебуречная",
+        "city": "Москва",
+        "cuisine": "caucasian",
+        "rating": 4.3
+      },
+      {
+        "id": 4,
+        "name": "Паста и вино",
+        "city": "Москва",
+        "cuisine": "italian",
+        "rating": 4.7
+      },
+      {
+        "id": 5,
+        "name": "Рамен-хаус",
+        "city": "Казань",
+        "cuisine": "japanese",
+        "rating": 4.1
+      }
+    ],
+    "orders": [
+      {
+        "id": 1,
+        "restaurant_id": 1,
+        "dish": "Маргарита",
+        "quantity": 1
+      }
+    ]
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/restaurants",
+      "action": "list",
+      "collection": "restaurants",
+      "filters": [
+        "city",
+        "cuisine"
+      ],
+      "sort": true,
+      "paginate": true,
+      "query": {
+        "limit": {
+          "type": "integer",
+          "min": 1,
+          "max": 100
+        },
+        "page": {
+          "type": "integer",
+          "min": 1
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/restaurants/{id}",
+      "action": "get",
+      "collection": "restaurants"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "action": "list",
+      "collection": "orders"
+    },
+    {
+      "method": "GET",
+      "path": "/orders/{id}",
+      "action": "get",
+      "collection": "orders"
+    },
+    {
+      "method": "POST",
+      "path": "/orders",
+      "action": "create",
+      "collection": "orders",
+      "body": {
+        "restaurant_id": {
+          "type": "integer",
+          "required": true,
+          "min": 1
+        },
+        "dish": {
+          "type": "string",
+          "required": true,
+          "minLength": 1
+        },
+        "quantity": {
+          "type": "integer",
+          "required": true,
+          "min": 1,
+          "max": 20
+        }
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/orders/{id}",
+      "action": "update",
+      "collection": "orders",
+      "body": {
+        "dish": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quantity": {
+          "type": "integer",
+          "min": 1,
+          "max": 20
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/orders/{id}",
+      "action": "delete",
+      "collection": "orders"
+    }
+  ],
+  "cors": {
+    "allowOrigins": [
+      "https://food.local"
+    ],
+    "allowMethods": [
+      "GET",
+      "POST"
+    ],
+    "allowHeaders": [
+      "Content-Type"
+    ]
+  }
+}

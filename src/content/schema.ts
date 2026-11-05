@@ -202,8 +202,56 @@ const requestTask = z.object({
     .prefault({}),
 });
 
+const responseTask = z.object({
+  ...apiTaskBase,
+  type: z.literal('response'),
+  /** Requests that run on a fresh server before the learner's one (separated by a line `###`). */
+  httpSetup: z.string().default(''),
+  check: z
+    .object({
+      status: z.boolean().default(true),
+      /** Response headers that must match the reference. */
+      headers: z.array(z.string().min(1)).default([]),
+      body: z.enum(['json', 'ignore']).default('json'),
+      /** Collections of the server whose data must match after the request. */
+      state: z.array(z.string().min(1)).default([]),
+    })
+    .prefault({}),
+});
+
+const corsConfig = z.object({
+  allowOrigins: z.array(z.string()).default([]),
+  allowMethods: z.array(z.string()).default(['GET']),
+  allowHeaders: z.array(z.string()).default([]),
+  allowCredentials: z.boolean().default(false),
+  exposeHeaders: z.array(z.string()).default([]),
+  maxAge: z.number().int().nonnegative().optional(),
+});
+
+const corsTask = z.object({
+  ...apiTaskBase,
+  type: z.literal('cors'),
+  /** No reference request here: the reference is the settings below. */
+  httpSolution: z.string().default('GET /'),
+  /** The learner edits the server's CORS settings; ```json starter / solution hold them. */
+  jsonStarter: z.string().default('{}'),
+  jsonSolution: z.string().trim().min(1),
+  /** What the frontend page does: fetch(request) from origin. */
+  fetch: z.object({ origin: z.string().regex(/^https?:\/\/[^/]+$/), request: z.string().min(1), credentials: z.boolean().default(false) }),
+  check: z
+    .object({
+      /** allowed: the page must read the answer; blocked: the browser must stop it. */
+      expect: z.enum(['allowed', 'blocked']).default('allowed'),
+      /** Other pages that must stay blocked (not too permissive). */
+      mustBlock: z.array(z.object({ origin: z.string(), request: z.string().optional(), credentials: z.boolean().default(false) })).default([]),
+    })
+    .prefault({}),
+});
+
+export const corsConfigSchema = corsConfig;
+
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask])
   .superRefine((task, ctx) => {
     if (task.type !== 'choice' && task.type !== 'review') return;
     if (task.answer.some((i) => i >= task.options.length)) {
@@ -230,7 +278,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),
@@ -270,6 +318,8 @@ export const manifestSchema = z.object({
   badges: z.array(badgeSchema).default([]),
   placement: z.string().regex(/\.json$/).optional(),
   onboarding: z.string().regex(/\.json$/).optional(),
+  /** API course: virtual servers (JSON files, see src/engine/api/server.ts) by name. */
+  servers: z.record(slug, z.string().regex(/\.json$/)).default({}),
   /** Failed checks after which the reference solution may be shown; by default after the first attempt. */
   solutionAfterAttempts: z.number().int().positive().optional(),
 });
@@ -364,6 +414,44 @@ export const errorHintsSchema = z.record(z.string().regex(/^([0-9A-Z]{2}([0-9A-Z
 
 /** Git course: a pattern over terminal error lines → explanation shown under git's own message. */
 export const terminalHintsSchema = z.array(z.object({ pattern: z.string().min(1), hint: z.string().min(1) }));
+
+const fieldSpec = z.object({
+  type: z.enum(['string', 'integer', 'number', 'boolean', 'array', 'object']),
+  required: z.boolean().optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  minLength: z.number().int().optional(),
+  maxLength: z.number().int().optional(),
+  enum: z.array(z.union([z.string(), z.number()])).optional(),
+});
+
+/** A virtual server of the API course. */
+export const serverDefSchema = z.object({
+  baseUrl: z.string().regex(/^https?:\/\/[^/]+$/),
+  collections: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))).default({}),
+  routes: z
+    .array(
+      z.object({
+        method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']),
+        path: z.string().regex(/^\//),
+        action: z.enum(['list', 'get', 'create', 'replace', 'update', 'delete', 'static']),
+        collection: z.string().optional(),
+        filters: z.array(z.string()).optional(),
+        sort: z.boolean().optional(),
+        paginate: z.boolean().optional(),
+        body: z.record(z.string(), fieldSpec).optional(),
+        query: z.record(z.string(), fieldSpec).optional(),
+        unique: z.string().optional(),
+        auth: z.boolean().optional(),
+        respond: z.object({ status: z.number().int(), body: z.unknown().optional(), headers: z.record(z.string(), z.string()).optional() }).optional(),
+        delay: z.number().int().nonnegative().optional(),
+      }),
+    )
+    .min(1),
+  auth: z.object({ tokens: z.array(z.string()).optional(), apiKeys: z.array(z.string()).optional() }).optional(),
+  cors: corsConfig.optional(),
+  rateLimit: z.number().int().positive().optional(),
+});
 
 export type TaskInput = z.input<typeof taskSchema>;
 export type ParsedTask = z.output<typeof taskSchema>;

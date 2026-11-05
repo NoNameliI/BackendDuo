@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ApiTask } from '@/content/loadCourse';
 import { taskSchema } from '@/content/schema';
 import { parseRequest } from '@/engine/api/http';
-import { checkRequest } from './api';
+import { checkApiTask, checkRequest, readCorsConfig } from './api';
 
 function task(raw: Record<string, unknown>) {
   const parsed = taskSchema.parse({ id: 't', title: 'T', prompt: 'P', hints: ['h'], type: 'request', ...raw });
@@ -36,5 +36,50 @@ describe('request check', () => {
   it('reports broken JSON in plain words', () => {
     const sent = parseRequest("POST /orders?notify=true\nContent-Type: application/json\n\n{product: 'Чай'}");
     expect(checkRequest(t, sent).problems[0]).toMatch(/^Тело запроса — некорректный JSON/);
+  });
+});
+
+describe('response and cors checks', () => {
+  const servers = {
+    shop: {
+      baseUrl: 'https://api.shop.local',
+      collections: { products: [{ id: 1, name: 'Чай', category: 'drinks' }, { id: 2, name: 'Печенье', category: 'snacks' }] },
+      routes: [
+        { method: 'GET' as const, path: '/products', action: 'list' as const, collection: 'products', filters: ['category'] },
+        { method: 'POST' as const, path: '/products', action: 'create' as const, collection: 'products', body: { name: { type: 'string' as const, required: true } } },
+      ],
+      cors: { allowOrigins: ['https://shop.local'], allowMethods: ['GET'], allowHeaders: [] },
+    },
+  };
+  const make = (raw: Record<string, unknown>) => {
+    const parsed = taskSchema.parse({ id: 'r', title: 'T', prompt: 'P', hints: ['h'], server: 'shop', ...raw });
+    return { ...parsed, courseId: 'api', lessonId: 'l', worldId: 'w', setupSql: '' } as ApiTask;
+  };
+
+  it('compares what the server answers', () => {
+    const t = make({ type: 'response', httpSolution: 'GET /products?category=snacks' });
+    expect(checkApiTask(t, servers, { draft: parseRequest('GET https://api.shop.local/products?category=snacks'), cors: null }).passed).toBe(true);
+    expect(checkApiTask(t, servers, { draft: parseRequest('GET /products'), cors: null }).problems).toEqual([
+      'Тело ответа не то: ожидается список из 1 записи, а пришло список из 2 записей',
+    ]);
+    expect(checkApiTask(t, servers, { draft: parseRequest('GET /product'), cors: null }).problems[0]).toBe('Сервер ответил 404 Not Found, а нужен ответ 200 OK');
+    expect(checkApiTask(t, servers, { draft: parseRequest('GET https://evil.example/products'), cors: null }).problems[0]).toMatch(/^Запрос ушёл на https:\/\/evil\.example/);
+  });
+
+  it('checks CORS settings from the frontend side and refuses too wide ones', () => {
+    const t = make({
+      type: 'cors',
+      jsonSolution: '{"allowOrigins": ["https://admin.shop.local"], "allowMethods": ["GET", "POST"], "allowHeaders": ["Content-Type"]}',
+      fetch: { origin: 'https://admin.shop.local', request: 'POST /products\nContent-Type: application/json\n\n{"name": "Сок"}' },
+      check: { mustBlock: [{ origin: 'https://evil.example' }] },
+    });
+    const run = (cfg: string) => checkApiTask(t, servers, { draft: parseRequest('GET /'), cors: readCorsConfig(cfg) });
+    expect(run('{"allowOrigins": ["https://admin.shop.local"], "allowMethods": ["POST"], "allowHeaders": ["content-type"]}').passed).toBe(true);
+    expect(run('{"allowOrigins": ["https://admin.shop.local"], "allowMethods": ["GET"]}').problems[0]).toBe(
+      'Фронтенд https://admin.shop.local не получил ответ. Сервер отклонил preflight-запрос: метода нет в allow_methods. Браузер не стал отправлять сам запрос.',
+    );
+    expect(run('{"allowOrigins": ["*"], "allowMethods": ["*"], "allowHeaders": ["*"]}').problems).toEqual([
+      'Слишком широко: страница https://evil.example тоже получила ответ. Разрешайте только нужные origin, методы и заголовки',
+    ]);
   });
 });

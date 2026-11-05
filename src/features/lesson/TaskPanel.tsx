@@ -24,6 +24,8 @@ export const TASK_KIND: Record<Task['type'], string> = {
   hosting: 'Хостинг',
   ci: 'CI',
   request: 'HTTP · запрос',
+  response: 'HTTP · ответ сервера',
+  cors: 'CORS',
 };
 
 const tabs = [

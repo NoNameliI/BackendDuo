@@ -9,6 +9,10 @@ import { Markdown } from '@/ui/Markdown';
 import { highlightSql } from '@/ui/highlightSql';
 import { resetExamples, runExample } from './examples';
 import { resetShellExamples, runShellExample, type ShellRun } from './shellExamples';
+import { resetHttpExamples, runHttpExample, type HttpRun } from './httpExamples';
+import { prettyBody, statusText } from '@/engine/api/http';
+import { statusTone } from '@/features/api/ResponseView';
+import { explain422 } from '@/engine/api/explain';
 import { summarizeStatement } from './format';
 import { ResultTable } from './ResultTable';
 
@@ -16,20 +20,23 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
   const segments = useMemo(() => splitTheory(lesson.theory), [lesson.theory]);
   const runnable = segments.some((s) => s.kind === 'example');
   const shell = segments.some((s) => s.kind === 'example' && s.lang === 'sh');
+  const http = segments.some((s) => s.kind === 'example' && s.lang === 'http');
 
   return (
     <div className="space-y-4">
       {runnable && (
         <p className="rounded border border-line bg-well px-3 py-2 text-[12.5px] leading-relaxed text-dim">
-          {shell
+          {http
+            ? 'Запросы с кнопкой «Отправить» уходят на учебный сервер внутри приложения, сети нет. Сервер примеров отдельный и не трогает задание; запускайте примеры по порядку.'
+            : shell
             ? 'Примеры с кнопкой «Выполнить» работают в отдельной учебной песочнице Git и не трогают задание. Запускайте их по порядку — каждый продолжает предыдущий.'
             : 'Примеры с кнопкой «Выполнить» работают в отдельной учебной базе и не трогают задание. Запускайте их по порядку и меняйте прямо в тексте задания — так быстрее всего понять синтаксис.'}{' '}
           <button
             type="button"
             className="text-nav underline underline-offset-2"
-            onClick={() => (shell ? resetShellExamples(lesson) : void resetExamples(lesson))}
+            onClick={() => (http ? resetHttpExamples(lesson) : shell ? resetShellExamples(lesson) : void resetExamples(lesson))}
           >
-            {shell ? 'Начать примеры заново' : 'Вернуть базу примеров в исходное состояние'}
+            {http ? 'Вернуть сервер примеров в исходное состояние' : shell ? 'Начать примеры заново' : 'Вернуть базу примеров в исходное состояние'}
           </button>
         </p>
       )}
@@ -39,6 +46,8 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
         ) : (
           segment.lang === 'sh' ? (
             <ShellExample key={`${lesson.id}-${i}`} lesson={lesson} script={segment.code} />
+          ) : segment.lang === 'http' ? (
+            <HttpExample key={`${lesson.id}-${i}`} lesson={lesson} text={segment.code} />
           ) : (
             <RunnableExample key={`${lesson.id}-${i}`} lesson={lesson} sql={segment.code} />
           )
@@ -116,6 +125,49 @@ function ShellExample({ lesson, script }: { lesson: Lesson; script: string }) {
               ))}
             </div>
           ))}
+        </div>
+      )}
+    </figure>
+  );
+}
+
+function HttpExample({ lesson, text }: { lesson: Lesson; text: string }) {
+  const [result, setResult] = useState<HttpRun[] | null>(null);
+  return (
+    <figure className="overflow-hidden rounded-md border border-line bg-well">
+      <div className="relative">
+        <pre className="md-code !rounded-none !border-0 pr-32">{text}</pre>
+        <Button variant="run" icon={<PlayIcon />} className="absolute right-2 top-2" onClick={() => setResult(runHttpExample(lesson, text))}>
+          Отправить
+        </Button>
+      </div>
+      {result && (
+        <div className="animate-rise space-y-2 border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed" aria-live="polite">
+          {result.map((run, i) =>
+            run.response ? (
+              <div key={i}>
+                <p className={`font-semibold ${statusTone(run.response.status)}`}>
+                  {run.response.status} {statusText(run.response.status)}
+                </p>
+                {run.response.headers.map((h, j) => (
+                  <p key={j} className="text-faint">
+                    {h.name}: {h.value}
+                  </p>
+                ))}
+                {run.response.status === 422 &&
+                  explain422(run.response.body)?.map((line, j) => (
+                    <p key={`e${j}`} className="font-sans text-amber">
+                      • {line}
+                    </p>
+                  ))}
+                {run.response.body && <pre className="mt-1 whitespace-pre-wrap text-fg">{prettyBody(run.response.body)}</pre>}
+              </div>
+            ) : (
+              <p key={i} className="text-err">
+                {run.error}
+              </p>
+            ),
+          )}
         </div>
       )}
     </figure>

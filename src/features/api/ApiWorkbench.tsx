@@ -2,6 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { Panel } from '@/ui/Panel';
 import { Split } from '@/ui/Split';
 import { Tabs } from '@/ui/Tabs';
+import { useApiSandbox } from './apiStore';
+import { CorsPanel } from './CorsPanel';
 import { ExchangeDiagram } from './ExchangeDiagram';
 import { NetworkLog } from './NetworkLog';
 import { RequestComposer } from './RequestComposer';
@@ -16,10 +18,11 @@ const SIDE = [
 /** Request composer, response, network log and exchange diagram of the sandbox in ApiSandboxContext. */
 export function ApiWorkbench({ actions, prefix }: { actions: ReactNode; prefix: string }) {
   const [side, setSide] = useState<Side>('log');
+  const cors = useApiSandbox()((s) => s.cors !== null);
   return (
     <Split direction="column" initial={[52, 48]} storageKey={`${prefix}-rows`}>
-      <Panel title="Запрос" actions={actions}>
-        <RequestComposer />
+      <Panel title={cors ? 'CORS' : 'Запрос'} actions={actions}>
+        {cors ? <CorsPanel /> : <RequestComposer />}
       </Panel>
       <Split direction="row" initial={[50, 50]} storageKey={`${prefix}-bottom`}>
         <Panel title="Ответ">

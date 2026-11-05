@@ -1,11 +1,12 @@
 /**
- * Theory may contain runnable examples: fenced blocks with the info string `sql example` (SQL courses) or
- * `sh example` (Git course). They run in order on the lesson's example sandbox (setup of its first task).
+ * Theory may contain runnable examples: fenced blocks with the info string `sql example` (SQL courses),
+ * `sh example` (Git course) or `http example` (API course, sent to the lesson's virtual server). They run in
+ * order on the lesson's example sandbox (setup or server of its first task).
  */
-export type ExampleLang = 'sql' | 'sh';
+export type ExampleLang = 'sql' | 'sh' | 'http';
 export type TheorySegment = { kind: 'markdown'; text: string } | { kind: 'example'; lang: ExampleLang; code: string };
 
-const EXAMPLE = /^```(sql|sh)[ \t]+example[ \t]*\n([\s\S]*?)^```[ \t]*$\n?/gm;
+const EXAMPLE = /^```(sql|sh|http)[ \t]+example[ \t]*\n([\s\S]*?)^```[ \t]*$\n?/gm;
 
 export function splitTheory(theory: string): TheorySegment[] {
   const segments: TheorySegment[] = [];

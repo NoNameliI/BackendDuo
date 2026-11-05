@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { checkChoice, createChecker, SolutionError, type Answer, type Checker, type CheckResult } from '@/checker';
-import { checkRequest } from '@/checker/api';
+import { checkApiTask, freshServer, readCorsConfig } from '@/checker/api';
 import { createGitChecker } from '@/checker/git';
 import { createApiSandboxStore } from '@/features/api/apiStore';
 import { SetupError } from '@/engine/git/GitSandboxEngine';
@@ -93,6 +93,18 @@ export const lessonSandbox = createGitSandboxStore();
 /** Request composer and network log of API lessons. */
 export const lessonApi = createApiSandboxStore();
 const gitChecker = createGitChecker();
+
+/** Fresh server (with the task's setup requests) and, for CORS tasks, the starting settings. */
+function prepareApi(task: Extract<Task, { httpSolution: string }>): string | null {
+  try {
+    const server = task.server ? freshServer(task, courseById(task.courseId).servers) : null;
+    const cors = task.type === 'cors' ? { config: readCorsConfig(task.jsonStarter), call: task.fetch } : null;
+    lessonApi.getState().reset(task.httpStarter, { server, cors });
+    return null;
+  } catch (e) {
+    return `Ошибка в самом задании: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
 
 function prepareGit(task: Extract<Task, { shellSolution: string }>): string | null {
   const sandbox = lessonSandbox.getState();
@@ -212,7 +224,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         return;
       }
       if ('httpSolution' in task) {
-        lessonApi.getState().reset(task.httpStarter);
+        const failure = prepareApi(task);
+        if (failure) print('error', failure);
         return;
       }
       if (!isSqlTask(task)) return;
@@ -252,7 +265,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         return Promise.resolve();
       }
       if (current && 'httpSolution' in current) {
-        lessonApi.getState().reset(current.httpStarter);
+        const failure = prepareApi(current);
+        if (failure) print('error', failure);
         return Promise.resolve();
       }
       return withSandbox(async ({ engine }) => {
@@ -322,7 +336,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       if ('httpSolution' in task) {
         let verdict: CheckResult;
         try {
-          verdict = checkRequest(task, lessonApi.getState().draft);
+          const { draft, cors } = lessonApi.getState();
+          verdict = checkApiTask(task, courseById(task.courseId).servers, { draft, cors: cors?.config ?? null });
         } catch (e) {
           verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : String(e)] };
         }

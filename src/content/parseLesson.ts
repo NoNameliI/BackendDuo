@@ -34,8 +34,8 @@ const FENCE = /^```([\w-]+)(?:[ \t]+(\w+))?[ \t]*\n([\s\S]*?)^```[ \t]*$\n?/gm;
 const SHELL_ROLES: Record<string, string> = { setup: 'shellSetup', solution: 'shellSolution' };
 
 /** API course: ```http starter → httpStarter, ```graphql solution → graphqlSolution, … */
-const API_LANGS = new Set(['http', 'graphql', 'proto', 'python']);
-const API_ROLES = new Set(['starter', 'solution']);
+const API_LANGS = new Set(['http', 'graphql', 'proto', 'python', 'json']);
+const API_ROLES = new Set(['setup', 'starter', 'solution']);
 const apiKey = (lang: string, role: string) => `${lang}${role[0].toUpperCase()}${role.slice(1)}`;
 
 const SQL_ROLES: Record<string, string> = {
