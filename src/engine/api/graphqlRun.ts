@@ -142,6 +142,17 @@ export function selectedFields(query: string): string[] {
   return [...out].sort();
 }
 
+/** Variables a query declares (`query ($id: ID!)` → `id`); none for a query that does not parse. */
+export function declaredVariables(query: string): string[] {
+  try {
+    const names: string[] = [];
+    visit(parse(query), { VariableDefinition: (node) => void names.push(node.variable.name.value) });
+    return names;
+  } catch {
+    return [];
+  }
+}
+
 const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [/^Cannot query field "(\w+)" on type "(\w+)"/, (m) => `У типа ${m[2]} нет поля «${m[1]}». Сверьтесь со схемой (вкладка «Схема»).`],
   [/^Field "(\w+)" of type "([^"]+)" must have a selection of subfields/, (m) => `Поле «${m[1]}» — объект (${m[2]}): перечислите в фигурных скобках, какие его поля нужны.`],

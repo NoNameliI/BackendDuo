@@ -5,40 +5,111 @@
   "engine": "api",
   "errors": "errors.json",
   "servers": {
-    "food": "servers/food.json"
+    "food": "servers/food.json",
+    "shop": "servers/shop.json",
+    "tracker": "servers/tracker.json",
+    "chat": "servers/chat.json"
   },
   "solutionAfterAttempts": 3,
+  "placement": "placement.json",
+  "onboarding": "onboarding.json",
   "worlds": [
     {
       "id": "api-w1",
       "title": "Что такое API и HTTP",
-      "summary": "Клиент и сервер, анатомия запроса и ответа, коды статусов и JSON.",
+      "summary": "Клиент и сервер, анатомия запроса и ответа, коды статусов, JSON и путь запроса от браузера до сервера.",
       "lessons": [
         {
           "id": "api-what-is-api",
           "file": "w1/01-what-is-api.md"
+        },
+        {
+          "id": "api-url-and-headers",
+          "file": "w1/02-url-and-headers.md"
+        },
+        {
+          "id": "api-behind-the-url",
+          "file": "w1/03-behind-the-url.md"
+        }
+      ]
+    },
+    {
+      "id": "api-w2",
+      "title": "REST",
+      "summary": "Ресурсы и адреса, методы и коды статусов, списки, ошибки и версии API.",
+      "lessons": [
+        {
+          "id": "rest-resources",
+          "file": "w2/01-resources.md"
+        },
+        {
+          "id": "rest-methods-status",
+          "file": "w2/02-methods-and-status.md"
+        },
+        {
+          "id": "rest-lists-errors",
+          "file": "w2/03-lists-errors-versions.md"
         }
       ]
     },
     {
       "id": "api-w3",
       "title": "FastAPI: первые шаги",
-      "summary": "Приложение, обработчики, параметры пути и ответы с ошибками на настоящем FastAPI.",
+      "summary": "Приложение, обработчики, параметры, тело запроса и модели Pydantic, ответы и автодокументация.",
       "lessons": [
         {
           "id": "api-first-fastapi",
           "file": "w3/01-first-fastapi.md"
+        },
+        {
+          "id": "fa-query-body",
+          "file": "w3/02-query-and-body.md"
+        },
+        {
+          "id": "fa-responses-docs",
+          "file": "w3/03-responses-and-docs.md"
+        }
+      ]
+    },
+    {
+      "id": "api-w4",
+      "title": "Фронтенд и бэкенд",
+      "summary": "fetch и JSON, CORS и preflight, cookie и токены, ограничения частоты и кэш.",
+      "lessons": [
+        {
+          "id": "web-fetch",
+          "file": "w4/01-fetch.md"
+        },
+        {
+          "id": "web-cors",
+          "file": "w4/02-cors.md"
+        },
+        {
+          "id": "web-auth",
+          "file": "w4/03-auth.md"
+        },
+        {
+          "id": "web-limits-cache",
+          "file": "w4/04-limits-and-cache.md"
         }
       ]
     },
     {
       "id": "api-w5",
       "title": "За пределами REST",
-      "summary": "GraphQL, gRPC и protobuf, WebSocket и SSE: когда что выбирать.",
+      "summary": "GraphQL, gRPC и protobuf, WebSocket и SSE, выбор стиля API под задачу.",
       "lessons": [
         {
-          "id": "api-graphql-grpc",
-          "file": "w5/01-graphql-grpc.md"
+          "id": "beyond-graphql",
+          "file": "w5/01-graphql.md"
+        },
+        {
+          "id": "beyond-grpc",
+          "file": "w5/02-grpc.md"
+        },
+        {
+          "id": "beyond-choose",
+          "file": "w5/03-choose.md"
         }
       ]
     }
@@ -74,6 +145,77 @@
       "rule": {
         "kind": "tasksSolved",
         "count": 1
+      }
+    },
+    {
+      "id": "http-reader",
+      "title": "Читатель HTTP",
+      "description": "Пройден мир «Что такое API и HTTP»",
+      "glyph": "HTTP",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "api-w1"
+      }
+    },
+    {
+      "id": "rest-designer",
+      "title": "Проектировщик REST",
+      "description": "Пройден мир «REST»",
+      "glyph": "REST",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "api-w2"
+      }
+    },
+    {
+      "id": "fastapi-starter",
+      "title": "Первое приложение",
+      "description": "Пройден мир «FastAPI: первые шаги»",
+      "glyph": "PY",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "api-w3"
+      }
+    },
+    {
+      "id": "bridge-builder",
+      "title": "Мост между фронтом и бэком",
+      "description": "Пройден мир «Фронтенд и бэкенд»",
+      "glyph": "CORS",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "api-w4"
+      }
+    },
+    {
+      "id": "polyglot-api",
+      "title": "Три стиля API",
+      "description": "Пройден мир «За пределами REST»",
+      "glyph": "RPC",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "api-w5"
+      }
+    },
+    {
+      "id": "fastapi-five",
+      "title": "Пять приложений",
+      "description": "Решено 5 заданий на FastAPI",
+      "glyph": "5×",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "fastapi",
+        "count": 5
+      }
+    },
+    {
+      "id": "api-sniper",
+      "title": "С первого раза",
+      "description": "10 заданий курса решено с первой попытки",
+      "glyph": "10",
+      "rule": {
+        "kind": "firstTry",
+        "count": 10
       }
     }
   ]

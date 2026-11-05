@@ -1,5 +1,6 @@
 import type { ApiTask } from '@/content/loadCourse';
 import { explain422 } from '@/engine/api/explain';
+import { sameJson } from './api';
 import { findHeader, parseRequest, splitUrl, type ApiRequest } from '@/engine/api/http';
 import { splitRequests } from '@/engine/api/server';
 import { explainPythonError } from '@/engine/python/explain';
@@ -48,7 +49,18 @@ function difference(req: ApiRequest, want: PyResponse, got: PyResponse, task: Fa
     else if (got.status === 405) why = ' Путь есть, но с другим методом: проверьте декоратор.';
     return `${at}: ожидается код ${want.status}, приложение ответило ${got.status}.${why}`;
   }
-  if (task.check.body === 'json' && JSON.stringify(json(want.body)) !== JSON.stringify(json(got.body))) {
+  if (want.status === 422) {
+    // Validation rules can be written in several equivalent ways (gt=0 or ge=1): what matters is which inputs failed.
+    const where = (body: string) => {
+      const detail = (json(body) as { detail?: { loc?: unknown[] }[] } | null)?.detail;
+      return Array.isArray(detail) ? [...new Set(detail.map((d) => (d.loc ?? []).join('.')))].sort() : [];
+    };
+    const w = where(want.body);
+    const g = where(got.body);
+    if (w.join() !== g.join()) return `${at}: проверка отклонила ${g.length ? g.map((x) => `«${x}»`).join(', ') : 'не те данные'}, а должна отклонить ${w.map((x) => `«${x}»`).join(', ')}`;
+    return null;
+  }
+  if (task.check.body === 'json' && !sameJson(json(want.body), json(got.body))) {
     return `${at}: ответ ${short(json(got.body))}, а ожидается ${short(json(want.body))}`;
   }
   for (const name of task.check.headers) {

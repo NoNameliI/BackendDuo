@@ -124,3 +124,22 @@ describe('CORS', () => {
     expect(fetchSucceeded(fetchFrom('https://shop.local', 'GET /products', true, { ...star, allowOrigins: ['https://shop.local'], allowCredentials: true }))).toBe(true);
   });
 });
+
+describe('nested resources', () => {
+  it('lists and creates children of an existing parent', () => {
+    const server = new HttpSimServer({
+      baseUrl: 'https://api.shop.local',
+      collections: { customers: [{ id: 1 }, { id: 2 }], orders: [{ id: 1, customer_id: 1 }, { id: 2, customer_id: 2 }] },
+      routes: [
+        { method: 'GET', path: '/customers/{id}/orders', action: 'list', collection: 'orders', parent: { collection: 'customers', field: 'customer_id' } },
+        { method: 'POST', path: '/customers/{id}/orders', action: 'create', collection: 'orders', parent: { collection: 'customers', field: 'customer_id' }, body: { total: { type: 'integer' } } },
+      ],
+    });
+    expect(JSON.parse(send(server, 'GET /customers/2/orders').body)).toEqual([{ id: 2, customer_id: 2 }]);
+    expect(send(server, 'GET /customers/9/orders').status).toBe(404);
+    const created = send(server, 'POST /customers/1/orders\nContent-Type: application/json\n\n{"total": 5}');
+    expect(created.status).toBe(201);
+    expect(findHeader(created.headers, 'location')).toBe('/customers/1/orders/3');
+    expect(JSON.parse(send(server, 'GET /customers/1/orders').body)).toHaveLength(2);
+  });
+});

@@ -1,0 +1,152 @@
+{
+  "baseUrl": "https://api.tracker.local",
+  "collections": {
+    "projects": [
+      { "id": 1, "name": "Сайт магазина", "key": "SHOP" },
+      { "id": 2, "name": "Мобильное приложение", "key": "APP" },
+      { "id": 3, "name": "Внутренний портал", "key": "PORTAL" }
+    ],
+    "tasks": [
+      { "id": 1, "project_id": 1, "title": "Сверстать корзину", "status": "done", "assignee": "anna", "priority": "high" },
+      { "id": 2, "project_id": 1, "title": "Кнопка «Купить в один клик»", "status": "in_progress", "assignee": "oleg", "priority": "normal" },
+      { "id": 3, "project_id": 1, "title": "Починить поиск по каталогу", "status": "todo", "assignee": "anna", "priority": "high" },
+      { "id": 4, "project_id": 2, "title": "Экран входа", "status": "done", "assignee": "irina", "priority": "high" },
+      { "id": 5, "project_id": 2, "title": "Push-уведомления о заказе", "status": "todo", "assignee": "oleg", "priority": "normal" },
+      { "id": 6, "project_id": 2, "title": "Тёмная тема", "status": "todo", "assignee": "irina", "priority": "low" },
+      { "id": 7, "project_id": 3, "title": "Форма отпуска", "status": "in_progress", "assignee": "anna", "priority": "low" },
+      { "id": 8, "project_id": 3, "title": "Справочник сотрудников", "status": "todo", "assignee": "oleg", "priority": "normal" }
+    ],
+    "comments": [
+      { "id": 1, "task_id": 3, "author": "oleg", "text": "Поиск не находит товары с буквой ё" },
+      { "id": 2, "task_id": 2, "author": "anna", "text": "Макет кнопки готов" }
+    ]
+  },
+  "routes": [
+    { "method": "GET", "path": "/", "action": "static", "respond": { "status": 200, "body": { "status": "ok" } } },
+    { "method": "GET", "path": "/projects", "action": "list", "collection": "projects" },
+    { "method": "GET", "path": "/projects/{id}", "action": "get", "collection": "projects" },
+    {
+      "method": "DELETE",
+      "path": "/projects/{id}",
+      "action": "static",
+      "auth": true,
+      "respond": { "status": 403, "body": { "detail": "Not enough permissions" } }
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "action": "list",
+      "collection": "tasks",
+      "filters": ["project_id", "status", "assignee", "priority"],
+      "sort": true,
+      "paginate": true,
+      "query": {
+        "status": { "type": "string", "enum": ["todo", "in_progress", "done"] },
+        "priority": { "type": "string", "enum": ["low", "normal", "high"] }
+      }
+    },
+    { "method": "GET", "path": "/tasks/{id}", "action": "get", "collection": "tasks" },
+    {
+      "method": "POST",
+      "path": "/tasks",
+      "action": "create",
+      "collection": "tasks",
+      "body": {
+        "project_id": { "type": "integer", "required": true, "min": 1 },
+        "title": { "type": "string", "required": true, "minLength": 1, "maxLength": 100 },
+        "status": { "type": "string", "enum": ["todo", "in_progress", "done"] },
+        "assignee": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "normal", "high"] }
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/tasks/{id}",
+      "action": "update",
+      "collection": "tasks",
+      "body": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "status": { "type": "string", "enum": ["todo", "in_progress", "done"] },
+        "assignee": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "normal", "high"] }
+      }
+    },
+    { "method": "DELETE", "path": "/tasks/{id}", "action": "delete", "collection": "tasks", "auth": true },
+    { "method": "GET", "path": "/comments", "action": "list", "collection": "comments", "filters": ["task_id"] },
+    {
+      "method": "POST",
+      "path": "/comments",
+      "action": "create",
+      "collection": "comments",
+      "auth": true,
+      "body": {
+        "task_id": { "type": "integer", "required": true, "min": 1 },
+        "author": { "type": "string", "required": true, "minLength": 1 },
+        "text": { "type": "string", "required": true, "minLength": 1, "maxLength": 500 }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "action": "static",
+      "auth": true,
+      "respond": { "status": 200, "body": { "id": 7, "login": "anna", "name": "Анна", "role": "developer" } }
+    },
+    {
+      "method": "GET",
+      "path": "/reports/summary",
+      "action": "static",
+      "auth": true,
+      "respond": { "status": 200, "body": { "todo": 4, "in_progress": 2, "done": 2 } }
+    },
+    {
+      "method": "GET",
+      "path": "/reports/workload",
+      "action": "static",
+      "auth": true,
+      "respond": { "status": 200, "body": [{ "assignee": "anna", "open": 2 }, { "assignee": "irina", "open": 1 }, { "assignee": "oleg", "open": 3 }] }
+    },
+    {
+      "method": "GET",
+      "path": "/export/tasks",
+      "action": "static",
+      "respond": {
+        "status": 429,
+        "body": { "detail": "Too Many Requests" },
+        "headers": { "retry-after": "30", "x-ratelimit-limit": "1", "x-ratelimit-remaining": "0" }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/boards/1",
+      "action": "static",
+      "respond": {
+        "status": 200,
+        "body": { "id": 1, "project_id": 1, "columns": ["todo", "in_progress", "done"] },
+        "headers": { "cache-control": "private, max-age=60", "etag": "\"board-1-v5\"" }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/boards/2",
+      "action": "static",
+      "respond": {
+        "status": 200,
+        "body": { "id": 2, "project_id": 2, "columns": ["todo", "review", "done"] },
+        "headers": { "cache-control": "private, max-age=60", "etag": "\"board-2-v12\"" }
+      }
+    }
+  ],
+  "auth": {
+    "tokens": [
+      "demo-token-123",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3IiwibG9naW4iOiJhbm5hIiwicm9sZSI6ImRldmVsb3BlciIsImV4cCI6MTc5ODc2MTYwMH0.demo-signature"
+    ],
+    "apiKeys": ["test-key-abc"]
+  },
+  "cors": {
+    "allowOrigins": [],
+    "allowMethods": ["GET"],
+    "allowHeaders": []
+  }
+}

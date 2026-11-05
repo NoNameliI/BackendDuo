@@ -1,5 +1,5 @@
 import type { ApiTask } from '@/content/loadCourse';
-import { explainGraphqlError, GraphqlServer, selectedFields, type GraphqlResult } from '@/engine/api/graphqlRun';
+import { declaredVariables, explainGraphqlError, GraphqlServer, selectedFields, type GraphqlResult } from '@/engine/api/graphqlRun';
 import { parseProto, type ProtoSummary } from '@/engine/api/protoRun';
 import type { ServerDef } from '@/engine/api/server';
 import { SolutionError, type CheckResult } from './index';
@@ -70,6 +70,11 @@ export function checkGraphql(task: GraphqlTask, server: ServerDef | undefined, i
   if (got.errors?.length) return verdict(graphqlProblems(got));
 
   const problems: string[] = [];
+  // Variables of the task are the point of such a task: a value written into the query text does not count.
+  const declared = declaredVariables(input.query);
+  for (const name of Object.keys(task.variables)) {
+    if (!declared.includes(name)) problems.push(`Запрос должен принимать переменную $${name}: объявите её в скобках после query или mutation и подставьте вместо значения`);
+  }
   missing(want.data, got.data, '', problems);
   if (task.check.exactFields) {
     let selected: string[] = [];

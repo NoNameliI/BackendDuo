@@ -74,7 +74,9 @@ export interface Placement {
 
 export type SqlOnboarding = Omit<OnboardingData, 'firstQuery'> & { kind: 'sql'; firstQuery: Extract<Task, { type: 'result' }> };
 export type GitOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'git'; firstTask: GitTask };
-export type Onboarding = SqlOnboarding | GitOnboarding;
+/** API course: the same concept cards, then a first request in the composer (a request or response task). */
+export type ApiOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'api'; firstTask: ApiTask };
+export type Onboarding = SqlOnboarding | GitOnboarding | ApiOnboarding;
 
 export interface Course {
   id: string;
@@ -315,10 +317,10 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
   }
 
   function loadOnboarding(file: string): Onboarding | null {
-    return manifest.engine === 'git' ? loadGitOnboarding(file) : loadSqlOnboarding(file);
+    return manifest.engine === 'git' || manifest.engine === 'api' ? loadCardsOnboarding(file) : loadSqlOnboarding(file);
   }
 
-  function loadGitOnboarding(file: string): GitOnboarding | null {
+  function loadCardsOnboarding(file: string): GitOnboarding | ApiOnboarding | null {
     const path = `${root}/${file}`;
     const parsed = gitOnboardingSchema.safeParse(readJson(files, path, problems));
     if (!parsed.success) {
@@ -331,6 +333,13 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     }
     const firstTask = buildTask(data.firstTask, `${path} › firstTask`, 'onboarding', 'onboarding');
     if (!firstTask) return null;
+    if (manifest.engine === 'api') {
+      if (firstTask.type !== 'request' && firstTask.type !== 'response') {
+        problems.push(`${path} › firstTask: ожидается задание request или response`);
+        return null;
+      }
+      return { ...data, kind: 'api', firstTask: firstTask as ApiTask };
+    }
     if (!('shellSolution' in firstTask)) {
       problems.push(`${path} › firstTask: ожидается задание Git`);
       return null;

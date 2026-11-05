@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { CheckResult } from '@/checker';
 import { createGitChecker } from '@/checker/git';
 import type { GitOnboarding } from '@/content/loadCourse';
@@ -16,6 +16,13 @@ type Screen = { kind: 'intro' } | { kind: 'step'; index: number } | { kind: 'tas
 
 /** First steps in Git for a beginner: what Git is, three quick questions, then a real first commit. */
 export function GitBeginnerFlow({ data, onFinish }: { data: GitOnboarding; onFinish: () => void }) {
+  return <ConceptFlow data={data} onFinish={onFinish} task={(done) => <FirstTask data={data} onDone={done} />} />;
+}
+
+type Cards = Pick<GitOnboarding, 'intro' | 'steps' | 'outro'>;
+
+/** An intro, concept questions one by one, a first real task (`task`), an outro. */
+export function ConceptFlow({ data, onFinish, task }: { data: Cards; onFinish: () => void; task: (done: () => void) => ReactNode }) {
   const [screen, setScreen] = useState<Screen>({ kind: 'intro' });
   const rootRef = useFocusHeading<HTMLDivElement>(screen.kind === 'step' ? `step-${screen.index}` : screen.kind);
   const total = data.steps.length + 2;
@@ -53,7 +60,7 @@ export function GitBeginnerFlow({ data, onFinish }: { data: GitOnboarding; onFin
       )}
 
       {screen.kind === 'step' && <ConceptStep key={screen.index} step={data.steps[screen.index]} onNext={next} />}
-      {screen.kind === 'task' && <FirstTask data={data} onDone={next} />}
+      {screen.kind === 'task' && task(next)}
 
       {screen.kind === 'outro' && (
         <section className="animate-rise space-y-4">
@@ -68,7 +75,7 @@ export function GitBeginnerFlow({ data, onFinish }: { data: GitOnboarding; onFin
   );
 }
 
-function ConceptStep({ step, onNext }: { step: GitOnboarding['steps'][number]; onNext: () => void }) {
+function ConceptStep({ step, onNext }: { step: Cards['steps'][number]; onNext: () => void }) {
   const [picked, setPicked] = useState<number | null>(null);
   const right = picked === step.answer;
   return (

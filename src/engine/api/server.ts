@@ -36,6 +36,11 @@ export interface RouteDef {
   /** A field whose value must be unique in the collection (409 otherwise). */
   unique?: string;
   auth?: boolean;
+  /**
+   * Nested resource, e.g. `/customers/{id}/orders`: `{id}` names an item of `collection` (404 if there is none);
+   * a list holds only the items whose `field` equals it, and create sets that field.
+   */
+  parent?: { collection: string; field: string };
   /** For `static`: the fixed answer. */
   respond?: { status: number; body?: unknown; headers?: Record<string, string> };
   /** Simulated server time, ms. */
@@ -231,7 +236,9 @@ export class HttpSimServer {
       if (r.issues.length) return json(422, { detail: r.issues });
       id = r.value as number;
     }
-    const index = id === undefined ? -1 : items.findIndex((it) => it.id === id);
+    const parent = route.parent;
+    if (parent && !(this.collections[parent.collection] ?? []).some((it) => it.id === id)) return json(404, { detail: 'Not found' });
+    const index = id === undefined || parent ? -1 : items.findIndex((it) => it.id === id);
 
     // Query validation of list routes.
     const q = Object.fromEntries(query);
@@ -264,7 +271,7 @@ export class HttpSimServer {
 
     switch (route.action) {
       case 'list': {
-        let list = items.filter((it) => (route.filters ?? []).every((f) => q[f] === undefined || String(it[f]) === q[f]));
+        let list = items.filter((it) => (!parent || it[parent.field] === id) && (route.filters ?? []).every((f) => q[f] === undefined || String(it[f]) === q[f]));
         if (route.sort && q.sort) {
           const desc = q.sort.startsWith('-');
           const field = q.sort.replace(/^-/, '');
@@ -290,9 +297,9 @@ export class HttpSimServer {
           return json(409, { detail: `${route.unique} already exists` });
         }
         const next = Math.max(0, ...items.map((it) => Number(it.id) || 0)) + 1;
-        const item = { id: next, ...body };
+        const item = { id: next, ...body, ...(parent ? { [parent.field]: id } : {}) };
         items.push(item);
-        return json(201, item, [{ name: 'location', value: `${route.path.replace(/\/$/, '')}/${next}` }]);
+        return json(201, item, [{ name: 'location', value: `${route.path.replace('{id}', String(id)).replace(/\/$/, '')}/${next}` }]);
       }
       case 'replace':
       case 'update': {

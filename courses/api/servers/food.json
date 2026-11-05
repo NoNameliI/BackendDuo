@@ -38,6 +38,20 @@
         "city": "Казань",
         "cuisine": "japanese",
         "rating": 4.1
+      },
+      {
+        "id": 6,
+        "name": "Волжская уха",
+        "city": "Нижний Новгород",
+        "cuisine": "russian",
+        "rating": 4.4
+      },
+      {
+        "id": 7,
+        "name": "Траттория на Покровке",
+        "city": "Нижний Новгород",
+        "cuisine": "italian",
+        "rating": 4.6
       }
     ],
     "orders": [
@@ -137,6 +151,38 @@
       "path": "/orders/{id}",
       "action": "delete",
       "collection": "orders"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/restaurants",
+      "action": "static",
+      "respond": {
+        "status": 301,
+        "headers": {
+          "location": "/restaurants"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/promo",
+      "action": "static",
+      "respond": {
+        "status": 200,
+        "body": [
+          {
+            "id": 1,
+            "title": "Скидка 20% на пиццу",
+            "restaurant_id": 1
+          },
+          {
+            "id": 2,
+            "title": "Мисо-суп в подарок к сетам",
+            "restaurant_id": 2
+          }
+        ]
+      },
+      "delay": 1850
     }
   ],
   "cors": {

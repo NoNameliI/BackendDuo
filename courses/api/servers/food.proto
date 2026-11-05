@@ -10,10 +10,25 @@ message Restaurant {
 }
 
 message RestaurantRequest { int32 id = 1; }
-message RestaurantsRequest { string city = 1; }
+message RestaurantsRequest { string city = 1; string cuisine = 2; }
 message RestaurantList { repeated Restaurant restaurants = 1; }
+
+message Order {
+  int32 id = 1;
+  int32 restaurant_id = 2;
+  string dish = 3;
+  int32 quantity = 4;
+}
+
+message OrderRequest { int32 id = 1; }
 
 service RestaurantService {
   rpc GetRestaurant (RestaurantRequest) returns (Restaurant);
   rpc ListRestaurants (RestaurantsRequest) returns (RestaurantList);
+  rpc WatchRestaurants (RestaurantsRequest) returns (stream Restaurant);
+}
+
+service OrderService {
+  rpc GetOrder (OrderRequest) returns (Order);
+  rpc CreateOrder (Order) returns (Order);
 }

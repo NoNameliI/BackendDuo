@@ -17,7 +17,8 @@ export function referenceRequest(task: ApiTask): ApiRequest {
   }
 }
 
-function sameJson(a: unknown, b: unknown): boolean {
+/** Equal JSON values; the order of object keys does not matter, the order of list items does. */
+export function sameJson(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {
     return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => sameJson(x, b[i]));
   }

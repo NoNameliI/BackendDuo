@@ -24,8 +24,11 @@ type Query {
   restaurants(city: String, cuisine: String, limit: Int): [Restaurant!]!
   restaurant(id: ID!): Restaurant
   orders: [Order!]!
+  order(id: ID!): Order
 }
 
 type Mutation {
   createOrder(input: OrderInput!): Order!
+  updateOrder(id: ID!, quantity: Int!): Order!
+  deleteOrder(id: ID!): Boolean!
 }

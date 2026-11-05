@@ -1,0 +1,24 @@
+{
+  "questions": "placement.md",
+  "passThreshold": 2,
+  "blocks": [
+    {
+      "id": "http-rest",
+      "title": "HTTP и REST",
+      "questions": ["api-pl-status", "api-pl-idempotent", "api-pl-resource"],
+      "unlocks": ["api-what-is-api", "api-url-and-headers", "api-behind-the-url", "rest-resources", "rest-methods-status", "rest-lists-errors"]
+    },
+    {
+      "id": "fastapi",
+      "title": "FastAPI",
+      "questions": ["api-pl-path-param", "api-pl-model", "api-pl-status-code"],
+      "unlocks": ["api-first-fastapi", "fa-query-body", "fa-responses-docs"]
+    },
+    {
+      "id": "web",
+      "title": "Фронтенд и бэкенд",
+      "questions": ["api-pl-cors", "api-pl-bearer", "api-pl-429"],
+      "unlocks": ["web-fetch", "web-cors", "web-auth", "web-limits-cache"]
+    }
+  ]
+}

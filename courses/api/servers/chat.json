@@ -1,0 +1,55 @@
+{
+  "baseUrl": "https://api.chat.local",
+  "collections": {
+    "chats": [
+      { "id": 1, "title": "Команда доставки" },
+      { "id": 2, "title": "Курьеры Казани" }
+    ],
+    "messages": [
+      { "id": 1, "chat_id": 1, "author": "Ольга", "text": "Доброе утро. Сегодня запускаем новое меню." },
+      { "id": 2, "chat_id": 1, "author": "Марат", "text": "Карточки блюд уже на сайте." },
+      { "id": 3, "chat_id": 2, "author": "Алина", "text": "Выхожу на смену в 10:00." },
+      { "id": 4, "chat_id": 1, "author": "Ольга", "text": "Спасибо, проверяю." }
+    ]
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/chats",
+      "action": "list",
+      "collection": "chats"
+    },
+    {
+      "method": "GET",
+      "path": "/chats/{id}",
+      "action": "get",
+      "collection": "chats"
+    },
+    {
+      "method": "GET",
+      "path": "/messages",
+      "action": "list",
+      "collection": "messages",
+      "filters": ["chat_id", "author"],
+      "sort": true,
+      "paginate": true
+    },
+    {
+      "method": "GET",
+      "path": "/messages/{id}",
+      "action": "get",
+      "collection": "messages"
+    },
+    {
+      "method": "POST",
+      "path": "/messages",
+      "action": "create",
+      "collection": "messages",
+      "body": {
+        "chat_id": { "type": "integer", "required": true, "min": 1 },
+        "author": { "type": "string", "required": true, "minLength": 1 },
+        "text": { "type": "string", "required": true, "minLength": 1, "maxLength": 1000 }
+      }
+    }
+  ]
+}

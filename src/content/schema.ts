@@ -496,6 +496,7 @@ export const serverDefSchema = z.object({
         query: z.record(z.string(), fieldSpec).optional(),
         unique: z.string().optional(),
         auth: z.boolean().optional(),
+        parent: z.object({ collection: z.string().min(1), field: z.string().min(1) }).optional(),
         respond: z.object({ status: z.number().int(), body: z.unknown().optional(), headers: z.record(z.string(), z.string()).optional() }).optional(),
         delay: z.number().int().nonnegative().optional(),
       }),
