@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useUi } from '@/app/store';
 import type { ThemePreference } from '@/app/theme';
 import { useCourse } from '@/app/useCourse';
-import { platform } from '@/content/courses';
+import { platform, useCourses } from '@/content/courses';
+import { lockAccess, unlock } from '@/content/sealedCourses';
 import { badgeKey } from '@/progress/model';
 import { allTasks } from '@/content/loadCourse';
 import { TASK_KIND } from '@/features/lesson/TaskPanel';
@@ -178,6 +179,65 @@ const themeOptions: { id: ThemePreference; title: string }[] = [
   { id: 'system', title: 'Как в системе' },
 ];
 
+function AccessCode() {
+  const open = useCourses().some((c) => c.sealed);
+  const id = useId();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
+
+  const submit = async () => {
+    if (busy || code === '') return;
+    setBusy(true);
+    setStatus('');
+    const ok = await unlock(code);
+    setBusy(false);
+    setStatus(ok ? 'Доступ открыт' : 'Код не подошёл');
+    if (ok) setCode('');
+  };
+
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2 text-[13px]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      {open ? (
+        <Button
+          variant="outline"
+          onClick={() => {
+            void lockAccess().then(() => setStatus(''));
+          }}
+        >
+          Закрыть доступ
+        </Button>
+      ) : (
+        <>
+          <label htmlFor={id} className="text-dim">
+            Код доступа
+          </label>
+          <input
+            id={id}
+            type="password"
+            autoComplete="off"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="w-44 rounded border border-line bg-well px-2 py-1 text-[13px]"
+          />
+          <Button type="submit" variant="outline" disabled={busy || code === ''}>
+            {busy ? 'Проверяю…' : 'Открыть'}
+          </Button>
+        </>
+      )}
+      <span role="status" className="text-dim">
+        {status}
+      </span>
+    </form>
+  );
+}
+
 function Settings() {
   const { theme, setTheme, setView, reminders, setReminders } = useUi();
   const course = useCourse();
@@ -224,6 +284,7 @@ function Settings() {
             ))}
           </select>
         </div>
+        <AccessCode />
         {course.onboarding && (
           <Button variant="outline" onClick={() => setView('onboarding')}>
             Пройти вступление заново

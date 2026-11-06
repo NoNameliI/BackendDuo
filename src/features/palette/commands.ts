@@ -20,3 +20,15 @@ export function filterCommands(commands: Command[], query: string, limit = 12): 
     })
     .slice(0, limit);
 }
+
+/** «Go to course» commands for every course except the active one. */
+export function courseCommands(
+  list: { id: string; title: string }[],
+  activeId: string,
+  go: (fn: () => void) => () => void,
+  open: (id: string) => void,
+): Command[] {
+  return list
+    .filter((c) => c.id !== activeId)
+    .map((c) => ({ id: `course:${c.id}`, group: 'Курсы', title: `Перейти в курс «${c.title}»`, run: go(() => open(c.id)) }));
+}

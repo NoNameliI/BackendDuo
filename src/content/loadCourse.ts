@@ -95,6 +95,8 @@ export interface Course {
   solutionAfterAttempts?: number;
   /** API course: virtual servers by name. */
   servers: Record<string, ServerDef>;
+  /** Loaded from an encrypted pack; present only while access is open. */
+  sealed?: boolean;
 }
 
 export class CourseError extends Error {

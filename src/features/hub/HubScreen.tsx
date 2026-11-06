@@ -1,6 +1,6 @@
 import { openCourse } from '@/app/openCourse';
 import { useUi } from '@/app/store';
-import { courses, platform } from '@/content/courses';
+import { platform, useCourses } from '@/content/courses';
 import type { Course } from '@/content/loadCourse';
 import { isLessonComplete, levelInfo, localDay, streakInfo, totalXp } from '@/progress/gamification';
 import { globalXp, selectCourse, useProgress } from '@/progress/store';
@@ -10,6 +10,7 @@ import { FlameIcon } from '@/ui/icons';
 import { ProgressBar } from '@/ui/ProgressBar';
 
 export function HubScreen() {
+  const courses = useCourses();
   const doc = useProgress((s) => s.doc);
   const activeId = useUi((s) => s.courseId);
   const xp = globalXp(doc);

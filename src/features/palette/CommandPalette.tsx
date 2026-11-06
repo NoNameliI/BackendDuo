@@ -3,14 +3,15 @@ import { useUi } from '@/app/store';
 import { nextThemePreference } from '@/app/theme';
 import { openCourse } from '@/app/openCourse';
 import { activeCourse } from '@/app/useCourse';
-import { courses } from '@/content/courses';
+import { useCourses } from '@/content/courses';
+import type { Course } from '@/content/loadCourse';
 import { useWorkspace } from '@/features/lesson/workspace';
 import { firstOpenTask, lessonStatuses, progressOf, resumeTask } from '@/progress/gamification';
 import { selectCourse, useProgress } from '@/progress/store';
 import { Kbd } from '@/ui/Button';
-import { filterCommands, type Command } from './commands';
+import { courseCommands, filterCommands, type Command } from './commands';
 
-function buildCommands(close: () => void): Command[] {
+function buildCommands(close: () => void, courses: Course[]): Command[] {
   const ui = useUi.getState();
   const ws = useWorkspace.getState();
   const course = activeCourse();
@@ -30,9 +31,7 @@ function buildCommands(close: () => void): Command[] {
   const commands: Command[] = [
     { id: 'hub', group: 'Разделы', title: 'Все курсы', run: go(() => ui.setView('hub')) },
     { id: 'map', group: 'Разделы', title: 'Карта навыков', hint: course.title, run: go(() => ui.setView('map')) },
-    ...courses
-      .filter((c) => c.id !== course.id)
-      .map((c) => ({ id: `course:${c.id}`, group: 'Курсы', title: `Перейти в курс «${c.title}»`, run: go(() => openCourse(c.id)) })),
+    ...courseCommands(courses, course.id, go, openCourse),
     {
       id: 'continue',
       group: 'Разделы',
@@ -97,7 +96,8 @@ function Palette({ onClose }: { onClose: () => void }) {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const restoreFocus = useRef(document.activeElement as HTMLElement | null);
-  const commands = useMemo(() => buildCommands(onClose), [onClose]);
+  const courseList = useCourses();
+  const commands = useMemo(() => buildCommands(onClose, courseList), [onClose, courseList]);
   const visible = filterCommands(commands, query);
 
   useEffect(() => {
