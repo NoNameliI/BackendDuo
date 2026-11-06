@@ -7,7 +7,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['scripts/validate-content.test.ts'],
+    include: ['scripts/validate-content.test.ts', 'scripts/validate-drill.test.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
   },

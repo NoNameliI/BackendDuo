@@ -1,0 +1,24 @@
+{
+  "id": "fixture",
+  "title": "Fixture course",
+  "description": "A neutral test course for the drill engine.",
+  "engine": "drill",
+  "errors": "errors.json",
+  "drill": "drill.json",
+  "solutionAfterAttempts": 3,
+  "worlds": [
+    {
+      "id": "w1",
+      "title": "World one",
+      "summary": "One lesson with two task shapes.",
+      "lessons": [{ "id": "n14", "file": "n14.md" }]
+    }
+  ],
+  "levels": [
+    { "xp": 0, "title": "Level 1" },
+    { "xp": 100, "title": "Level 2" }
+  ],
+  "badges": [
+    { "id": "first-drill", "title": "First drill", "description": "Solve one drill task.", "glyph": "D1", "rule": { "kind": "tasksOfType", "type": "drill", "count": 1 } }
+  ]
+}

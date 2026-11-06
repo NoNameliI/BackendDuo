@@ -14,6 +14,8 @@ import {
   terminalHintsSchema,
   gitOnboardingSchema,
   serverDefSchema,
+  drillConfigSchema,
+  type DrillConfig,
   type GitOnboardingData,
 } from './schema';
 
@@ -29,10 +31,11 @@ export type SqlTask = Extract<Task, { solution: string }>;
 export type ChoiceTask = Extract<Task, { type: 'choice' | 'review' }>;
 export type GitTask = Extract<Task, { shellSolution: string }>;
 export type ApiTask = Extract<Task, { httpSolution: string }>;
+export type { DrillConfig };
 
 /** Which course engine a practical task belongs to. */
 export function engineOf(task: ParsedTask): EngineKind {
-  return 'shellSolution' in task ? 'git' : 'httpSolution' in task ? 'api' : 'postgres';
+  return 'shellSolution' in task ? 'git' : 'httpSolution' in task ? 'api' : 'generator' in task ? 'drill' : 'postgres';
 }
 
 export interface Lesson {
@@ -95,6 +98,8 @@ export interface Course {
   solutionAfterAttempts?: number;
   /** API course: virtual servers by name. */
   servers: Record<string, ServerDef>;
+  /** Drill course: settings from drill.json (null for other engines). */
+  drill: DrillConfig | null;
   /** Loaded from an encrypted pack; present only while access is open. */
   sealed?: boolean;
 }
@@ -179,6 +184,17 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
       return [];
     }
   });
+
+  let drill: DrillConfig | null = null;
+  if (manifest.engine === 'drill') {
+    if (!manifest.drill) problems.push(`${manifestPath}: для курса с движком drill нужно поле drill`);
+    else {
+      const drillPath = `${root}/${manifest.drill}`;
+      const config = drillConfigSchema.safeParse(readJson(files, drillPath, problems));
+      if (config.success) drill = config.data;
+      else if (files[drillPath] !== undefined) problems.push(...formatIssues(drillPath, config.error.issues));
+    }
+  }
 
   const seen = new Set<string>();
   const unique = (kind: string, id: string) => {
@@ -281,6 +297,22 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     unique('бейдж', b.id);
     if (b.rule.kind === 'worldCompleted' && !worldIds.has(b.rule.world)) {
       problems.push(`бейдж ${b.id}: неизвестный мир «${b.rule.world}»`);
+    }
+  }
+
+  if (drill) {
+    const lessonsById = new Map(worlds.flatMap((w) => w.lessons).map((l) => [l.id, l]));
+    for (const { n, lesson: id } of drill.numbers) {
+      const lesson = lessonsById.get(id);
+      if (!lesson) {
+        problems.push(`drill.json: урок «${id}» номера ${n} не найден`);
+        continue;
+      }
+      for (const task of lesson.tasks) {
+        if (task.type !== 'drill' || task.generator !== `g${String(n).padStart(2, '0')}`) {
+          problems.push(`урок ${id} › ${task.id}: ожидается задание drill с генератором g${String(n).padStart(2, '0')}`);
+        }
+      }
     }
   }
 
@@ -397,6 +429,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     terminalHints,
     solutionAfterAttempts: manifest.solutionAfterAttempts,
     servers,
+    drill,
   };
 }
 

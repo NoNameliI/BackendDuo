@@ -54,3 +54,23 @@ export async function setWindowTheme(theme: 'dark' | 'light'): Promise<void> {
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
   await getCurrentWindow().setTheme(theme);
 }
+
+/**
+ * Saves a text export. Desktop: straight into the Downloads folder under a safe, never-overwriting name
+ * (the Rust side validates `name`); returns the full path. Web: a browser download; the path is unknown (null).
+ */
+export async function saveTextFile(name: string, text: string): Promise<{ path: string | null }> {
+  if (isDesktop) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return { path: await invoke<string>('save_export', { name, text }) };
+  }
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return { path: null };
+}

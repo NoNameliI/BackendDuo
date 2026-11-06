@@ -29,6 +29,13 @@ const nav: { id: View; title: string }[] = [
   { id: 'profile', title: 'Профиль' },
 ];
 
+/** A trainer course has no map or lesson player: its own section replaces them. */
+const drillNav: { id: View; title: string }[] = [
+  { id: 'hub', title: 'Курсы' },
+  { id: 'drill', title: 'Тренажёр' },
+  { id: 'profile', title: 'Профиль' },
+];
+
 export function TopBar() {
   const { theme, setTheme, view, setView } = useUi();
   const ThemeIcon = themeIcons[theme];
@@ -36,6 +43,7 @@ export function TopBar() {
 
   const go = (target: View) => {
     const current = activeCourse();
+    if (current.drill && (target === 'lesson' || target === 'map')) target = 'drill';
     if (target === 'lesson' && useWorkspace.getState().task?.courseId !== current.id) {
       void useWorkspace.getState().openTask(resumeTask(current, selectCourse(current.id)(useProgress.getState())));
     }
@@ -57,7 +65,7 @@ export function TopBar() {
       )}
       {view !== 'onboarding' && (
       <nav aria-label="Разделы" className="flex h-full items-stretch gap-5">
-        {nav.map((item) => (
+        {(course.drill ? drillNav : nav).map((item) => (
           <button
             key={item.id}
             type="button"

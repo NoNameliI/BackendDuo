@@ -1,13 +1,13 @@
 import { cutOff, noCodeFromStrings } from '../isolate';
 import { CONNECT, type PythonReply, type PythonRequest } from './protocol';
-import { setupRuntime, type AppRunner, type PyodideLike } from './runtime';
+import { setupRuntime, type AppRunner, type PyodideLike, type ScriptRunner } from './runtime';
 
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent) => void) | null;
   location: Location;
 };
 
-let runtime: Promise<{ run: AppRunner; forget: () => void; loadMs: number }> | null = null;
+let runtime: Promise<{ run: AppRunner; forget: () => void; script: ScriptRunner; loadMs: number }> | null = null;
 
 // Python, its standard library and the precompiled packages are files of the app (public/pyodide). They are
 // loaded first; then the worker loses every way out (network, storage, nested workers, its own postMessage)
@@ -44,10 +44,14 @@ function serve(port: MessagePort) {
         return;
       }
       if (!runtime) throw new Error('Python ещё не запущен');
-      const { run, forget } = await runtime;
+      const { run, forget, script } = await runtime;
       if (data.op === 'forget') {
         forget();
         reply({ id: data.id, ok: true, value: null });
+        return;
+      }
+      if (data.op === 'script') {
+        reply({ id: data.id, ok: true, value: script(data.source, data.files) });
         return;
       }
       reply({ id: data.id, ok: true, value: await run(data.source, data.requests, { keep: data.keep }) });

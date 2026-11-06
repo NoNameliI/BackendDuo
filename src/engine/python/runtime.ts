@@ -6,7 +6,11 @@ export interface PyodideLike {
   runPython(code: string): unknown;
   unpackArchive(buffer: Uint8Array, format: string, options?: { extractDir?: string }): void;
   FS: { writeFile(path: string, data: string): void };
-  pyimport(name: string): { run(source: string, requests: string, keep: boolean): Promise<string>; forget(): void };
+  pyimport(name: string): {
+    run(source: string, requests: string, keep: boolean): Promise<string>;
+    forget(): void;
+    script(source: string, files: string): string;
+  };
 }
 
 export interface PythonError {
@@ -32,6 +36,15 @@ export interface AppRun {
   output: string;
 }
 
+/** A standalone script run (the drill scratch pad): what it printed and how it ended. */
+export interface ScriptRun {
+  output: string;
+  error?: PythonError;
+  ms: number;
+}
+
+export type ScriptRunner = (source: string, files: Record<string, string>) => ScriptRun;
+
 export type AppRunner = (source: string, requests: ApiRequest[], options?: { keep?: boolean }) => Promise<AppRun>;
 
 const toWire = (req: ApiRequest) => {
@@ -46,7 +59,7 @@ const toWire = (req: ApiRequest) => {
 };
 
 /** Unpacks the precompiled packages, installs the runtime module and returns a runner of learner apps. */
-export function setupRuntime(pyodide: PyodideLike, siteArchive: Uint8Array): { run: AppRunner; forget: () => void } {
+export function setupRuntime(pyodide: PyodideLike, siteArchive: Uint8Array): { run: AppRunner; forget: () => void; script: ScriptRunner } {
   const sitePackages = pyodide.runPython('import site; site.getsitepackages()[0]') as string;
   pyodide.unpackArchive(siteArchive, 'gztar', { extractDir: sitePackages });
   pyodide.FS.writeFile(`${sitePackages}/studio_runtime.py`, runtimeSource);
@@ -59,5 +72,6 @@ export function setupRuntime(pyodide: PyodideLike, siteArchive: Uint8Array): { r
       return { ...parsed, responses: parsed.responses.map((r) => ({ ...r, headers: r.headers.map(([name, value]) => ({ name, value })) })) };
     },
     forget: () => runtime.forget(),
+    script: (source, files) => JSON.parse(runtime.script(source, JSON.stringify(files))) as ScriptRun,
   };
 }

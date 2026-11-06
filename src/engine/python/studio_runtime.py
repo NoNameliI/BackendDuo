@@ -43,14 +43,14 @@ class LoadError(Exception):
     pass
 
 
-def _error(exc, kind):
+def _error(exc, kind, filename="main.py"):
     """Type, message and the line of main.py where it happened (the deepest frame from main.py)."""
     line = None
-    if isinstance(exc, SyntaxError) and exc.filename == "main.py":
+    if isinstance(exc, SyntaxError) and exc.filename == filename:
         line = exc.lineno
     else:
         for frame in traceback.extract_tb(exc.__traceback__):
-            if frame.filename == "main.py":
+            if frame.filename == filename:
                 line = frame.lineno
     message = exc.msg if isinstance(exc, SyntaxError) else str(exc)
     return {"kind": kind, "type": type(exc).__name__, "message": message, "line": line}
@@ -158,3 +158,52 @@ async def run(source, requests_json, keep=False):
 
 def forget():
     _kept.update(source=None, app=None)
+
+
+_scratch_count = 0
+_OUTPUT_LIMIT = 20000
+
+
+def script(source, files_json):
+    """Runs a standalone learner script (the drill scratch pad) in a fresh scratch directory with the given files.
+
+    Same import guard as the FastAPI apps; fresh globals every run; the kept FastAPI app is not touched.
+    """
+    global _scratch_count
+    import os
+    import shutil
+
+    files = json.loads(files_json)
+    _scratch_count += 1
+    root = f"/scratch/{_scratch_count}"
+    previous = os.getcwd()
+    output = io.StringIO()
+    error = None
+    started = time.perf_counter()
+    os.makedirs(root, exist_ok=True)
+    try:
+        for name, text in files.items():
+            if not name or "/" in name or chr(92) in name or name.startswith("."):
+                raise ValueError(f"Недопустимое имя файла: {name}")
+            with open(f"{root}/{name}", "wb") as handle:
+                handle.write(text.encode("utf-8"))
+        os.chdir(root)
+        namespace = {"__name__": "__main__", "__file__": "script.py", "__builtins__": _BUILTINS}
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            try:
+                exec(compile(source, "script.py", "exec"), namespace)
+            except SystemExit:
+                pass
+            except SyntaxError as exc:
+                error = _error(exc, "syntax", "script.py")
+            except Exception as exc:
+                error = _error(exc, "load", "script.py")
+    except Exception as exc:
+        error = _error(exc, "load", "script.py")
+    finally:
+        os.chdir(previous)
+        shutil.rmtree(root, ignore_errors=True)
+    result = {"output": output.getvalue()[-_OUTPUT_LIMIT:], "ms": round((time.perf_counter() - started) * 1000, 1)}
+    if error:
+        result["error"] = error
+    return json.dumps(result, ensure_ascii=False)

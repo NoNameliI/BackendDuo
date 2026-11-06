@@ -6,6 +6,7 @@ import { readStore, writeStore } from '@/platform';
 
 /** Badge key prefix of the cross-course badges from platform.json. */
 export const PLATFORM = 'platform';
+import { recordOutcome, type DrillOutcome, type DrillRules } from './drill';
 import { badgeEarned, levelInfo, platformBadgeEarned, localDay, progressOf, streakInfo, taskXp, totalXp } from './gamification';
 import {
   badgeKey,
@@ -14,6 +15,7 @@ import {
   migrate,
   type CourseProgress,
   type ProgressDoc,
+  type SetResult,
   type TaskProgress,
 } from './model';
 
@@ -36,6 +38,10 @@ interface ProgressState {
   revealSolution: (task: Task) => void;
   /** Returns the reward when this attempt solves the task for the first time. */
   recordAttempt: (task: Task, passed: boolean) => SolveReward | null;
+  /** One answer of the drill; returns the reward when it earned XP, a badge or a level. */
+  recordDrill: (courseId: string, o: DrillOutcome, rules: DrillRules) => SolveReward | null;
+  /** A finished full set: all its answers plus the set summary (the last 20 sets are kept). */
+  recordSet: (courseId: string, r: SetResult, outcomes: DrillOutcome[], rules: DrillRules) => SolveReward | null;
   passLessons: (courseId: string, lessonIds: string[]) => void;
   completeOnboarding: (courseId: string, path: 'beginner' | 'experienced') => void;
   resetAll: () => void;
@@ -60,6 +66,52 @@ function withTask(doc: ProgressDoc, task: TaskRef, change: (t: TaskProgress) => 
     return { ...cp, tasks: { ...cp.tasks, [task.id]: { ...current, ...change(current) } } };
   });
 }
+
+/** Badges newly earned by `after` are stamped into it; the reward is the difference to `before`. */
+function award(before: ProgressDoc, after: ProgressDoc, courseId: string, today: string): { doc: ProgressDoc; reward: SolveReward } {
+  const course = courseById(courseId);
+  const streak = streakInfo(after.activity, today);
+  const cp = courseProgress(after, course.id);
+  const earned = course.badges.filter((b) => !after.badges[badgeKey(course.id, b.id)] && badgeEarned(b, course, cp, streak));
+  const shared = platform.badges.filter(
+    (b) => !after.badges[badgeKey(PLATFORM, b.id)] && platformBadgeEarned(b, courses, (id) => courseProgress(after, id)),
+  );
+  const earnedAt = new Date().toISOString();
+  const keys = [...earned.map((b) => badgeKey(course.id, b.id)), ...shared.map((b) => badgeKey(PLATFORM, b.id))];
+  const doc = { ...after, badges: { ...after.badges, ...Object.fromEntries(keys.map((k) => [k, earnedAt])) } };
+  const levelBefore = levelInfo(globalXp(before), platform.levels);
+  const levelAfter = levelInfo(globalXp(doc), platform.levels);
+  return {
+    doc,
+    reward: {
+      xp: globalXp(doc) - globalXp(before),
+      badges: [...earned, ...shared],
+      levelUp: levelAfter.index > levelBefore.index ? levelAfter.title : null,
+    },
+  };
+}
+
+/** Applies one drill answer: number statistics and XP, the shared streak, and the task as solved on its first win. */
+function withDrillOutcome(doc: ProgressDoc, courseId: string, o: DrillOutcome, rules: DrillRules, today: string): ProgressDoc {
+  const cp = courseProgress(doc, courseId);
+  const { dp } = recordOutcome(cp.drill, o, rules, today);
+  let next = withCourse(doc, courseId, (c) => ({ ...c, drill: dp }));
+  if (!o.correct) return next;
+  next = { ...next, activity: { ...next.activity, [today]: (next.activity[today] ?? 0) + 1 } };
+  const before = progressOf(courseProgress(next, courseId), o.taskId);
+  if (o.level !== 'base' && !before.solved) {
+    next = withTask(next, { id: o.taskId, courseId }, (t) => ({
+      attempts: t.attempts + 1,
+      solved: true,
+      solvedAt: new Date().toISOString(),
+      xp: 0,
+      firstTry: o.firstTry && o.hintsUsed === 0 && !o.solutionShown,
+    }));
+  }
+  return next;
+}
+
+const rewarded = (r: SolveReward): SolveReward | null => (r.xp > 0 || r.badges.length > 0 || r.levelUp ? r : null);
 
 export const useProgress = create<ProgressState>((set, get) => {
   const update = (change: (doc: ProgressDoc) => ProgressDoc) => set({ doc: change(get().doc) });
@@ -99,25 +151,31 @@ export const useProgress = create<ProgressState>((set, get) => {
       }));
       next = { ...next, activity: { ...next.activity, [today]: (next.activity[today] ?? 0) + 1 } };
 
-      const course = courseById(task.courseId);
-      const streak = streakInfo(next.activity, today);
-      const cp = courseProgress(next, course.id);
-      const earned = course.badges.filter((b) => !next.badges[badgeKey(course.id, b.id)] && badgeEarned(b, course, cp, streak));
-      const after = next;
-      const shared = platform.badges.filter(
-        (b) => !after.badges[badgeKey(PLATFORM, b.id)] && platformBadgeEarned(b, courses, (id) => courseProgress(after, id)),
-      );
-      const earnedAt = new Date().toISOString();
-      const keys = [...earned.map((b) => badgeKey(course.id, b.id)), ...shared.map((b) => badgeKey(PLATFORM, b.id))];
-      next = { ...next, badges: { ...next.badges, ...Object.fromEntries(keys.map((k) => [k, earnedAt])) } };
-      const badges = [...earned, ...shared];
-      set({ doc: next });
+      const { doc: awarded, reward } = award(doc, next, task.courseId, today);
+      set({ doc: awarded });
+      return reward;
+    },
 
-      const xpBefore = globalXp(doc);
-      const xpAfter = globalXp(next);
-      const levelBefore = levelInfo(xpBefore, platform.levels);
-      const levelAfter = levelInfo(xpAfter, platform.levels);
-      return { xp: xpAfter - xpBefore, badges, levelUp: levelAfter.index > levelBefore.index ? levelAfter.title : null };
+    recordDrill: (courseId, o, rules) => {
+      const before = get().doc;
+      const today = localDay();
+      const { doc, reward } = award(before, withDrillOutcome(before, courseId, o, rules, today), courseId, today);
+      set({ doc });
+      return rewarded(reward);
+    },
+
+    recordSet: (courseId, r, outcomes, rules) => {
+      const before = get().doc;
+      const today = localDay();
+      let next = before;
+      for (const o of outcomes) next = withDrillOutcome(next, courseId, o, rules, today);
+      next = withCourse(next, courseId, (c) => {
+        const drill = c.drill ?? { xp: 0, numbers: {}, sets: [] };
+        return { ...c, drill: { ...drill, sets: [...drill.sets, r].slice(-20) } };
+      });
+      const { doc, reward } = award(before, next, courseId, today);
+      set({ doc });
+      return rewarded(reward);
     },
 
     passLessons: (courseId, lessonIds) =>

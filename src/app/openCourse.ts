@@ -12,5 +12,5 @@ export function openCourse(courseId: string): void {
   }
   const course = courseById(courseId);
   const started = courseProgress(useProgress.getState().doc, courseId).onboarding;
-  ui.setView(course.onboarding && !started ? 'onboarding' : 'map');
+  ui.setView(course.drill ? 'drill' : course.onboarding && !started ? 'onboarding' : 'map');
 }

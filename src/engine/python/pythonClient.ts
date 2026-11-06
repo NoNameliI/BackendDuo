@@ -1,6 +1,6 @@
 import type { ApiRequest } from '@/engine/api/http';
 import { CONNECT, type PythonReply, type PythonRequest } from './protocol';
-import type { AppRun } from './runtime';
+import type { AppRun, ScriptRun } from './runtime';
 
 /** The subset of the Worker API the client relies on (lets tests substitute a fake). */
 export interface PythonWorkerLike {
@@ -23,6 +23,8 @@ export interface PythonLimits {
   startMs: number;
   /** One run of the learner's app (all its requests). */
   runMs: number;
+  /** One run of a standalone script. */
+  scriptMs: number;
 }
 
 export class PythonTimeoutError extends Error {}
@@ -33,6 +35,8 @@ export interface PythonClient {
   /** Starts loading Python in the background, if it is not loaded yet. */
   prewarm(): void;
   run(source: string, requests: ApiRequest[], options?: { keep?: boolean }): Promise<AppRun>;
+  /** Runs a standalone script with the given text files in a scratch directory; a stuck script is terminated. */
+  script(source: string, files: Record<string, string>): Promise<ScriptRun>;
   /** Drops the app kept between sends (the next send loads main.py afresh). */
   forget(): Promise<void>;
 }
@@ -42,7 +46,7 @@ export interface PythonClient {
  * Code that runs too long (an endless loop) cannot be interrupted inside WebAssembly: the worker is terminated
  * and a fresh one starts loading at once.
  */
-export function createPythonClient(spawn: () => PythonWorkerLike, limits: PythonLimits = { startMs: 90_000, runMs: 8_000 }): PythonClient {
+export function createPythonClient(spawn: () => PythonWorkerLike, limits: PythonLimits = { startMs: 90_000, runMs: 8_000, scriptMs: 20_000 }): PythonClient {
   let worker: PythonWorkerLike | null = null;
   let port: MessagePort | null = null;
   let ready: Promise<void> | null = null;
@@ -146,6 +150,17 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
         });
         return new PythonTimeoutError(`Код выполнялся дольше ${seconds} с и был остановлен. Проверьте, нет ли бесконечного цикла.`);
       })) as AppRun;
+    },
+    async script(source, files) {
+      await start();
+      const seconds = limits.scriptMs / 1000;
+      return (await call({ op: 'script', source, files }, limits.scriptMs, () => {
+        queueMicrotask(() => {
+          setStatus({ state: 'idle' });
+          start().catch(() => {});
+        });
+        return new PythonTimeoutError(`Скрипт выполнялся дольше ${seconds} с и был остановлен. Проверьте, нет ли бесконечного цикла.`);
+      })) as ScriptRun;
     },
     async forget() {
       if (worker && status.state === 'ready') await call({ op: 'forget' }, limits.runMs, () => new PythonTimeoutError('forget'));

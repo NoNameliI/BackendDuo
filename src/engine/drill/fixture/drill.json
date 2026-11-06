@@ -1,0 +1,13 @@
+{
+  "numbers": [{ "n": 14, "lesson": "n14", "minutes": 5 }],
+  "xp": { "base": 10, "core": 15, "hard": 20 },
+  "dailyXp": 5,
+  "set": { "minutes": 30, "level": "core" },
+  "labels": {
+    "levels": { "base": "Basic", "core": "Core", "hard": "Hard" },
+    "modes": { "pick": "Pick numbers", "full": "Full set", "weak": "Weak spots" },
+    "number": "No.",
+    "score": "Score",
+    "pair": "{a} and {b}"
+  }
+}

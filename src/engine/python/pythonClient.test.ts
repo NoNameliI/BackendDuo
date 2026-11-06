@@ -40,7 +40,7 @@ describe('python client', () => {
 
   it('terminates a run that hangs and starts a fresh worker', async () => {
     const log: string[] = [];
-    const client = createPythonClient(() => fakeWorker(log), { startMs: 1000, runMs: 30 });
+    const client = createPythonClient(() => fakeWorker(log), { startMs: 1000, runMs: 30, scriptMs: 30 });
     await expect(client.run('while True: pass', [])).rejects.toBeInstanceOf(PythonTimeoutError);
     await new Promise((r) => setTimeout(r, 20));
     expect(log).toEqual(['init', 'run', 'terminate', 'init']);

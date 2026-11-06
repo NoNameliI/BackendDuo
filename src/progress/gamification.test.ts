@@ -35,6 +35,7 @@ const course: Course = {
   errorHints: {},
   terminalHints: [],
   servers: {},
+  drill: null,
   levels: [
     { xp: 0, title: 'Trainee' },
     { xp: 50, title: 'Writer' },

@@ -7,6 +7,7 @@ import { useCourses } from '@/content/courses';
 import type { Course } from '@/content/loadCourse';
 import { useWorkspace } from '@/features/lesson/workspace';
 import { firstOpenTask, lessonStatuses, progressOf, resumeTask } from '@/progress/gamification';
+import { weakNumbers } from '@/progress/drill';
 import { selectCourse, useProgress } from '@/progress/store';
 import { Kbd } from '@/ui/Button';
 import { courseCommands, filterCommands, type Command } from './commands';
@@ -30,13 +31,19 @@ function buildCommands(close: () => void, courses: Course[]): Command[] {
 
   const commands: Command[] = [
     { id: 'hub', group: 'Разделы', title: 'Все курсы', run: go(() => ui.setView('hub')) },
-    { id: 'map', group: 'Разделы', title: 'Карта навыков', hint: course.title, run: go(() => ui.setView('map')) },
+    course.drill
+      ? { id: 'drill', group: 'Разделы', title: 'Тренажёр', hint: course.title, run: go(() => ui.setView('drill')) }
+      : { id: 'map', group: 'Разделы', title: 'Карта навыков', hint: course.title, run: go(() => ui.setView('map')) },
     ...courseCommands(courses, course.id, go, openCourse),
     {
       id: 'continue',
       group: 'Разделы',
       title: 'Продолжить обучение',
       run: go(() => {
+        if (course.drill) {
+          ui.setView('drill');
+          return;
+        }
         void ws.openTask(resumeTask(course, cp));
         ui.setView('lesson');
       }),
@@ -53,6 +60,33 @@ function buildCommands(close: () => void, courses: Course[]): Command[] {
     if ('solution' in ws.task) {
       commands.push({ id: 'reset', group: 'Действия', title: 'Сбросить базу задания', run: go(() => void ws.resetDatabase()) });
     }
+  }
+  if (course.drill) {
+    const cfg = course.drill;
+    const drill = (act: (m: typeof import('@/features/drill/drillStore')) => void) =>
+      go(() => {
+        ui.setView('drill');
+        void import('@/features/drill/drillStore').then(act);
+      });
+    const weak = weakNumbers(cp.drill, cfg.numbers.map((x) => x.n));
+    commands.push(
+      { id: 'drill:full', group: 'Тренажёр', title: cfg.labels.modes.full, hint: `${cfg.set.minutes} мин`, run: drill((m) => m.startSetOf(course.id)) },
+      {
+        id: 'drill:weak',
+        group: 'Тренажёр',
+        title: cfg.labels.modes.weak,
+        hint: weak.length > 0 ? `номеров: ${weak.length}` : 'слабых мест пока нет',
+        disabled: weak.length === 0,
+        run: drill((m) => m.startWeakOf(course.id)),
+      },
+      ...cfg.numbers.map(({ n }) => ({
+        id: `drill:n${n}`,
+        group: 'Тренажёр',
+        title: `${cfg.labels.number} ${n}`,
+        run: drill((m) => m.openNumberOf(course.id, n)),
+      })),
+    );
+    return commands;
   }
   for (const world of course.worlds) {
     for (const lesson of world.lessons) {

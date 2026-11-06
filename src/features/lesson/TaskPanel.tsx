@@ -30,6 +30,7 @@ export const TASK_KIND: Record<Task['type'], string> = {
   graphql: 'GraphQL',
   proto: 'Protobuf',
   fastapi: 'FastAPI',
+  drill: 'Тренажёр',
 };
 
 const tabs = [

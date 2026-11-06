@@ -16,7 +16,8 @@
  *   ```
  *   ```http starter | solution  (API course; also graphql, proto, python)
  *   ```
- *   ```<language> code      (review tasks: the snippet to inspect)
+ *   ```md explain           (drill tasks: step-by-step template; ```python starter = scratch code template)
+ *   ```<language> code     (review tasks: the snippet to inspect)
  *   ```
  */
 
@@ -77,7 +78,7 @@ function parseTask(id: string, body: string): Record<string, unknown> {
       }
       return '';
     }
-    const key = role === 'code' ? 'code' : lang === 'sql' && role ? SQL_ROLES[role] : lang === 'sh' && role ? SHELL_ROLES[role] : role && API_LANGS.has(lang) && API_ROLES.has(role) ? apiKey(lang, role) : undefined;
+    const key = role === 'code' ? 'code' : lang === 'md' && role === 'explain' ? 'explain' : lang === 'sql' && role ? SQL_ROLES[role] : lang === 'sh' && role ? SHELL_ROLES[role] : role && API_LANGS.has(lang) && API_ROLES.has(role) ? apiKey(lang, role) : undefined;
     if (!key) return block;
     if (key in task) throw new LessonParseError(`задание ${id}: блок «${role}» встречается дважды`);
     task[key] = content.trim();

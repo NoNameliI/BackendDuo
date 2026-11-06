@@ -58,7 +58,7 @@ export function resumeTask(course: Course, cp: CourseProgress): Task {
 export function totalXp(course: Course, cp: CourseProgress): number {
   const tasks = Object.values(cp.tasks).reduce((sum, t) => sum + t.xp, 0);
   const lessons = course.worlds.flatMap((w) => w.lessons).filter((l) => isLessonComplete(l, cp)).length;
-  return tasks + lessons * LESSON_BONUS_XP;
+  return tasks + lessons * LESSON_BONUS_XP + (cp.drill?.xp ?? 0);
 }
 
 export interface LevelInfo {

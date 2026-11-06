@@ -14,6 +14,10 @@ import { applyTheme } from './theme';
 import { useResolvedTheme } from './useResolvedTheme';
 
 const GitSandboxScreen = lazy(() => import('@/features/git/GitSandboxScreen'));
+const DrillScreen = lazy(() => import('@/features/drill/DrillScreen'));
+
+// Development only: lets a local run register the neutral fixture course (dropped from production builds).
+if (import.meta.env.DEV) void import('@/features/drill/devFixture');
 
 export function App() {
   const theme = useResolvedTheme();
@@ -38,6 +42,11 @@ export function App() {
         {view === 'map' && <MapScreen />}
         {view === 'lesson' && <LessonScreen />}
         {view === 'profile' && <ProfileScreen />}
+        {view === 'drill' && (
+          <Suspense fallback={null}>
+            <DrillScreen />
+          </Suspense>
+        )}
         {view === 'git-sandbox' && (
           <Suspense fallback={null}>
             <GitSandboxScreen />

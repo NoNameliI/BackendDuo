@@ -10,7 +10,7 @@ interface Settings {
   courseId: string;
 }
 
-export type View = 'hub' | 'onboarding' | 'map' | 'lesson' | 'profile' | 'git-sandbox';
+export type View = 'hub' | 'onboarding' | 'map' | 'lesson' | 'profile' | 'git-sandbox' | 'drill';
 
 interface UiState extends Settings {
   view: View;

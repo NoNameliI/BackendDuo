@@ -301,10 +301,31 @@ const fastapiTask = z.object({
     .prefault({}),
 });
 
+export const levelEnum = z.enum(['base', 'core', 'hard']);
+
+/**
+ * Drill tasks: a statement template (the prompt) over a generator's fields; ```md explain is the step-by-step
+ * template, ```python starter the scratch code template. Hints are templates too, exactly three.
+ */
+const drillTask = z.object({
+  ...taskBase,
+  hints: z.array(z.string().min(1)).length(3),
+  type: z.literal('drill'),
+  generator: z.string().regex(/^g\d{2}$/),
+  shape: slug.default('main'),
+  levels: z.array(levelEnum).min(1).default(['base', 'core', 'hard']),
+  explain: z.string().trim().min(1),
+  pythonStarter: z.string().default(''),
+  /** Word lists for table data (e.g. names in tables). */
+  vocab: z.record(z.string(), z.array(z.string().min(1))).default({}),
+  /** Table and column captions keyed `t1`, `t1.c2`. */
+  labels: z.record(z.string(), z.string()).default({}),
+});
+
 export const corsConfigSchema = corsConfig;
 
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask, drillTask])
   .superRefine((task, ctx) => {
     if (task.type !== 'choice' && task.type !== 'review') return;
     if (task.answer.some((i) => i >= task.options.length)) {
@@ -331,7 +352,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi', 'drill']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),
@@ -361,7 +382,7 @@ export const levelsSchema = z
 export const manifestSchema = z.object({
   id: slug,
   title: z.string().min(1),
-  engine: z.enum(['postgres', 'git', 'api']),
+  engine: z.enum(['postgres', 'git', 'api', 'drill']),
   datasets: z.record(slug, z.string().regex(/\.sql$/)).default({}),
   errors: z.string().regex(/\.json$/),
   /** One or two sentences for the course card in the hub. */
@@ -375,6 +396,30 @@ export const manifestSchema = z.object({
   servers: z.record(slug, z.string().regex(/\.json$/)).default({}),
   /** Failed checks after which the reference solution may be shown; by default after the first attempt. */
   solutionAfterAttempts: z.number().int().positive().optional(),
+  /** Drill course: the file with the DrillConfig. */
+  drill: z.string().regex(/\.json$/).optional(),
+});
+
+const nonEmpty = z.string().min(1);
+const perLevel = <T extends z.ZodType>(item: T) => z.object({ base: item, core: item, hard: item });
+
+/** Drill course settings (drill.json). */
+export const drillConfigSchema = z.object({
+  numbers: z.array(z.object({ n: z.number().int().min(1).max(21), lesson: slug, minutes: z.number().positive() })).min(1),
+  /** XP per solved instance before the hint penalty. */
+  xp: perLevel(z.number().int().nonnegative()),
+  /** XP-earning solves per number per local day. */
+  dailyXp: z.number().int().positive().default(5),
+  set: z.object({ minutes: z.number().int().positive(), level: levelEnum.default('core') }),
+  labels: z.object({
+    levels: perLevel(nonEmpty),
+    modes: z.object({ pick: nonEmpty, full: nonEmpty, weak: nonEmpty }),
+    /** Tile prefix. */
+    number: nonEmpty,
+    score: nonEmpty,
+    /** Placeholder for two numbers. */
+    pair: nonEmpty,
+  }),
 });
 
 /** Cross-course settings: which courses the hub shows (in order) and the shared level ladder. */
@@ -513,7 +558,9 @@ export const serverDefSchema = z.object({
 
 export type TaskInput = z.input<typeof taskSchema>;
 export type ParsedTask = z.output<typeof taskSchema>;
-export type Badge = z.output<typeof badgeSchema>;
+export type DrillTask = Extract<ParsedTask, { type: 'drill' }>;
+export type DrillConfig = z.output<typeof drillConfigSchema>;
+export type Badge =z.output<typeof badgeSchema>;
 export type PlatformBadge = z.output<typeof platformBadgeSchema>;
 export type Level = z.output<typeof manifestSchema>['levels'][number];
 export type OnboardingData = z.output<typeof onboardingSchema>;

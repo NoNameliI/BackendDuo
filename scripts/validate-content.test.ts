@@ -40,6 +40,7 @@ beforeAll(() => engine.init());
 afterAll(() => engine.dispose());
 
 async function validateTask(task: Task, servers: Record<string, ServerDef>) {
+  if (task.type === 'drill') return; // drill tasks are checked in validate-drill.test.ts
   if (task.type === 'choice' || task.type === 'review') {
     expect((await checker.check(task, { kind: 'choice', selected: task.answer })).passed).toBe(true);
     const wrong = task.options.map((_, i) => i).filter((i) => !task.answer.includes(i));

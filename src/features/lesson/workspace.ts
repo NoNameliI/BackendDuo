@@ -211,6 +211,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     clearLog: () => set({ log: [] }),
 
     openTask: async (task) => {
+      if (task.type === 'drill') return; // drill tasks live in the trainer, not in the lesson player
       saveDraft();
       const lesson = lessonOf(task);
       const progress = selectTask(task)(useProgress.getState());
