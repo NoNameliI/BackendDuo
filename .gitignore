@@ -15,6 +15,7 @@ npm-debug.log*
 
 # Local overrides
 *.local
+.env.local
 .env
 
 # OS / editor
