@@ -3,7 +3,7 @@ import type { Course, DrillConfig } from '@/content/loadCourse';
 import { seedHex } from '@/engine/drill/rng';
 import type { Level } from '@/engine/drill/types';
 import { Button } from '@/ui/Button';
-import { Markdown } from '@/ui/Markdown';
+import { Markdown } from './StatementMarkdown';
 import { AnswerField } from './AnswerField';
 import { DataViewer } from './DataViewer';
 import { canShowSolution, taskFor, useDrill } from './drillStore';

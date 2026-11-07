@@ -10,6 +10,17 @@ const OVERSCAN = 6;
 
 const show = (v: Cell): string => (typeof v === 'number' && !Number.isInteger(v) ? String(v).replace('.', ',') : String(v));
 
+/** Spreadsheet column letters: 0 -> A, 25 -> Z, 26 -> AA. */
+function letters(index: number): string {
+  let out = '';
+  let n = index;
+  do {
+    out = String.fromCharCode(65 + (n % 26)) + out;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return out;
+}
+
 function compare(a: Cell, b: Cell): number {
   return typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true });
 }
@@ -106,12 +117,16 @@ function TableView({ table, captions }: { table: DataTable; captions: Readonly<R
   const [top, setTop] = useState(0);
   const box = useRef<HTMLDivElement>(null);
 
-  const rows = useMemo(() => {
+  const grid = table.header === false;
+  // Original row indexes, so grid row numbers survive search and sorting.
+  const order = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = q ? table.rows.filter((r) => r.some((c) => show(c).toLowerCase().includes(q))) : table.rows;
-    if (sort) list = [...list].sort((a, b) => sort.dir * compare(a[sort.col], b[sort.col]));
+    let list = table.rows.map((_, i) => i);
+    if (q) list = list.filter((i) => table.rows[i].some((c) => show(c).toLowerCase().includes(q)));
+    if (sort) list = [...list].sort((a, b) => sort.dir * compare(table.rows[a][sort.col], table.rows[b][sort.col]));
     return list;
   }, [table, query, sort]);
+  const rows = useMemo(() => order.map((i) => table.rows[i]), [order, table]);
 
   const first = Math.max(0, Math.floor(top / ROW) - OVERSCAN);
   const last = Math.min(rows.length, Math.ceil((top + VIEW) / ROW) + OVERSCAN);
@@ -141,10 +156,11 @@ function TableView({ table, captions }: { table: DataTable; captions: Readonly<R
         <table className="w-full border-collapse font-mono text-[12.5px]" aria-rowcount={rows.length + 1}>
           <thead className="sticky top-0 z-10 bg-raised">
             <tr style={{ height: ROW }}>
+              {grid && <th scope="col" aria-label="Номер строки" className="w-10 px-2 text-right font-normal text-faint" />}
               {table.columns.map((c, i) => (
                 <th key={c} scope="col" aria-sort={sort?.col === i ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} className="px-3 text-left font-semibold">
                   <button type="button" onClick={() => toggle(i)} className="inline-flex items-center gap-1 hover:text-nav" title="Сортировать">
-                    {captions[`${table.key}.${c}`] ?? c}
+                    {grid ? letters(i) : (captions[`${table.key}.${c}`] ?? c)}
                     <span aria-hidden="true" className="text-faint">
                       {sort?.col === i ? (sort.dir === 1 ? '▲' : '▼') : ''}
                     </span>
@@ -157,6 +173,11 @@ function TableView({ table, captions }: { table: DataTable; captions: Readonly<R
             {first > 0 && <tr aria-hidden="true" style={{ height: first * ROW }} />}
             {rows.slice(first, last).map((row, k) => (
               <tr key={first + k} aria-rowindex={first + k + 2} style={{ height: ROW }} className="border-t border-line/60">
+                {grid && (
+                  <th scope="row" className="w-10 select-none px-2 text-right font-normal text-faint">
+                    {order[first + k] + 1}
+                  </th>
+                )}
                 {row.map((cell, j) => (
                   <td key={j} className={`px-3 ${typeof cell === 'number' ? 'text-right tabular-nums' : ''}`}>
                     {show(cell)}

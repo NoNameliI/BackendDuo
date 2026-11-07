@@ -3,15 +3,25 @@ import { useMemo } from 'react';
 import { escapeHtml, highlightSql } from './highlightSql';
 
 // Course content is bundled with the app and trusted, so rendered HTML is inserted as is.
-const markdown = new Marked({
-  gfm: true,
-  renderer: {
-    code({ text, lang }) {
-      const body = lang?.split(/\s/)[0] === 'sql' ? highlightSql(text) : escapeHtml(text);
-      return `<pre class="md-code"><code>${body}</code></pre>`;
+/** Custom fenced blocks: info string -> HTML; returning null keeps the plain code block. */
+export type Fences = Readonly<Record<string, (body: string) => string | null>>;
+
+export function createMarkdown(fences: Fences = {}): Marked {
+  return new Marked({
+    gfm: true,
+    renderer: {
+      code({ text, lang }) {
+        const tag = lang?.split(/\s/)[0] ?? '';
+        const custom = Object.prototype.hasOwnProperty.call(fences, tag) ? fences[tag](text) : null;
+        if (custom !== null) return custom;
+        const body = tag === 'sql' ? highlightSql(text) : escapeHtml(text);
+        return `<pre class="md-code"><code>${body}</code></pre>`;
+      },
     },
-  },
-});
+  });
+}
+
+const markdown = createMarkdown();
 
 export function renderMarkdown(source: string): string {
   return markdown.parse(source, { async: false });

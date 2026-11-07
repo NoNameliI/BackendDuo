@@ -110,7 +110,7 @@ function solvePowers(p: Powers): Solved {
       runs: runs
         .slice()
         .reverse()
-        .map((r) => ({ from: r.pos + r.len - 1, to: r.pos, digitText: digitText(r.digit), len: r.len })),
+        .map((r) => ({ from: r.pos + r.len - 1, to: r.pos, digitText: digitText(r.digit), len: r.len, single: r.len === 1 })),
       length,
       count,
     },

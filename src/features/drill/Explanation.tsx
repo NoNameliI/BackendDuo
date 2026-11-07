@@ -1,4 +1,4 @@
-import { Markdown } from '@/ui/Markdown';
+import { Markdown } from './StatementMarkdown';
 
 export function Explanation({ text, answer, shown }: { text: string; answer: string; shown: boolean }) {
   return (

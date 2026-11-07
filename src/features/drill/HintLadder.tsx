@@ -1,5 +1,5 @@
 import { Button } from '@/ui/Button';
-import { Markdown } from '@/ui/Markdown';
+import { Markdown } from './StatementMarkdown';
 
 /** Three hints, one at a time; every one opened lowers the reward. */
 export function HintLadder({ hints, shown, onReveal, disabled }: { hints: string[]; shown: number; onReveal: () => void; disabled?: boolean }) {

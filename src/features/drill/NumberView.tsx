@@ -3,7 +3,7 @@ import { useHotkeys } from '@/app/hotkeys';
 import type { Course, DrillConfig } from '@/content/loadCourse';
 import { splitTheory } from '@/content/theory';
 import { Button } from '@/ui/Button';
-import { Markdown } from '@/ui/Markdown';
+import { Markdown } from './StatementMarkdown';
 import { Panel } from '@/ui/Panel';
 import { Tabs } from '@/ui/Tabs';
 import { useFocusHeading } from '@/ui/useFocusHeading';

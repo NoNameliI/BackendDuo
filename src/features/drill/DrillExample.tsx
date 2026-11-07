@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { DrillConfig, Lesson } from '@/content/loadCourse';
 import { makeInstance } from '@/engine/drill/instance';
-import { Markdown } from '@/ui/Markdown';
+import { Markdown } from './StatementMarkdown';
 import { renderInstance } from './instanceView';
 
 interface ExampleSpec {

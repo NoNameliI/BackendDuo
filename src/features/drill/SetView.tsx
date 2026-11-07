@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useHotkeys } from '@/app/hotkeys';
 import type { Course, DrillConfig } from '@/content/loadCourse';
 import { Button } from '@/ui/Button';
-import { Markdown } from '@/ui/Markdown';
+import { Markdown } from './StatementMarkdown';
 import { Panel } from '@/ui/Panel';
 import { useFocusHeading } from '@/ui/useFocusHeading';
 import { AnswerField } from './AnswerField';

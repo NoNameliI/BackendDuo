@@ -2,9 +2,9 @@ import type { FieldValue, Fields } from './types';
 
 /**
  * Statement templates: a tiny strict mustache-like language producing Markdown.
- *   {{a}} {{a.b}} {{list.0}}        paths; inside {{#each list}} also {{.}}, item keys, {{@n}} (1-based)
+ *   {{a}} {{a.b}} {{list.0}}        paths; inside {{#each list}} also {{.}}, item keys, {{@n}} (1-based), {{@first}}, {{@last}}
  *   {{#if a}}..{{else}}..{{/if}}    {{#unless a}}..{{/unless}}   (falsy: false, 0, '', [])
- *   {{a|filter:arg|filter}}         sub sup radix:B num join:SEP plural:one,few,many expr code
+ *   {{a|filter:arg|filter}}         sub sup radix:B num join:SEP plural:one,few,many expr code json
  * An argument may be quoted ("..") to keep spaces; the separator '|' is not allowed inside arguments.
  * Anything unknown (path, filter, unclosed block) is a TemplateError.
  */
@@ -66,7 +66,7 @@ function parse(template: string): Node[] {
   return root;
 }
 
-type Frame = { item: FieldValue; n: number };
+type Frame = { item: FieldValue; n: number; first: boolean; last: boolean };
 
 const isObject = (v: FieldValue | undefined): v is { readonly [k: string]: FieldValue } => typeof v === 'object' && v !== null && !Array.isArray(v);
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
@@ -81,6 +81,11 @@ function lookup(path: string, frames: Frame[], root: Fields): FieldValue {
     const f = frames[frames.length - 1];
     if (!f) throw new TemplateError('{{@n}} outside of {{#each}}');
     return f.n;
+  }
+  if (path === '@first' || path === '@last') {
+    const f = frames[frames.length - 1];
+    if (!f) throw new TemplateError(`{{${path}}} outside of {{#each}}`);
+    return path === '@first' ? f.first : f.last;
   }
   const [head, ...tail] = path.split('.');
   let value: FieldValue | undefined;
@@ -199,6 +204,8 @@ function applyFilter(v: FieldValue, f: Filter, what: string): FieldValue {
       return plural(v, f.arg, what);
     case 'expr':
       return expr(v, what);
+    case 'json':
+      return JSON.stringify(v);
     case 'code': {
       const s = scalar(v, what);
       return s.includes('`') ? `\`\` ${s} \`\`` : `\`${s}\``;
@@ -222,7 +229,7 @@ function run(nodes: Node[], frames: Frame[], root: Fields): string {
       const list = lookup(node.path, frames, root);
       if (!Array.isArray(list)) throw new TemplateError(`${node.path}: {{#each}} needs a list`);
       (list as readonly FieldValue[]).forEach((item, i) => {
-        out += run(node.body, [...frames, { item, n: i + 1 }], root);
+        out += run(node.body, [...frames, { item, n: i + 1, first: i === 0, last: i === list.length - 1 }], root);
       });
     }
   }

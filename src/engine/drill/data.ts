@@ -10,10 +10,10 @@ function cell(value: Cell): string {
   return /[;"\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-/** `;`-separated, UTF-8 with BOM, CRLF, decimal comma. Header captions: `captions["t1.c2"]`, else the column key. */
+/** `;`-separated, UTF-8 with BOM, CRLF, decimal comma. Header captions (none when `header` is false): `captions["t1.c2"]`, else the column key. */
 export function toCsv(table: DataTable, captions: Readonly<Record<string, string>> = {}): string {
   const header = table.columns.map((c) => cell(captions[`${table.key}.${c}`] ?? c));
-  const lines = [header, ...table.rows.map((row) => row.map(cell))].map((row) => row.join(';'));
+  const lines = [...(table.header === false ? [] : [header]), ...table.rows.map((row) => row.map(cell))].map((row) => row.join(';'));
   return `${BOM}${lines.join('\r\n')}\r\n`;
 }
 

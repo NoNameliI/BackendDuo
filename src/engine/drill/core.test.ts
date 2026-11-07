@@ -95,10 +95,17 @@ describe('templates', () => {
     expect(renderTemplate('{{#each list}}{{.}}{{/each}}', scope)).toBe('123');
     expect(renderTemplate('{{#if empty}}a{{else}}b{{/if}}{{#unless n}}c{{else}}d{{/unless}}', scope)).toBe('bd');
     expect(renderTemplate('{{#each rows}}{{n}}{{k}}{{/each}}', scope)).toBe('3x3y');
+    expect(renderTemplate('{{#each list}}{{#if @first}}[{{/if}}{{.}}{{#unless @last}},{{/unless}}{{#if @last}}]{{/if}}{{/each}}', scope)).toBe('[1,2,3]');
+    expect(renderTemplate('{{#each rows}}{{@first}}{{@last}}{{/each}}', scope)).toBe('truefalsefalsetrue');
+    expect(renderTemplate('{{#each list}}{{#if @first}}a{{/if}}{{/each}}{{#each empty}}z{{/each}}', scope)).toBe('a');
+  });
+
+  it('prints JSON', () => {
+    expect(renderTemplate('{{rows|json}} {{name|json}} {{n|json}}', scope)).toBe('[{"k":"x"},{"k":"y"}] "ab" 3');
   });
 
   it('is strict', () => {
-    for (const bad of ['{{nope}}', '{{n.deep}}', '{{n|nope}}', '{{#if n}}x', '{{/if}}', '{{list}}', '{{else}}', '{{.}}', '{{n|radix:99}}']) {
+    for (const bad of ['{{nope}}', '{{n.deep}}', '{{n|nope}}', '{{#if n}}x', '{{/if}}', '{{list}}', '{{else}}', '{{.}}', '{{n|radix:99}}', '{{@first}}', '{{@last}}']) {
       expect(() => renderTemplate(bad, scope), bad).toThrow(TemplateError);
     }
   });
@@ -108,6 +115,11 @@ describe('data files', () => {
   it('writes CSV with BOM, CRLF, quoting and decimal commas', () => {
     const csv = toCsv({ key: 't1', columns: ['c1', 'c2'], rows: [['a;b', 1.5], ['say "hi"', 2], ['two\nlines', 3]] }, { 't1.c1': 'Name' });
     expect(csv).toBe(`${BOM}Name;c2\r\n"a;b";1,5\r\n"say ""hi""";2\r\n"two\nlines";3\r\n`);
+  });
+
+  it('omits the header row of a grid table', () => {
+    const csv = toCsv({ key: 't1', columns: ['c1', 'c2'], rows: [[1, 'a']], header: false }, { 't1.c1': 'Name' });
+    expect(csv).toBe(`${BOM}1;a\r\n`);
   });
 
   it('writes plain text and names files', () => {

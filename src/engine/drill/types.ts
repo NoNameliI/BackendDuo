@@ -30,6 +30,8 @@ export interface DataTable {
   /** Column keys c1, c2, …; captions come from task.labels. */
   columns: string[];
   rows: Cell[][];
+  /** false: a spreadsheet grid without a caption row (default true). */
+  header?: boolean;
 }
 export type DataFile = { kind: 'table'; tables: DataTable[] } | { kind: 'text'; text: string };
 
