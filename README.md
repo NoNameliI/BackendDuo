@@ -1,4 +1,4 @@
-# PostgreSQL Interactive Studio
+# Interactive Studio
 
 Десктопная учебная платформа для Windows 10–11. Короткая теория с бизнес-кейсом и сразу практика, решение проверяется автоматически. Сейчас в ней три курса:
 
@@ -53,6 +53,18 @@ npm run dev          # веб-версия на http://localhost:1420 — удо
 npm run tauri dev    # десктопное приложение
 npm run tauri build  # установщики MSI и NSIS в src-tauri/target/release/bundle
 ```
+
+Установщик для отправки другим людям:
+
+```bash
+npm run pack:private  # если есть закрытые курсы: собрать зашифрованные пакеты (код доступа спросит сам)
+npm run dist          # release/Interactive-Studio-<версия>-Setup.exe и файл с его SHA-256
+```
+
+Установщик ставит приложение для текущего пользователя (права администратора не нужны) и при необходимости сам
+скачивает WebView2. Инструкция для получателя — [INSTALL.md](INSTALL.md), проверка на чистой системе —
+[docs/clean-install-test.md](docs/clean-install-test.md), устройство закрытых курсов —
+[docs/sealed-packs.md](docs/sealed-packs.md).
 
 Проверки:
 

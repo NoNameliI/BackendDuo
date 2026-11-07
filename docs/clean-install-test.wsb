@@ -1,0 +1,11 @@
+<Configuration>
+  <VGpu>Default</VGpu>
+  <Networking>Enable</Networking>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>..\release</HostFolder>
+      <SandboxFolder>C:\Users\WDAGUtilityAccount\Desktop\release</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+</Configuration>

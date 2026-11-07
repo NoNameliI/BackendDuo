@@ -28,3 +28,6 @@ src-tauri/gen/
 
 # Python runtime prepared by scripts/pyodide/prepare.mjs
 public/pyodide/
+
+# Installer output (npm run dist)
+release/

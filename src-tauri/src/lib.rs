@@ -78,7 +78,7 @@ pub fn run() {
 
             TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().cloned().expect("bundle icon is configured"))
-                .tooltip("PostgreSQL Interactive Studio")
+                .tooltip("Interactive Studio")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {

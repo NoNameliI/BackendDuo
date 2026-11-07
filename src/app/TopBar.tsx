@@ -146,7 +146,7 @@ function Brand() {
         <rect x="9" y="8.5" width="5.5" height="2.6" rx="0.8" fill="var(--ok)" />
       </svg>
       <span className="font-mono text-[13px] font-semibold tracking-tight">
-        pg<span className="text-faint">/</span>studio
+        interactive<span className="text-faint">/</span>studio
       </span>
     </div>
   );

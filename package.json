@@ -13,6 +13,7 @@
     "test": "vitest run",
     "prevalidate:content": "node scripts/pyodide/prepare.mjs",
     "validate:content": "vitest run --config vitest.content.config.ts",
+    "dist": "node scripts/dist.mjs",
     "pack:private": "node scripts/run-pack-private.mjs",
     "tauri": "tauri",
     "test:git-parity": "vitest run --config vitest.git-parity.config.ts"
