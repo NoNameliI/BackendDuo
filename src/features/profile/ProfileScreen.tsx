@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useUi } from '@/app/store';
 import type { ThemePreference } from '@/app/theme';
 import { useCourse } from '@/app/useCourse';
@@ -185,6 +185,14 @@ function AccessCode() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const lockRef = useRef<HTMLSpanElement>(null);
+  const wasOpen = useRef(open);
+  // The control that had focus is swapped out: move focus to its replacement.
+  useEffect(() => {
+    if (wasOpen.current !== open) (open ? lockRef.current?.querySelector('button') : inputRef.current)?.focus();
+    wasOpen.current = open;
+  }, [open]);
 
   const submit = async () => {
     if (busy || code === '') return;
@@ -205,20 +213,23 @@ function AccessCode() {
       }}
     >
       {open ? (
-        <Button
-          variant="outline"
-          onClick={() => {
-            void lockAccess().then(() => setStatus(''));
-          }}
-        >
-          Закрыть доступ
-        </Button>
+        <span ref={lockRef} className="inline-flex">
+          <Button
+            variant="outline"
+            onClick={() => {
+              void lockAccess().then(() => setStatus(''));
+            }}
+          >
+            Закрыть доступ
+          </Button>
+        </span>
       ) : (
         <>
           <label htmlFor={id} className="text-dim">
             Код доступа
           </label>
           <input
+            ref={inputRef}
             id={id}
             type="password"
             autoComplete="off"

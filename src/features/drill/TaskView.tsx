@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Course, DrillConfig } from '@/content/loadCourse';
 import { seedHex } from '@/engine/drill/rng';
 import type { Level } from '@/engine/drill/types';
@@ -19,6 +19,13 @@ export function TaskView({ course, cfg }: { course: Course; cfg: DrillConfig }) 
   const task = p?.instance ? taskFor(course, p.n, p.level, p.instance.seed) : null;
   const rendered = useMemo(() => (p?.instance && task ? renderInstance(task, p.instance) : null), [p?.instance, task]);
   const files = useMemo(() => (p?.instance && task ? exportsOf(p.instance, task) : []), [p?.instance, task]);
+
+  const explanationRef = useRef<HTMLParagraphElement>(null);
+  const finishedNow = !!p && (p.solved || p.solutionShown);
+  // The answer field gets disabled and "Show solution" unmounts: keep focus on the explanation.
+  useEffect(() => {
+    if (finishedNow) explanationRef.current?.focus();
+  }, [finishedNow, p?.instance?.key]);
 
   if (!p) return null;
   if (p.error || !p.instance || !task || !rendered) {
@@ -80,7 +87,7 @@ export function TaskView({ course, cfg }: { course: Course; cfg: DrillConfig }) 
           </div>
         )}
 
-        {finished && <Explanation text={rendered.explanation} answer={p.instance.answer} shown={p.solutionShown} />}
+        {finished && <Explanation headingRef={explanationRef} text={rendered.explanation} answer={p.instance.answer} shown={p.solutionShown} />}
 
         <ScratchPanel key={p.instance.key} starter={rendered.starter} files={files} />
       </div>

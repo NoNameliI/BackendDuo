@@ -31,3 +31,6 @@ public/pyodide/
 
 # Installer output (npm run dist)
 release/
+
+# Plaintext sources of sealed courses (only the encrypted pack in sealed/ is committed)
+private/

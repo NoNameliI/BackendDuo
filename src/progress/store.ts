@@ -7,7 +7,7 @@ import { readStore, writeStore } from '@/platform';
 /** Badge key prefix of the cross-course badges from platform.json. */
 export const PLATFORM = 'platform';
 import { recordOutcome, type DrillOutcome, type DrillRules } from './drill';
-import { badgeEarned, levelInfo, platformBadgeEarned, localDay, progressOf, streakInfo, taskXp, totalXp } from './gamification';
+import { badgeEarned, LESSON_BONUS_XP, levelInfo, platformBadgeEarned, localDay, progressOf, streakInfo, taskXp, totalXp } from './gamification';
 import {
   badgeKey,
   EMPTY_COURSE,
@@ -52,9 +52,16 @@ export const selectCourse = (courseId: string) => (s: Pick<ProgressState, 'doc'>
 export const selectTask = (task: TaskRef) => (s: Pick<ProgressState, 'doc'>) =>
   progressOf(courseProgress(s.doc, task.courseId), task.id);
 
-/** XP and level are shared by all courses. */
-export const globalXp = (doc: ProgressDoc): number =>
-  courses.reduce((sum, c) => sum + totalXp(c, courseProgress(doc, c.id)), 0);
+/** XP of stored progress whose course is not registered (e.g. a sealed pack whose access was closed). */
+const storedXp = (cp: CourseProgress): number =>
+  Object.values(cp.tasks).reduce((sum, t) => sum + t.xp, 0) + cp.passedLessons.length * LESSON_BONUS_XP + (cp.drill?.xp ?? 0);
+
+/** XP and level are shared by all courses, including those whose progress is kept but that are not registered now. */
+export const globalXp = (doc: ProgressDoc): number => {
+  const known = new Set(courses.map((c) => c.id));
+  const stored = Object.entries(doc.courses).reduce((sum, [id, cp]) => sum + (known.has(id) ? 0 : storedXp(cp)), 0);
+  return courses.reduce((sum, c) => sum + totalXp(c, courseProgress(doc, c.id)), 0) + stored;
+};
 
 function withCourse(doc: ProgressDoc, courseId: string, change: (cp: CourseProgress) => CourseProgress): ProgressDoc {
   return { ...doc, courses: { ...doc.courses, [courseId]: change(courseProgress(doc, courseId)) } };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useHotkeys } from '@/app/hotkeys';
 import type { Course, DrillConfig } from '@/content/loadCourse';
 import { Button } from '@/ui/Button';
@@ -30,6 +30,34 @@ export function SetView({ course, cfg }: { course: Course; cfg: DrillConfig }) {
   const built = useMemo(() => (run ? buildSet(course, run.master, run.level) : []), [course, run?.master, run?.level]);
   const left = run ? remainingSeconds(run.startedAt, cfg.set.minutes, now) : 0;
   const finished = useRef(false);
+  const finishBtn = useRef<HTMLSpanElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const wasConfirming = useRef(false);
+
+  useEffect(() => {
+    if (wasConfirming.current && !confirming) finishBtn.current?.querySelector('button')?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+
+  const onDialogKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setConfirming(false);
+    } else if (e.key === 'Tab') {
+      const items = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? []);
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !items.includes(active as HTMLElement))) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
 
   useEffect(() => {
     if (run && left <= 0 && !finished.current) {
@@ -67,9 +95,11 @@ export function SetView({ course, cfg }: { course: Course; cfg: DrillConfig }) {
             <span role="status" className="sr-only">
               {announce}
             </span>
-            <Button variant="check" onClick={() => setConfirming(true)}>
-              Завершить
-            </Button>
+            <span ref={finishBtn} className="inline-flex">
+              <Button variant="check" onClick={() => setConfirming(true)}>
+                Завершить
+              </Button>
+            </span>
           </>
         }
       >
@@ -116,7 +146,7 @@ export function SetView({ course, cfg }: { course: Course; cfg: DrillConfig }) {
         </div>
       </Panel>
       {confirming && (
-        <div role="alertdialog" aria-modal="true" aria-label="Завершить набор" className="fixed inset-0 z-40 grid place-items-center bg-black/50" onMouseDown={() => setConfirming(false)}>
+        <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-label="Завершить набор" onKeyDown={onDialogKey} className="fixed inset-0 z-40 grid place-items-center bg-black/50" onMouseDown={() => setConfirming(false)}>
           <div className="w-[min(420px,92vw)] rounded-lg border border-line-strong bg-panel p-5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
             <p className="text-[15px] font-semibold">Завершить набор?</p>
             <p className="mt-1 text-[13.5px] text-dim">{empty > 0 ? `Без ответа: ${empty}. Вернуться к ним после завершения будет нельзя.` : 'Проверка выполнится сразу.'}</p>
