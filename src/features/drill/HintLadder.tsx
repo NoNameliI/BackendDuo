@@ -9,7 +9,7 @@ export function HintLadder({ hints, shown, onReveal, disabled }: { hints: string
         <ol className="space-y-2">
           {hints.slice(0, shown).map((hint, i) => (
             <li key={i} className="animate-rise rounded border border-line bg-well px-3 py-2 text-[13.5px]">
-              <span className="mb-0.5 block font-mono text-[10.5px] uppercase tracking-[0.14em] text-amber">Подсказка {i + 1}</span>
+              <span className="mb-0.5 block font-mono text-[11px] uppercase tracking-[0.14em] text-amber">Подсказка {i + 1}</span>
               <Markdown source={hint} />
             </li>
           ))}

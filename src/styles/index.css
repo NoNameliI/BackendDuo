@@ -165,6 +165,13 @@
     background: var(--raised);
     border: 1px solid var(--line);
   }
+  /* Trainer statements: short tokens (addresses, masks, bit strings) never split, long ones break inside the column. */
+  .md-drill :not(pre) > code {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: baseline;
+    overflow-wrap: anywhere;
+  }
   .md table { border-collapse: collapse; font-size: 13px; }
   .md th, .md td { border: 1px solid var(--line); padding: 0.3em 0.7em; text-align: left; }
   .md th { background: var(--raised); font-weight: 600; }

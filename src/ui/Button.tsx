@@ -32,7 +32,7 @@ export function Button({ variant = 'ghost', icon, shortcut, children, className 
 
 export function Kbd({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <kbd className={`rounded-sm border border-current/25 px-1 font-mono text-[10px] leading-4 font-normal opacity-75 ${className}`}>
+    <kbd className={`rounded-sm border border-current/25 px-1 font-mono text-[11px] leading-4 font-normal opacity-75 ${className}`}>
       {children}
     </kbd>
   );
