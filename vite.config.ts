@@ -22,7 +22,13 @@ export default defineConfig({
   },
   clearScreen: false,
   // Fixed port and env prefix expected by the Tauri shell (src-tauri/tauri.conf.json).
-  server: { port: 1420, strictPort: true, watch: { ignored: ['**/src-tauri/**'] } },
+  // Plaintext course sources under private/ are never served, not even to localhost.
+  server: {
+    port: 1420,
+    strictPort: true,
+    watch: { ignored: ['**/src-tauri/**'] },
+    fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/private/**'] },
+  },
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   // PGlite ships its own WASM and data files; pre-bundling would break their relative URLs.
   optimizeDeps: { exclude: ['@electric-sql/pglite'] },

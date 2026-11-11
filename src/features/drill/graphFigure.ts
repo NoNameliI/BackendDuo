@@ -31,25 +31,25 @@ export function graphFigure(body: string): string | null {
   const edges = g.edges.filter((e) => at.has(e.a) && at.has(e.b));
   const label = `Граф. Рёбра: ${edges.map((e) => `${e.a}–${e.b}, вес ${e.w}`).join('; ')}`;
   const lines = edges
-    .map((e) => {
+    .map((e, i) => {
       const a = at.get(e.a)!;
       const b = at.get(e.b)!;
-      return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--dim)" stroke-width="1.5"/>`;
+      return `<line data-edge="${i}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--dim)" stroke-width="1.5"/>`;
     })
     .join('');
   const weights = edges
-    .map((e) => {
+    .map((e, i) => {
       const a = at.get(e.a)!;
       const b = at.get(e.b)!;
-      return `<text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2}" text-anchor="middle" dominant-baseline="central" font-size="13" fill="var(--amber)" stroke="var(--bg)" stroke-width="4" paint-order="stroke" style="font-family:var(--font-mono)">${escapeHtml(String(e.w))}</text>`;
+      return `<text data-edge="${i}" x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2}" text-anchor="middle" dominant-baseline="central" font-size="13" fill="var(--amber)" stroke="var(--bg)" stroke-width="4" paint-order="stroke" style="font-family:var(--font-mono)">${escapeHtml(String(e.w))}</text>`;
     })
     .join('');
   const nodes = g.nodes
     .map(
-      (n) =>
-        `<circle cx="${n.x}" cy="${n.y}" r="${R}" fill="var(--raised)" stroke="var(--nav)" stroke-width="1.5"/>` +
-        `<text x="${n.x}" y="${n.y}" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="var(--fg)" style="font-family:var(--font-mono)">${escapeHtml(n.label)}</text>`,
+      (n, i) =>
+        `<circle data-node="${i}" cx="${n.x}" cy="${n.y}" r="${R}" fill="var(--raised)" stroke="var(--nav)" stroke-width="1.5"/>` +
+        `<text data-node="${i}" x="${n.x}" y="${n.y}" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="var(--fg)" style="font-family:var(--font-mono)">${escapeHtml(n.label)}</text>`,
     )
     .join('');
-  return `<figure class="my-3"><svg role="img" aria-label="${escapeHtml(label)}" viewBox="${x0} ${y0} ${w} ${h}" width="${w}" style="max-width:100%;height:auto">${lines}${weights}${nodes}</svg></figure>`;
+  return `<figure class="my-3"><svg data-audit-graph role="img" aria-label="${escapeHtml(label)}" viewBox="${x0} ${y0} ${w} ${h}" width="${w}" style="max-width:100%;height:auto">${lines}${weights}${nodes}</svg></figure>`;
 }

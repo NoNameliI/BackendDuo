@@ -2,8 +2,6 @@
 // starter strictly; every generator shape needs a task; vocab lists must be big enough; theory examples must render.
 // The fixture course always runs; any course under private/*/course with engine "drill" runs when present.
 // Run with `npm run validate:content`.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadCourse, type Course, type Task } from '@/content/loadCourse';
 import { theoryExampleBlocks } from '@/content/theory';
@@ -13,34 +11,9 @@ import { makeInstance } from '@/engine/drill/instance';
 import { registry } from '@/engine/drill/registry';
 import { renderTemplate } from '@/engine/drill/render';
 import { LEVELS, type Instance, type Level } from '@/engine/drill/types';
+import { drillRoots, readTree } from './drillCourses.ts';
 
 const SEEDS = 30;
-
-function readTree(dir: string): Record<string, string> {
-  const files: Record<string, string> = {};
-  for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile()) continue;
-    const path = join(entry.parentPath, entry.name);
-    files[`/${relative(process.cwd(), path).replaceAll('\\', '/')}`] = readFileSync(path, 'utf8');
-  }
-  return files;
-}
-
-function drillRoots(): string[] {
-  const roots = ['src/engine/drill/fixture'];
-  if (existsSync('private')) {
-    for (const entry of readdirSync('private', { withFileTypes: true })) {
-      const manifest = join('private', entry.name, 'course', 'manifest.json');
-      if (!entry.isDirectory() || !existsSync(manifest)) continue;
-      try {
-        if (JSON.parse(readFileSync(manifest, 'utf8')).engine === 'drill') roots.push(`private/${entry.name}/course`);
-      } catch {
-        roots.push(`private/${entry.name}/course`); // let loadCourse report the broken manifest
-      }
-    }
-  }
-  return roots;
-}
 
 const isDrill = (t: Task): t is Task & DrillTask => t.type === 'drill';
 

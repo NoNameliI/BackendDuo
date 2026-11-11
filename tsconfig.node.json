@@ -9,6 +9,7 @@
   },
   "include": [
     "vite.config.ts",
+    "vite.audit.config.ts",
     "vitest.content.config.ts",
     "vitest.git-parity.config.ts",
     "src/**/*.test.ts",
