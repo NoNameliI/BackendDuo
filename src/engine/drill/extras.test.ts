@@ -47,10 +47,10 @@ describe('template extras', () => {
 
   it('g01 drawing lists every vertex once and every edge', () => {
     const { fields } = one('g01', 'core', 'edge', 5);
-    const d = fields.drawing as unknown as { nodes: { label: string; x: number; y: number }[]; edges: { a: string; b: string; w: number }[] };
+    const d = fields.drawing as unknown as { nodes: { label: string; x: number; y: number }[]; edges: { a: string; b: string; w: number; lx: number; ly: number }[] };
     expect(new Set(d.nodes.map((n) => n.label)).size).toBe(d.nodes.length);
     expect(new Set(d.nodes.map((n) => `${n.x},${n.y}`)).size).toBe(d.nodes.length);
-    expect(d.edges).toEqual(fields.edges);
+    expect(d.edges.map(({ a, b, w }) => ({ a, b, w }))).toEqual(fields.edges);
     expect(one('g01', 'core', 'edge', 5).fields.drawing).toEqual(fields.drawing);
   });
 

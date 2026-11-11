@@ -23,7 +23,7 @@ export function segDist(p: Pt, s: Seg): { d: number; t: number } {
   const dy = s.b.y - s.a.y;
   const len2 = dx * dx + dy * dy;
   const t = len2 < EPS ? 0 : Math.min(1, Math.max(0, ((p.x - s.a.x) * dx + (p.y - s.a.y) * dy) / len2));
-  return { d: Math.hypot(p.x - (s.a.x + t * dx), p.y - (s.a.y + t * dy)), t };
+  return { d: Math.sqrt((p.x - (s.a.x + t * dx)) ** 2 + (p.y - (s.a.y + t * dy)) ** 2), t };
 }
 
 /** Proper crossing point of two segments; touching at an endpoint (shared or not) is not a crossing. */

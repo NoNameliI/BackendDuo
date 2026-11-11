@@ -11,6 +11,7 @@
  *   Reject: the asked points do not have a unique colour; the graphs are not alike; no road for `edge`.
  */
 import { createRng, hashSeed } from '../rng';
+import { layoutGraph } from './shared/graphLayout';
 import { Reject, type Fields, type Generator, type Level, type Rng, type Solved } from '../types';
 
 export interface Edge {
@@ -157,20 +158,16 @@ function build(rng: Rng, level: Level, shape: 'edge' | 'path'): P01 {
   throw new Reject('no distinguishable pair');
 }
 
-const CX = 200;
-const CY = 160;
-const RADIUS = 130;
-
-/** The graph as a picture: vertices on a circle, slots shuffled by a stream derived from the params themselves. */
-function drawing(p: P01): Fields {
-  const rng = createRng(hashSeed('g01.drawing', p.n, ...p.edges.map((e) => `${e.a}-${e.b}-${e.w}`)));
-  const slots = rng.shuffle(Array.from({ length: p.n }, (_, i) => i));
+/** The graph as a picture: lattice positions and label plates from the layout search, its own stream per graph. */
+export function drawing(p: P01): Fields {
+  const edges = p.edges.map((e) => ({ a: e.a, b: e.b, text: String(e.w) }));
+  const key = p.edges.map((e) => `${e.a}-${e.b}-${e.w}`);
+  // A layout that had to fall back (no clean picture) is searched again on further geometry streams; the data never changes.
+  let lay = layoutGraph(p.n, edges, createRng(hashSeed('g01.layout', p.n, ...key)));
+  for (let k = 1; lay.fallback && k <= 4; k++) lay = layoutGraph(p.n, edges, createRng(hashSeed('g01.layout', k, p.n, ...key)));
   return {
-    nodes: Array.from({ length: p.n }, (_, i) => {
-      const angle = (2 * Math.PI * slots[i]) / p.n - Math.PI / 2;
-      return { label: LETTERS[i], x: Math.round(CX + RADIUS * Math.cos(angle)), y: Math.round(CY + RADIUS * Math.sin(angle)) };
-    }),
-    edges: p.edges.map((e) => ({ a: LETTERS[e.a], b: LETTERS[e.b], w: e.w })),
+    nodes: lay.nodes.map((pt, i) => ({ label: LETTERS[i], x: pt.x, y: pt.y })),
+    edges: p.edges.map((e, i) => ({ a: LETTERS[e.a], b: LETTERS[e.b], w: e.w, lx: lay.labels[i].x + lay.labels[i].w / 2, ly: lay.labels[i].y + lay.labels[i].h / 2 })),
   };
 }
 

@@ -44,7 +44,8 @@ for (const [id, gen] of Object.entries(registry)) {
         expect(Math.max(...tries), 'max tries').toBeLessThan(MAX_TRIES);
         times.sort((x, y) => x - y);
         expect(times[Math.floor(times.length * 0.95)], 'p95 ms').toBeLessThanOrEqual(50);
-      });
+        // 200 seeds of brute force: a slow machine needs more than vitest's default 5 s; the per-draw p95 above is the real limit.
+      }, 30_000);
 
     }
   });
@@ -64,19 +65,19 @@ it('first seeds of every level keep their stream', () => {
   expect(out).toMatchInlineSnapshot(`
     {
       "g01/base": [
-        "path #1 -> 10 (1 tries, 1717208645)",
-        "edge #2 -> 5 (1 tries, 1360618876)",
-        "path #3 -> 13 (1 tries, 2190208180)",
+        "path #1 -> 10 (1 tries, 3687287387)",
+        "edge #2 -> 5 (1 tries, 3920653376)",
+        "path #3 -> 13 (1 tries, 1379565569)",
       ],
       "g01/core": [
-        "path #1 -> 25 (1 tries, 77706228)",
-        "edge #2 -> 13 (1 tries, 3420751991)",
-        "path #3 -> 11 (1 tries, 3504602247)",
+        "path #1 -> 25 (1 tries, 684009313)",
+        "edge #2 -> 13 (1 tries, 898184599)",
+        "path #3 -> 11 (1 tries, 2070663339)",
       ],
       "g01/hard": [
-        "path #1 -> 27 (1 tries, 1568231114)",
-        "edge #2 -> 22 (1 tries, 984009489)",
-        "path #3 -> 34 (1 tries, 1068895481)",
+        "path #1 -> 27 (1 tries, 2386808841)",
+        "edge #2 -> 22 (1 tries, 3976069880)",
+        "path #3 -> 34 (1 tries, 748027304)",
       ],
       "g02/base": [
         "full #1 -> PQR (1 tries, 1986488647)",
@@ -378,6 +379,31 @@ it('first seeds of every level keep their stream', () => {
         "least #2 -> 22 (2 tries, 882854263)",
         "greatest #3 -> 42 (7 tries, 2407301887)",
       ],
+    }
+  `);
+});
+
+it('g01 data does not depend on the drawing', { timeout: 120000 }, () => {
+  const gen = registry.g01;
+  const out: Record<string, number> = {};
+  for (const level of LEVELS) {
+    for (const shape of gen.shapes) {
+      const parts: string[] = [];
+      for (const seed of SEEDS) {
+        const r = draw(gen, { seed, level, shape, vocab: {} });
+        parts.push(JSON.stringify({ ...gen.fields(r.params), drawing: null }), r.solved.answer, String(r.tries));
+      }
+      out[`${level}/${shape}`] = hashSeed(...parts);
+    }
+  }
+  expect(out).toMatchInlineSnapshot(`
+    {
+      "base/edge": 4004481357,
+      "base/path": 1999269371,
+      "core/edge": 740957360,
+      "core/path": 3276529643,
+      "hard/edge": 3137676342,
+      "hard/path": 1712979677,
     }
   `);
 });
