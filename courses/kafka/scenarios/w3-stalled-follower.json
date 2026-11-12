@@ -1,0 +1,18 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 40000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic orders --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "shop-api", "kind": "producer", "topic": "orders", "rate": 5, "count": 60, "message": { "body": "order {n}" }, "config": { "acks": "all" } },
+    { "id": "shipping", "kind": "consumer", "group": "shipping", "topics": ["orders"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [
+    { "at": 2000, "kind": "replica.stall", "broker": 2, "ms": 90000 },
+    { "at": 2000, "kind": "replica.stall", "broker": 3, "ms": 90000 }
+  ],
+  "expect": [
+    { "kind": "processedAtLeast", "actor": "shipping", "count": 60, "byMs": 15000 },
+    { "kind": "noLoss" }
+  ]
+}

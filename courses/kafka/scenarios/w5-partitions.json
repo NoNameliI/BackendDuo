@@ -1,0 +1,16 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 25000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic clicks --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "site", "kind": "producer", "topic": "clicks", "rate": 30, "count": 600, "message": { "key": "user-{n%20}", "body": "click {n}" }, "config": {} },
+    { "id": "stat-1", "kind": "consumer", "group": "stats", "topics": ["clicks"], "processMs": 60, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500, "max.poll.records": 5 } },
+    { "id": "stat-2", "kind": "consumer", "group": "stats", "topics": ["clicks"], "processMs": 60, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500, "max.poll.records": 5 } },
+    { "id": "stat-3", "kind": "consumer", "group": "stats", "topics": ["clicks"], "processMs": 60, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500, "max.poll.records": 5 } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "lagBelow", "group": "stats", "value": 60, "byMs": 18000 }
+  ]
+}

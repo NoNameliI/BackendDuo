@@ -1,0 +1,19 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 30000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic payments --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "pay-api", "kind": "producer", "topic": "payments", "rate": 5, "count": 40, "message": { "body": "payment {n}" }, "config": { "acks": 1 } },
+    { "id": "ledger", "kind": "consumer", "group": "ledger", "topics": ["payments"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [
+    { "at": 1000, "kind": "replica.stall", "broker": 2, "ms": 20000 },
+    { "at": 1000, "kind": "replica.stall", "broker": 3, "ms": 20000 },
+    { "at": 4000, "kind": "broker.crash", "broker": 1 }
+  ],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "processedAtLeast", "actor": "ledger", "count": 40, "byMs": 30000 }
+  ]
+}

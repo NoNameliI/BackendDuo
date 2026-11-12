@@ -1,0 +1,15 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 20000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic alerts --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "sensors", "kind": "producer", "topic": "alerts", "rate": 20, "count": 300, "message": { "body": "alert {n}" }, "config": { "linger.ms": 1000 } },
+    { "id": "pager", "kind": "consumer", "group": "pager", "topics": ["alerts"], "processMs": 5, "config": { "auto.offset.reset": "latest" } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "latencyP95Below", "ms": 300 },
+    { "kind": "processedAtLeast", "actor": "pager", "count": 200, "byMs": 20000 }
+  ]
+}

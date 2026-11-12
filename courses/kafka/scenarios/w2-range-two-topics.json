@@ -1,0 +1,14 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 40000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic invoices --partitions 1 --replication-factor 3\nkafka-topics.sh --bootstrap-server localhost:9092 --create --topic receipts --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "shop", "kind": "producer", "topic": "invoices", "rate": 8, "count": 120, "message": { "body": "invoice {n}", "key": "i-{n}" }, "config": {} },
+    { "id": "bank", "kind": "producer", "topic": "receipts", "rate": 8, "count": 120, "message": { "body": "receipt {n}", "key": "r-{n}" }, "config": {} },
+    { "id": "worker-1", "kind": "consumer", "group": "accounting", "topics": ["invoices", "receipts"], "processMs": 100, "config": { "auto.offset.reset": "earliest" } },
+    { "id": "worker-2", "kind": "consumer", "group": "accounting", "topics": ["invoices", "receipts"], "processMs": 100, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [],
+  "expect": [ { "kind": "lagBelow", "group": "accounting", "value": 10, "byMs": 25000 } ]
+}

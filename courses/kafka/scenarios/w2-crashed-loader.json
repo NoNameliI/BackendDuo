@@ -1,0 +1,13 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 70000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic pallets --partitions 4 --replication-factor 3",
+  "actors": [
+    { "id": "gate", "kind": "producer", "topic": "pallets", "rate": 10, "count": 500, "message": { "body": "pallet {n}", "key": "p-{n}" }, "config": {} },
+    { "id": "stacker-a", "kind": "consumer", "group": "stackers", "topics": ["pallets"], "processMs": 50, "config": { "auto.offset.reset": "earliest" } },
+    { "id": "stacker-b", "kind": "consumer", "group": "stackers", "topics": ["pallets"], "processMs": 50, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [ { "at": 10000, "kind": "consumer.crash", "actor": "stacker-b" } ],
+  "expect": [ { "kind": "lagBelow", "group": "stackers", "value": 60, "byMs": 40000 } ]
+}

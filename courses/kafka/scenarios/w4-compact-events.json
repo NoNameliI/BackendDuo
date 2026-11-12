@@ -1,0 +1,15 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 10000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic payments --partitions 1 --replication-factor 3 --config cleanup.policy=compact",
+  "actors": [
+    { "id": "checkout", "kind": "producer", "topic": "payments", "rate": 5, "count": 20, "message": { "body": "payment {n}" }, "config": {} },
+    { "id": "ledger", "kind": "consumer", "group": "ledger", "topics": ["payments"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "processedAtLeast", "actor": "ledger", "count": 20, "byMs": 10000 }
+  ]
+}

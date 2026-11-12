@@ -6,6 +6,9 @@
   "flavor": "rabbit",
   "errors": "errors.json",
   "solutionAfterAttempts": 3,
+  "companions": [
+    "brokers"
+  ],
   "scenarios": {
     "mail-crash": "scenarios/mail-crash.json",
     "billing-dup": "scenarios/billing-dup.json"
@@ -161,49 +164,74 @@
       "title": "Сборщик схем",
       "description": "Решено 3 задания на сборку топологии",
       "glyph": "TOP",
-      "rule": { "kind": "tasksOfType", "type": "topology", "count": 3 }
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "topology",
+        "count": 3
+      }
     },
     {
       "id": "route-master",
       "title": "Маршрутизатор",
       "description": "Решено 5 заданий на маршрутизацию",
       "glyph": "RK",
-      "rule": { "kind": "tasksOfType", "type": "routing", "count": 5 }
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "routing",
+        "count": 5
+      }
     },
     {
       "id": "console-operator",
       "title": "Оператор консоли",
       "description": "Решено 8 заданий в консоли брокера",
       "glyph": "CLI",
-      "rule": { "kind": "tasksOfType", "type": "console", "count": 8 }
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "console",
+        "count": 8
+      }
     },
     {
       "id": "incident-solver",
       "title": "Разбор сбоев",
       "description": "Решено 8 сценариев со сбоями",
       "glyph": "DLX",
-      "rule": { "kind": "tasksOfType", "type": "scenario", "count": 8 }
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "scenario",
+        "count": 8
+      }
     },
     {
       "id": "routing-world",
       "title": "Маршруты освоены",
       "description": "Пройден мир «Маршрутизация»",
       "glyph": "EX",
-      "rule": { "kind": "worldCompleted", "world": "rmq-w2" }
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "rmq-w2"
+      }
     },
     {
       "id": "reliable-delivery",
       "title": "Доставка без потерь",
       "description": "Пройден мир «Надёжность»",
       "glyph": "ACK",
-      "rule": { "kind": "worldCompleted", "world": "rmq-w3" }
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "rmq-w3"
+      }
     },
     {
       "id": "clean-hands",
       "title": "Чистая работа",
       "description": "10 заданий решено с первой попытки",
       "glyph": "1st",
-      "rule": { "kind": "firstTry", "count": 10 }
+      "rule": {
+        "kind": "firstTry",
+        "count": 10
+      }
     }
   ],
   "placement": "placement.json",

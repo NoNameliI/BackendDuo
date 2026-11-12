@@ -1,0 +1,17 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 30000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic bookings --partitions 1 --replication-factor 3 --config min.insync.replicas=3",
+  "actors": [
+    { "id": "booking-api", "kind": "producer", "topic": "bookings", "rate": 5, "count": 50, "message": { "body": "booking {n}" }, "config": { "acks": "all" } },
+    { "id": "notifier", "kind": "consumer", "group": "notifier", "topics": ["bookings"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [
+    { "at": 3000, "kind": "broker.crash", "broker": 3 }
+  ],
+  "expect": [
+    { "kind": "processedAtLeast", "actor": "notifier", "count": 50, "byMs": 25000 },
+    { "kind": "noLoss" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 120000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic exports --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "office", "kind": "producer", "topic": "exports", "rate": 5, "count": 100, "message": { "body": "export {n}", "key": "e-{n}" }, "config": {} },
+    { "id": "exporter", "kind": "consumer", "group": "exports", "topics": ["exports"], "processMs": 1000, "config": { "auto.offset.reset": "earliest", "max.poll.interval.ms": 10000 } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "processedAtLeast", "actor": "exporter", "count": 100, "byMs": 120000 },
+    { "kind": "noDuplicateProcessing", "actor": "exporter" }
+  ]
+}

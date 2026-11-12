@@ -1,0 +1,16 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 4000,
+  "setup": "rabbitmqadmin exchanges declare --name paid --type direct --durable true\nrabbitmqadmin queues declare --name receipts --type classic --durable true\nrabbitmqadmin queues declare --name analytics --type classic --durable true\nrabbitmqadmin bindings declare --source paid --destination-type queue --destination receipts --routing-key paid",
+  "actors": [
+    { "id": "shop", "kind": "producer", "rate": 10, "count": 6, "message": { "body": "order {n} paid", "exchange": "paid", "routingKey": "paid" }, "config": {} },
+    { "id": "mailer", "kind": "consumer", "queue": "receipts", "processMs": 100, "config": { "auto_ack": false } },
+    { "id": "stats", "kind": "consumer", "queue": "analytics", "processMs": 100, "config": { "auto_ack": false } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "processedAtLeast", "actor": "mailer", "count": 6, "byMs": 4000 },
+    { "kind": "processedAtLeast", "actor": "stats", "count": 6, "byMs": 4000 }
+  ]
+}

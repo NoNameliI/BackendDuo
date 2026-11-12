@@ -1,0 +1,17 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 20000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic balance --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "wallet-api", "kind": "producer", "topic": "balance", "rate": 1000, "count": 100, "message": { "key": "wallet-7", "body": "change {n}" }, "config": { "acks": "all", "enable.idempotence": false, "linger.ms": 0, "batch.size": 1 } },
+    { "id": "statement", "kind": "consumer", "group": "statement", "topics": ["balance"], "processMs": 10, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [
+    { "at": 200, "kind": "produce.error", "actor": "wallet-api", "code": 6, "count": 1 }
+  ],
+  "expect": [
+    { "kind": "orderedByKey", "actor": "statement" },
+    { "kind": "processedAtLeast", "actor": "statement", "count": 100, "byMs": 15000 }
+  ]
+}

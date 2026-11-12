@@ -1,0 +1,85 @@
+{
+  "id": "brokers",
+  "title": "Kafka или RabbitMQ",
+  "description": "Общий мир двух курсов: когда нужна очередь задач, а когда журнал событий.",
+  "engine": "broker",
+  "companion": true,
+  "errors": "errors.json",
+  "solutionAfterAttempts": 3,
+  "worlds": [
+    {
+      "id": "brk-w1",
+      "title": "Kafka или RabbitMQ",
+      "summary": "Сценарии выбора, задачи и события, порядок и повторное чтение, сводная таблица и типичные ошибки.",
+      "lessons": [
+        {
+          "id": "brk-choose",
+          "file": "w1/01-choose.md"
+        },
+        {
+          "id": "brk-tasks-events",
+          "file": "w1/02-tasks-vs-events.md"
+        },
+        {
+          "id": "brk-order-replay",
+          "file": "w1/03-order-replay.md"
+        },
+        {
+          "id": "brk-summary",
+          "file": "w1/04-summary.md"
+        },
+        {
+          "id": "brk-mistakes",
+          "file": "w1/05-mistakes.md"
+        }
+      ]
+    }
+  ],
+  "levels": [
+    {
+      "xp": 0,
+      "title": "Наблюдатель"
+    },
+    {
+      "xp": 60,
+      "title": "Сравнивающий"
+    },
+    {
+      "xp": 150,
+      "title": "Выбирающий брокер"
+    }
+  ],
+  "badges": [
+    {
+      "id": "brk-first",
+      "title": "Первый выбор",
+      "description": "Решено первое задание общего мира",
+      "glyph": "VS",
+      "rule": {
+        "kind": "tasksSolved",
+        "count": 1
+      }
+    },
+    {
+      "id": "brk-world-done",
+      "title": "Выбор сделан",
+      "description": "Пройден мир «Kafka или RabbitMQ»",
+      "glyph": "K/R",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "brk-w1"
+      }
+    },
+    {
+      "id": "brk-scenario-solver",
+      "title": "Оба брокера в деле",
+      "description": "Решено 3 сценария общего мира на двух симуляторах",
+      "glyph": "SCN",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "scenario",
+        "count": 3
+      }
+    }
+  ]
+}

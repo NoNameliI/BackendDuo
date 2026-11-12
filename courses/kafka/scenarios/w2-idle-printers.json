@@ -1,0 +1,15 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 30000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic labels --partitions 2 --replication-factor 3",
+  "actors": [
+    { "id": "gate", "kind": "producer", "topic": "labels", "rate": 20, "count": 200, "message": { "body": "label {n}", "key": "box-{n%8}" }, "config": {} },
+    { "id": "printer-1", "kind": "consumer", "group": "printers", "topics": ["labels"], "processMs": 100, "config": { "auto.offset.reset": "earliest" } },
+    { "id": "printer-2", "kind": "consumer", "group": "printers", "topics": ["labels"], "processMs": 100, "config": { "auto.offset.reset": "earliest" } },
+    { "id": "printer-3", "kind": "consumer", "group": "printers", "topics": ["labels"], "processMs": 100, "config": { "auto.offset.reset": "earliest" } },
+    { "id": "printer-4", "kind": "consumer", "group": "printers", "topics": ["labels"], "processMs": 100, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [],
+  "expect": [ { "kind": "lagBelow", "group": "printers", "value": 10, "byMs": 13000 } ]
+}

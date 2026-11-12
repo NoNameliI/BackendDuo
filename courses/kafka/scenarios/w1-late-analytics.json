@@ -1,0 +1,12 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 20000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic clicks --partitions 1 --replication-factor 1",
+  "actors": [
+    { "id": "site", "kind": "producer", "topic": "clicks", "rate": 10, "count": 20, "message": { "body": "click {n}" }, "config": {} },
+    { "id": "analytics", "kind": "consumer", "topic": "clicks", "group": "analytics", "processMs": 20, "config": { "auto.offset.reset": "latest" } }
+  ],
+  "faults": [],
+  "expect": [{ "kind": "processedAtLeast", "actor": "analytics", "count": 20, "byMs": 20000 }]
+}

@@ -3,7 +3,9 @@
     "postgres",
     "git",
     "api",
-    "rabbitmq"
+    "rabbitmq",
+    "kafka",
+    "brokers"
   ],
   "levels": [
     {

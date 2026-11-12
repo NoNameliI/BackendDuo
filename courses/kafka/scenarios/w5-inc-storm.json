@@ -1,0 +1,22 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 40000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic shipments --partitions 4 --replication-factor 3",
+  "actors": [
+    { "id": "orders-api", "kind": "producer", "topic": "shipments", "rate": 40, "count": 800, "message": { "key": "parcel-{n}", "body": "shipment {n}" }, "config": {} },
+    { "id": "ship-1", "kind": "consumer", "group": "delivery", "topics": ["shipments"], "processMs": 40, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500, "max.poll.interval.ms": 3000 } },
+    { "id": "ship-2", "kind": "consumer", "group": "delivery", "topics": ["shipments"], "processMs": 40, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500, "max.poll.interval.ms": 3000 } }
+  ],
+  "faults": [
+    { "at": 0, "kind": "consumer.stop", "actor": "ship-1" },
+    { "at": 0, "kind": "consumer.stop", "actor": "ship-2" },
+    { "at": 8000, "kind": "consumer.start", "actor": "ship-1" },
+    { "at": 8000, "kind": "consumer.start", "actor": "ship-2" }
+  ],
+  "expect": [
+    { "kind": "lagBelow", "group": "delivery", "value": 100, "byMs": 30000 },
+    { "kind": "noDuplicateProcessing", "actor": "ship-1" },
+    { "kind": "noDuplicateProcessing", "actor": "ship-2" }
+  ]
+}

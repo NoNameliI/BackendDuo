@@ -1,0 +1,19 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 20000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic payments --partitions 3 --replication-factor 3",
+  "actors": [
+    { "id": "checkout", "kind": "producer", "topic": "payments", "rate": 30, "count": 600, "message": { "key": "order-{n}", "body": "payment {n}" }, "config": {} },
+    { "id": "pay-1", "kind": "consumer", "group": "billing", "topics": ["payments"], "processMs": 60, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500, "max.poll.records": 5 } },
+    { "id": "pay-2", "kind": "consumer", "group": "billing", "topics": ["payments"], "processMs": 60, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500, "max.poll.records": 5 } },
+    { "id": "pay-3", "kind": "consumer", "group": "billing", "topics": ["payments"], "processMs": 60, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500, "max.poll.records": 5 } }
+  ],
+  "faults": [
+    { "at": 0, "kind": "consumer.stop", "actor": "pay-2" },
+    { "at": 0, "kind": "consumer.stop", "actor": "pay-3" }
+  ],
+  "expect": [
+    { "kind": "lagBelow", "group": "billing", "value": 50, "byMs": 15000 }
+  ]
+}

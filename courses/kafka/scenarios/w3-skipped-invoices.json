@@ -1,0 +1,15 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 30000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic invoices --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "erp-api", "kind": "producer", "topic": "invoices", "rate": 10, "count": 50, "message": { "body": "invoice {n}" }, "config": { "acks": "all" } },
+    { "id": "accounting", "kind": "consumer", "group": "accounting", "topics": ["invoices"], "processMs": 20, "failEveryN": 5, "config": { "auto.offset.reset": "earliest", "on_error": "skip" } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "processedAtLeast", "actor": "accounting", "count": 50, "byMs": 25000 },
+    { "kind": "noDuplicateProcessing", "actor": "accounting" }
+  ]
+}

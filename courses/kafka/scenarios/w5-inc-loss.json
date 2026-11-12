@@ -1,0 +1,19 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 40000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic ledger --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "bank", "kind": "producer", "topic": "ledger", "rate": 10, "count": 200, "message": { "key": "acc-{n%5}", "body": "entry {n}" }, "config": { "acks": "1" } },
+    { "id": "audit", "kind": "consumer", "group": "audit", "topics": ["ledger"], "processMs": 20, "config": { "auto.offset.reset": "earliest", "auto.commit.interval.ms": 500 } }
+  ],
+  "faults": [
+    { "at": 1000, "kind": "replica.stall", "broker": 2, "ms": 15000 },
+    { "at": 1000, "kind": "replica.stall", "broker": 3, "ms": 15000 },
+    { "at": 8000, "kind": "broker.crash", "broker": 1 }
+  ],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "processedAtLeast", "actor": "audit", "count": 190, "byMs": 40000 }
+  ]
+}

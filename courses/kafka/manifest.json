@@ -1,0 +1,231 @@
+{
+  "id": "kafka",
+  "title": "Apache Kafka",
+  "description": "Журнал событий на практике: топики и партиции, ключи и группы потребителей, репликация и хранение. Учебная модель Kafka работает прямо в приложении, ничего устанавливать не нужно.",
+  "engine": "broker",
+  "flavor": "kafka",
+  "errors": "errors.json",
+  "solutionAfterAttempts": 3,
+  "companions": [
+    "brokers"
+  ],
+  "worlds": [
+    {
+      "id": "kfk-w1",
+      "title": "Основы",
+      "summary": "Лог, offset и запись; топики и партиции; чем Kafka отличается от очереди.",
+      "lessons": [
+        {
+          "id": "kfk-log-offset",
+          "file": "w1/01-log-offset.md"
+        },
+        {
+          "id": "kfk-topic-partitions",
+          "file": "w1/02-topic-partitions.md"
+        },
+        {
+          "id": "kfk-not-a-queue",
+          "file": "w1/03-not-a-queue.md"
+        }
+      ]
+    },
+    {
+      "id": "kfk-w2",
+      "title": "Ключи и группы",
+      "summary": "Ключ и выбор партиции, порядок, группы потребителей, ребаланс и lag.",
+      "lessons": [
+        {
+          "id": "kfk-keys",
+          "file": "w2/01-keys-murmur2.md"
+        },
+        {
+          "id": "kfk-order",
+          "file": "w2/02-partition-order.md"
+        },
+        {
+          "id": "kfk-groups",
+          "file": "w2/03-groups-assignors.md"
+        },
+        {
+          "id": "kfk-rebalance-lag",
+          "file": "w2/04-rebalance-lag.md"
+        }
+      ]
+    },
+    {
+      "id": "kfk-w3",
+      "title": "Надёжность",
+      "summary": "Репликация, ISR и HW, acks и min.insync.replicas, идемпотентность, коммиты и семантики доставки.",
+      "lessons": [
+        {
+          "id": "kfk-replication",
+          "file": "w3/01-replication-isr.md"
+        },
+        {
+          "id": "kfk-acks",
+          "file": "w3/02-acks-min-isr.md"
+        },
+        {
+          "id": "kfk-idempotence",
+          "file": "w3/03-idempotence-retries.md"
+        },
+        {
+          "id": "kfk-commits",
+          "file": "w3/04-commits-semantics.md"
+        }
+      ]
+    },
+    {
+      "id": "kfk-w4",
+      "title": "Хранение",
+      "summary": "Retention и сегменты, compaction и tombstone, батчинг и сжатие.",
+      "lessons": [
+        {
+          "id": "kfk-retention",
+          "file": "w4/01-retention-segments.md"
+        },
+        {
+          "id": "kfk-compaction",
+          "file": "w4/02-compaction.md"
+        },
+        {
+          "id": "kfk-batching",
+          "file": "w4/03-batching-compression.md"
+        }
+      ]
+    },
+    {
+      "id": "kfk-w5",
+      "title": "Экосистема и эксплуатация",
+      "summary": "Connect, Streams, Schema Registry, KRaft, выбор числа партиций и разбор инцидентов.",
+      "lessons": [
+        {
+          "id": "kfk-ecosystem",
+          "file": "w5/01-connect-streams-registry.md"
+        },
+        {
+          "id": "kfk-kraft",
+          "file": "w5/02-kraft.md"
+        },
+        {
+          "id": "kfk-partition-count",
+          "file": "w5/03-partition-count.md"
+        },
+        {
+          "id": "kfk-incidents",
+          "file": "w5/04-incidents.md"
+        }
+      ]
+    }
+  ],
+  "levels": [
+    {
+      "xp": 0,
+      "title": "Читатель лога"
+    },
+    {
+      "xp": 60,
+      "title": "Продюсер"
+    },
+    {
+      "xp": 150,
+      "title": "Потребитель группы"
+    },
+    {
+      "xp": 300,
+      "title": "Хранитель партиций"
+    },
+    {
+      "xp": 500,
+      "title": "Архитектор потоков"
+    }
+  ],
+  "badges": [
+    {
+      "id": "kfk-first-record",
+      "title": "Первая запись",
+      "description": "Решено первое задание курса Kafka",
+      "glyph": "LOG",
+      "rule": {
+        "kind": "tasksSolved",
+        "count": 1
+      }
+    },
+    {
+      "id": "kfk-topology-builder",
+      "title": "Сборщик топологий",
+      "description": "Решено 3 задания на сборку топологии",
+      "glyph": "TOP",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "topology",
+        "count": 3
+      }
+    },
+    {
+      "id": "kfk-key-master",
+      "title": "Мастер ключей",
+      "description": "Решено 3 задания на маршрутизацию записей по ключам",
+      "glyph": "KEY",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "routing",
+        "count": 3
+      }
+    },
+    {
+      "id": "kfk-console-operator",
+      "title": "Оператор консоли",
+      "description": "Решено 6 заданий в консоли Kafka",
+      "glyph": "CLI",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "console",
+        "count": 6
+      }
+    },
+    {
+      "id": "kfk-incident-solver",
+      "title": "Разбор сбоев",
+      "description": "Решено 8 сценариев со сбоями",
+      "glyph": "LAG",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "scenario",
+        "count": 8
+      }
+    },
+    {
+      "id": "kfk-keys-world",
+      "title": "Ключи и группы освоены",
+      "description": "Пройден мир «Ключи и группы»",
+      "glyph": "GRP",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "kfk-w2"
+      }
+    },
+    {
+      "id": "kfk-reliable-world",
+      "title": "Запись без потерь",
+      "description": "Пройден мир «Надёжность»",
+      "glyph": "ISR",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "kfk-w3"
+      }
+    },
+    {
+      "id": "kfk-clean-hands",
+      "title": "Чистая работа",
+      "description": "10 заданий Kafka решено с первой попытки",
+      "glyph": "1st",
+      "rule": {
+        "kind": "firstTry",
+        "count": 10
+      }
+    }
+  ],
+  "placement": "placement.json",
+  "onboarding": "onboarding.json"
+}

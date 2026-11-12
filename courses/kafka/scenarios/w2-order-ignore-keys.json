@@ -1,0 +1,16 @@
+{
+  "sim": "kafka",
+  "seed": 2,
+  "durationMs": 20000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic parcel-status --partitions 4 --replication-factor 3",
+  "actors": [
+    { "id": "tracker", "kind": "producer", "topic": "parcel-status", "rate": 20, "count": 80, "message": { "body": "status {n}", "key": "parcel-{n%4}" }, "config": { "partitioner.ignore.keys": true, "batch.size": 64 } },
+    { "id": "notifier", "kind": "consumer", "group": "notifications", "topics": ["parcel-status"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "orderedByKey", "actor": "notifier" },
+    { "kind": "processedAtLeast", "actor": "notifier", "count": 80, "byMs": 20000 }
+  ]
+}

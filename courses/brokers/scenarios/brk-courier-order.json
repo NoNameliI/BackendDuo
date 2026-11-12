@@ -1,0 +1,16 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 20000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic courier-events --partitions 3 --replication-factor 3",
+  "actors": [
+    { "id": "courier-app", "kind": "producer", "topic": "courier-events", "rate": 20, "count": 60, "message": { "body": "event {n}", "key": "courier-{n%3}" }, "config": { "partitioner.ignore.keys": true, "batch.size": 64 } },
+    { "id": "dispatcher", "kind": "consumer", "group": "dispatch", "topics": ["courier-events"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "orderedByKey", "actor": "dispatcher" },
+    { "kind": "processedAtLeast", "actor": "dispatcher", "count": 60, "byMs": 20000 }
+  ]
+}

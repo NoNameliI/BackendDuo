@@ -1,0 +1,16 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 20000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic payments --partitions 1 --replication-factor 1",
+  "actors": [
+    { "id": "gateway", "kind": "producer", "topic": "payments", "rate": 10, "count": 15, "message": { "body": "payment {n}" }, "config": {} },
+    { "id": "billing", "kind": "consumer", "group": "billing", "topics": ["payments"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } },
+    { "id": "audit", "kind": "consumer", "group": "audit", "topics": ["payments"], "processMs": 20, "config": { "auto.offset.reset": "latest" } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "processedAtLeast", "actor": "billing", "count": 15, "byMs": 20000 },
+    { "kind": "processedAtLeast", "actor": "audit", "count": 15, "byMs": 20000 }
+  ]
+}

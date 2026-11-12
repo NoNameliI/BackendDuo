@@ -1,0 +1,18 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 12000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic paid --partitions 1 --replication-factor 1",
+  "actors": [
+    { "id": "shop", "kind": "producer", "topic": "paid", "rate": 20, "count": 12, "message": { "body": "order {n} paid", "key": "order-{n}" }, "config": {} },
+    { "id": "mailer-1", "kind": "consumer", "group": "mailers", "topics": ["paid"], "processMs": 400, "config": { "auto.offset.reset": "earliest" } },
+    { "id": "mailer-2", "kind": "consumer", "group": "mailers", "topics": ["paid"], "processMs": 400, "config": { "auto.offset.reset": "earliest" } },
+    { "id": "stats", "kind": "consumer", "group": "analytics", "topics": ["paid"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "processedAtLeast", "actor": "stats", "count": 12, "byMs": 12000 },
+    { "kind": "processedAtLeast", "actor": "mailer-1", "count": 3, "byMs": 12000 },
+    { "kind": "processedAtLeast", "actor": "mailer-2", "count": 3, "byMs": 12000 }
+  ]
+}

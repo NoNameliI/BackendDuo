@@ -1,0 +1,24 @@
+{
+  "questions": "placement.md",
+  "passThreshold": 2,
+  "blocks": [
+    {
+      "id": "log-partitions-keys",
+      "title": "Лог, партиции и ключи",
+      "questions": ["kfk-pl-read-twice", "kfk-pl-key", "kfk-pl-order"],
+      "unlocks": ["kfk-log-offset", "kfk-topic-partitions", "kfk-not-a-queue", "kfk-keys", "kfk-order"]
+    },
+    {
+      "id": "groups-reliability",
+      "title": "Группы и надёжность",
+      "questions": ["kfk-pl-group", "kfk-pl-acks", "kfk-pl-commit"],
+      "unlocks": ["kfk-replication", "kfk-acks", "kfk-idempotence", "kfk-commits"]
+    },
+    {
+      "id": "storage",
+      "title": "Хранение",
+      "questions": ["kfk-pl-retention", "kfk-pl-compaction", "kfk-pl-tombstone"],
+      "unlocks": ["kfk-retention", "kfk-compaction", "kfk-batching"]
+    }
+  ]
+}

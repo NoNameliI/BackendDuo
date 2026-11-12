@@ -1,0 +1,15 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 60000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic sales --partitions 1 --replication-factor 1 --config segment.ms=2000 --config retention.ms=6000",
+  "actors": [
+    { "id": "cashier", "kind": "producer", "topic": "sales", "rate": 10, "count": 60, "message": { "body": "sale {n}" }, "config": {} },
+    { "id": "reports", "kind": "consumer", "group": "reports", "topics": ["sales"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [
+    { "at": 0, "kind": "consumer.stop", "actor": "reports" },
+    { "at": 30000, "kind": "consumer.start", "actor": "reports" }
+  ],
+  "expect": [{ "kind": "processedAtLeast", "actor": "reports", "count": 60, "byMs": 60000 }]
+}

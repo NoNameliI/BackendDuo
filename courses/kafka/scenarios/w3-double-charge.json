@@ -1,0 +1,18 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 20000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic charges --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "billing-api", "kind": "producer", "topic": "charges", "rate": 5, "count": 20, "message": { "body": "charge {n}" }, "config": { "acks": "all", "enable.idempotence": false, "request.timeout.ms": 1000 } },
+    { "id": "cashier", "kind": "consumer", "group": "cashier", "topics": ["charges"], "processMs": 20, "config": { "auto.offset.reset": "earliest" } }
+  ],
+  "faults": [
+    { "at": 1000, "kind": "ack.lost", "actor": "billing-api" }
+  ],
+  "expect": [
+    { "kind": "noDuplicateProcessing", "actor": "cashier" },
+    { "kind": "processedAtLeast", "actor": "cashier", "count": 20, "byMs": 15000 },
+    { "kind": "noLoss" }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "sim": "kafka",
+  "seed": 1,
+  "durationMs": 90000,
+  "setup": "kafka-topics.sh --bootstrap-server localhost:9092 --create --topic receipts --partitions 1 --replication-factor 3",
+  "actors": [
+    { "id": "shop-api", "kind": "producer", "topic": "receipts", "rate": 5, "count": 100, "message": { "body": "receipt {n}" }, "config": { "acks": "all" } },
+    { "id": "mailer", "kind": "consumer", "group": "mailer", "topics": ["receipts"], "processMs": 20, "config": { "auto.offset.reset": "earliest", "enable.auto.commit": true, "idempotent": false } }
+  ],
+  "faults": [
+    { "at": 9000, "kind": "consumer.crash", "actor": "mailer", "afterProcess": true }
+  ],
+  "expect": [
+    { "kind": "noDuplicateProcessing", "actor": "mailer" },
+    { "kind": "processedAtLeast", "actor": "mailer", "count": 100, "byMs": 85000 },
+    { "kind": "noLoss" }
+  ]
+}
