@@ -1,0 +1,12 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 6000,
+  "setup": "rabbitmqadmin exchanges declare --name mail --type direct --durable true\nrabbitmqadmin exchanges declare --name mail.retry --type direct --durable true\nrabbitmqadmin queues declare --name emails --type classic --durable true --arguments '{\"x-dead-letter-exchange\": \"mail.retry\"}'\nrabbitmqadmin bindings declare --source mail --destination-type queue --destination emails --routing-key send",
+  "actors": [
+    { "id": "shop", "kind": "producer", "rate": 10, "count": 6, "message": { "body": "letter {n}", "exchange": "mail", "routingKey": "send" }, "config": {} },
+    { "id": "mailer", "kind": "consumer", "queue": "emails", "processMs": 100, "failEveryN": 3, "config": { "auto_ack": false, "on_error": "reject-drop" } }
+  ],
+  "faults": [],
+  "expect": [{ "kind": "noLoss" }, { "kind": "processedAtLeast", "actor": "mailer", "count": 6, "byMs": 6000 }]
+}

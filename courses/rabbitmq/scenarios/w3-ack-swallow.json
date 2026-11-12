@@ -1,0 +1,12 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 4000,
+  "setup": "rabbitmqadmin queues declare --name refunds --type classic --durable true",
+  "actors": [
+    { "id": "bank-api", "kind": "producer", "rate": 10, "count": 6, "message": { "body": "refund {n}", "exchange": "", "routingKey": "refunds" }, "config": {} },
+    { "id": "refunder", "kind": "consumer", "queue": "refunds", "processMs": 100, "failEveryN": 3, "config": { "auto_ack": false, "on_error": "ack" } }
+  ],
+  "faults": [],
+  "expect": [ { "kind": "noLoss" }, { "kind": "processedAtLeast", "actor": "refunder", "count": 6, "byMs": 4000 } ]
+}

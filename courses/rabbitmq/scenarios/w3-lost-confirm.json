@@ -1,0 +1,12 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 5000,
+  "setup": "rabbitmqadmin queues declare --name transfers --type classic --durable true",
+  "actors": [
+    { "id": "bank-app", "kind": "producer", "rate": 5, "count": 5, "message": { "body": "transfer {n}", "exchange": "", "routingKey": "transfers", "props": { "delivery_mode": 2 } }, "config": { "confirms": true } },
+    { "id": "ledger", "kind": "consumer", "queue": "transfers", "processMs": 50, "config": { "auto_ack": false, "idempotent": false } }
+  ],
+  "faults": [ { "at": 350, "kind": "ack.lost", "actor": "bank-app" } ],
+  "expect": [ { "kind": "noLoss" }, { "kind": "noDuplicateProcessing", "actor": "ledger" }, { "kind": "allConfirmed" }, { "kind": "processedAtLeast", "actor": "ledger", "count": 5, "byMs": 5000 } ]
+}

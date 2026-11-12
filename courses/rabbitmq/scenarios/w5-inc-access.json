@@ -1,0 +1,15 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 4000,
+  "setup": "rabbitmqctl add_vhost shop\nrabbitmqctl set_permissions -p shop guest \".*\" \".*\" \".*\"\nrabbitmqctl add_user web demo-pass\nrabbitmqctl add_user packer demo-pass\nrabbitmqctl set_permissions -p shop web \"\" \"^orders$\" \"\"\nrabbitmqctl set_permissions -p shop packer \"\" \"\" \"^pack-jobs$\"\nrabbitmqadmin --vhost shop exchanges declare --name orders --type direct --durable true\nrabbitmqadmin --vhost shop queues declare --name packing --type classic --durable true\nrabbitmqadmin --vhost shop bindings declare --source orders --destination-type queue --destination packing --routing-key pack",
+  "actors": [
+    { "id": "web", "kind": "producer", "rate": 10, "count": 20, "message": { "body": "order {n}", "exchange": "orders", "routingKey": "pack" }, "config": { "user": "web", "vhost": "shop" } },
+    { "id": "packer", "kind": "consumer", "queue": "packing", "processMs": 50, "config": { "user": "packer", "vhost": "shop", "auto_ack": false, "prefetch_count": 1 } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "depthBelow", "queue": "shop:packing", "value": 2, "byMs": 3000 },
+    { "kind": "processedAtLeast", "actor": "packer", "count": 20, "byMs": 4000 }
+  ]
+}

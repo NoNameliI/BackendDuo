@@ -1,0 +1,13 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 3000,
+  "setup": "",
+  "actors": [
+    { "id": "reports", "kind": "producer", "rate": 100, "count": 10, "message": { "body": "report {n}", "exchange": "", "routingKey": "support", "props": { "priority": 1 } }, "config": {} },
+    { "id": "alarms", "kind": "producer", "rate": 5, "count": 2, "message": { "body": "alarm {n}", "exchange": "", "routingKey": "support", "props": { "priority": 9, "expiration": "300" } }, "config": {} },
+    { "id": "agent", "kind": "consumer", "queue": "support", "processMs": 100, "config": { "auto_ack": false, "prefetch_count": 1 } }
+  ],
+  "faults": [],
+  "expect": [{ "kind": "noLoss" }, { "kind": "processedAtLeast", "actor": "agent", "count": 12, "byMs": 3000 }]
+}

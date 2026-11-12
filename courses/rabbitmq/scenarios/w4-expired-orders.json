@@ -1,0 +1,11 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 4000,
+  "setup": "rabbitmqadmin exchanges declare --name orders.dlx --type fanout --durable true\nrabbitmqadmin queues declare --name orders.expired --type classic --durable true\nrabbitmqadmin bindings declare --source orders.dlx --destination-type queue --destination orders.expired --routing-key \"\"",
+  "actors": [
+    { "id": "shop", "kind": "producer", "rate": 10, "count": 5, "message": { "body": "order {n}", "exchange": "", "routingKey": "orders.unpaid" }, "config": {} }
+  ],
+  "faults": [],
+  "expect": [{ "kind": "noLoss" }, { "kind": "dlqContains", "queue": "orders.expired", "count": 5, "reason": "expired" }]
+}

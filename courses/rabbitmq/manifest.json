@@ -1,0 +1,211 @@
+{
+  "id": "rabbitmq",
+  "title": "RabbitMQ",
+  "description": "Брокеры сообщений на практике: очереди, exchange и привязки, подтверждения и сбои. Учебная модель RabbitMQ работает прямо в приложении, ничего устанавливать не нужно.",
+  "engine": "broker",
+  "flavor": "rabbit",
+  "errors": "errors.json",
+  "solutionAfterAttempts": 3,
+  "scenarios": {
+    "mail-crash": "scenarios/mail-crash.json",
+    "billing-dup": "scenarios/billing-dup.json"
+  },
+  "worlds": [
+    {
+      "id": "rmq-w1",
+      "title": "Зачем нужны брокеры",
+      "summary": "Синхронное и асинхронное взаимодействие, модель AMQP и первая очередь: exchange, привязки, публикация и чтение сообщений.",
+      "lessons": [
+        {
+          "id": "rmq-sync-async",
+          "file": "w1/01-sync-vs-async.md"
+        },
+        {
+          "id": "rmq-amqp-model",
+          "file": "w1/02-amqp-model.md"
+        },
+        {
+          "id": "rmq-default-exchange",
+          "file": "w1/03-default-exchange.md"
+        }
+      ]
+    },
+    {
+      "id": "rmq-w2",
+      "title": "Маршрутизация",
+      "summary": "Типы exchange: direct, fanout, topic и headers; alternate exchange и сообщения, которые некуда доставить.",
+      "lessons": [
+        {
+          "id": "rmq-direct-fanout",
+          "file": "w2/01-direct-fanout.md"
+        },
+        {
+          "id": "rmq-topic",
+          "file": "w2/02-topic.md"
+        },
+        {
+          "id": "rmq-headers-ae",
+          "file": "w2/03-headers-alternate.md"
+        },
+        {
+          "id": "rmq-mandatory",
+          "file": "w2/04-mandatory.md"
+        }
+      ]
+    },
+    {
+      "id": "rmq-w3",
+      "title": "Надёжность",
+      "summary": "Подтверждения, prefetch, durable и persistent, publisher confirms и идемпотентный потребитель.",
+      "lessons": [
+        {
+          "id": "rmq-ack",
+          "file": "w3/01-ack-nack-requeue.md"
+        },
+        {
+          "id": "rmq-prefetch",
+          "file": "w3/02-prefetch.md"
+        },
+        {
+          "id": "rmq-durable",
+          "file": "w3/03-durable-persistent.md"
+        },
+        {
+          "id": "rmq-confirms",
+          "file": "w3/04-confirms-idempotency.md"
+        }
+      ]
+    },
+    {
+      "id": "rmq-w4",
+      "title": "Продвинутые приёмы",
+      "summary": "TTL и dead-letter, повтор с задержкой, приоритеты и work queues, RPC, quorum queues и streams.",
+      "lessons": [
+        {
+          "id": "rmq-ttl-dlx",
+          "file": "w4/01-ttl-dlx.md"
+        },
+        {
+          "id": "rmq-retry",
+          "file": "w4/02-delayed-retry.md"
+        },
+        {
+          "id": "rmq-priority-work",
+          "file": "w4/03-priority-work-queues.md"
+        },
+        {
+          "id": "rmq-rpc-quorum",
+          "file": "w4/04-rpc-quorum-streams.md"
+        }
+      ]
+    },
+    {
+      "id": "rmq-w5",
+      "title": "Проектирование и эксплуатация",
+      "summary": "Vhost и права, метрики и backpressure, outbox и saga, разбор инцидентов.",
+      "lessons": [
+        {
+          "id": "rmq-vhost-access",
+          "file": "w5/01-vhost-permissions.md"
+        },
+        {
+          "id": "rmq-metrics-flow",
+          "file": "w5/02-metrics-flow.md"
+        },
+        {
+          "id": "rmq-outbox-saga",
+          "file": "w5/03-outbox-saga.md"
+        },
+        {
+          "id": "rmq-incidents",
+          "file": "w5/04-incidents.md"
+        }
+      ]
+    }
+  ],
+  "levels": [
+    {
+      "xp": 0,
+      "title": "Новичок очередей"
+    },
+    {
+      "xp": 60,
+      "title": "Издатель"
+    },
+    {
+      "xp": 150,
+      "title": "Потребитель"
+    },
+    {
+      "xp": 300,
+      "title": "Маршрутизатор"
+    },
+    {
+      "xp": 500,
+      "title": "Архитектор очередей"
+    }
+  ],
+  "badges": [
+    {
+      "id": "first-message",
+      "title": "Первое сообщение",
+      "description": "Решено первое задание курса RabbitMQ",
+      "glyph": "MQ",
+      "rule": {
+        "kind": "tasksSolved",
+        "count": 1
+      }
+    },
+    {
+      "id": "topology-builder",
+      "title": "Сборщик схем",
+      "description": "Решено 3 задания на сборку топологии",
+      "glyph": "TOP",
+      "rule": { "kind": "tasksOfType", "type": "topology", "count": 3 }
+    },
+    {
+      "id": "route-master",
+      "title": "Маршрутизатор",
+      "description": "Решено 5 заданий на маршрутизацию",
+      "glyph": "RK",
+      "rule": { "kind": "tasksOfType", "type": "routing", "count": 5 }
+    },
+    {
+      "id": "console-operator",
+      "title": "Оператор консоли",
+      "description": "Решено 8 заданий в консоли брокера",
+      "glyph": "CLI",
+      "rule": { "kind": "tasksOfType", "type": "console", "count": 8 }
+    },
+    {
+      "id": "incident-solver",
+      "title": "Разбор сбоев",
+      "description": "Решено 8 сценариев со сбоями",
+      "glyph": "DLX",
+      "rule": { "kind": "tasksOfType", "type": "scenario", "count": 8 }
+    },
+    {
+      "id": "routing-world",
+      "title": "Маршруты освоены",
+      "description": "Пройден мир «Маршрутизация»",
+      "glyph": "EX",
+      "rule": { "kind": "worldCompleted", "world": "rmq-w2" }
+    },
+    {
+      "id": "reliable-delivery",
+      "title": "Доставка без потерь",
+      "description": "Пройден мир «Надёжность»",
+      "glyph": "ACK",
+      "rule": { "kind": "worldCompleted", "world": "rmq-w3" }
+    },
+    {
+      "id": "clean-hands",
+      "title": "Чистая работа",
+      "description": "10 заданий решено с первой попытки",
+      "glyph": "1st",
+      "rule": { "kind": "firstTry", "count": 10 }
+    }
+  ],
+  "placement": "placement.json",
+  "onboarding": "onboarding.json"
+}

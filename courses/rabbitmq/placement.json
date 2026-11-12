@@ -1,0 +1,24 @@
+{
+  "questions": "placement.md",
+  "passThreshold": 2,
+  "blocks": [
+    {
+      "id": "amqp-routing",
+      "title": "Модель AMQP и маршрутизация",
+      "questions": ["rmq-pl-unroutable", "rmq-pl-topic", "rmq-pl-default"],
+      "unlocks": ["rmq-sync-async", "rmq-amqp-model", "rmq-default-exchange", "rmq-direct-fanout", "rmq-topic", "rmq-headers-ae", "rmq-mandatory"]
+    },
+    {
+      "id": "reliability",
+      "title": "Надёжность",
+      "questions": ["rmq-pl-consumer-crash", "rmq-pl-restart", "rmq-pl-confirm"],
+      "unlocks": ["rmq-ack", "rmq-prefetch", "rmq-durable", "rmq-confirms"]
+    },
+    {
+      "id": "advanced",
+      "title": "Продвинутые приёмы",
+      "questions": ["rmq-pl-dead-letter", "rmq-pl-prefetch", "rmq-pl-rpc"],
+      "unlocks": ["rmq-ttl-dlx", "rmq-retry", "rmq-priority-work", "rmq-rpc-quorum"]
+    }
+  ]
+}

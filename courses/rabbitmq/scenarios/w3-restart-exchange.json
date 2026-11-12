@@ -1,0 +1,15 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 4000,
+  "setup": "rabbitmqadmin queues declare --name orders --type classic --durable true\nrabbitmqadmin exchanges declare --name shop --type direct --durable false\nrabbitmqadmin bindings declare --source shop --destination-type queue --destination orders --routing-key new",
+  "actors": [
+    { "id": "site", "kind": "producer", "rate": 10, "count": 10, "message": { "body": "order {n}", "exchange": "shop", "routingKey": "new", "props": { "delivery_mode": 2 } }, "config": {} },
+    { "id": "warehouse", "kind": "consumer", "queue": "orders", "processMs": 50, "config": { "auto_ack": false } }
+  ],
+  "faults": [
+    { "at": 450, "kind": "broker.crash" },
+    { "at": 500, "kind": "broker.restart" }
+  ],
+  "expect": [ { "kind": "noLoss" }, { "kind": "processedAtLeast", "actor": "warehouse", "count": 10, "byMs": 4000 } ]
+}

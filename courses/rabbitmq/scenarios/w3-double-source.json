@@ -1,0 +1,15 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 6000,
+  "setup": "rabbitmqadmin queues declare --name ledger-entries --type classic --durable true",
+  "actors": [
+    { "id": "pay-api", "kind": "producer", "rate": 5, "count": 6, "message": { "body": "entry {n}", "exchange": "", "routingKey": "ledger-entries", "props": { "delivery_mode": 2 } }, "config": { "confirms": true } },
+    { "id": "accountant", "kind": "consumer", "queue": "ledger-entries", "processMs": 100, "config": { "auto_ack": true, "idempotent": false } }
+  ],
+  "faults": [
+    { "at": 150, "kind": "ack.lost", "actor": "pay-api" },
+    { "at": 420, "kind": "consumer.crash", "actor": "accountant" }
+  ],
+  "expect": [ { "kind": "noLoss" }, { "kind": "noDuplicateProcessing", "actor": "accountant" }, { "kind": "processedAtLeast", "actor": "accountant", "count": 6, "byMs": 6000 } ]
+}

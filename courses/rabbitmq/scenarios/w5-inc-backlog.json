@@ -1,0 +1,16 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 5000,
+  "setup": "rabbitmqadmin queues declare --name telemetry --type classic --durable true",
+  "actors": [
+    { "id": "sensors", "kind": "producer", "rate": 40, "count": 80, "message": { "body": "reading {n}", "exchange": "", "routingKey": "telemetry" }, "config": {} },
+    { "id": "dashboard", "kind": "consumer", "queue": "telemetry", "processMs": 100, "config": { "auto_ack": false, "prefetch_count": 1 } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "depthBelow", "queue": "telemetry", "value": 20, "byMs": 300 },
+    { "kind": "dlqContains", "queue": "telemetry-overflow", "count": 30, "reason": "maxlen" },
+    { "kind": "processedAtLeast", "actor": "dashboard", "count": 20, "byMs": 5000 }
+  ]
+}

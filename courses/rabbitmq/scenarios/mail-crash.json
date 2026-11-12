@@ -1,0 +1,12 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 3000,
+  "setup": "rabbitmqadmin queues declare --name emails --type classic --durable true",
+  "actors": [
+    { "id": "shop", "kind": "producer", "rate": 10, "count": 6, "message": { "body": "order {n}", "exchange": "", "routingKey": "emails" }, "config": {} },
+    { "id": "mailer", "kind": "consumer", "queue": "emails", "processMs": 100, "config": { "auto_ack": true } }
+  ],
+  "faults": [{ "at": 250, "kind": "consumer.crash", "actor": "mailer" }],
+  "expect": [{ "kind": "noLoss" }, { "kind": "processedAtLeast", "actor": "mailer", "count": 6, "byMs": 3000 }]
+}

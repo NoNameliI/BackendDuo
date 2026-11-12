@@ -1,0 +1,13 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 6000,
+  "setup": "rabbitmqadmin queues declare --name reports --type classic --durable true",
+  "actors": [
+    { "id": "scheduler", "kind": "producer", "rate": 20, "count": 12, "message": { "body": "report {n}", "exchange": "", "routingKey": "reports" }, "config": {} },
+    { "id": "worker-fast", "kind": "consumer", "queue": "reports", "processMs": 100, "config": { "auto_ack": false, "prefetch_count": 0 } },
+    { "id": "worker-slow", "kind": "consumer", "queue": "reports", "processMs": 800, "config": { "auto_ack": false, "prefetch_count": 0 } }
+  ],
+  "faults": [],
+  "expect": [ { "kind": "latencyP95Below", "ms": 2500 }, { "kind": "processedAtLeast", "actor": "worker-fast", "count": 8, "byMs": 6000 } ]
+}

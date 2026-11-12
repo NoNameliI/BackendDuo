@@ -1,0 +1,16 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 3000,
+  "setup": "rabbitmqadmin exchanges declare --name notices --type direct --durable true\nrabbitmqadmin queues declare --name sms-out --type classic --durable true\nrabbitmqadmin bindings declare --source notices --destination-type queue --destination sms-out --routing-key sms",
+  "actors": [
+    { "id": "campaign-sms", "kind": "producer", "rate": 10, "count": 4, "message": { "body": "sms {n}", "exchange": "notices", "routingKey": "sms" }, "config": {} },
+    { "id": "campaign-push", "kind": "producer", "rate": 10, "count": 4, "message": { "body": "push {n}", "exchange": "notices", "routingKey": "push" }, "config": { "mandatory": false } },
+    { "id": "sender", "kind": "consumer", "queue": "sms-out", "processMs": 50, "config": { "auto_ack": false } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "processedAtLeast", "actor": "sender", "count": 4, "byMs": 3000 }
+  ]
+}

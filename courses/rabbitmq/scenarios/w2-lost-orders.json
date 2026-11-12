@@ -1,0 +1,18 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 3000,
+  "setup": "rabbitmqadmin exchanges declare --name orders --type direct --durable true\nrabbitmqadmin queues declare --name orders-paid --type classic --durable true\nrabbitmqadmin queues declare --name orders-cancelled --type classic --durable true\nrabbitmqadmin bindings declare --source orders --destination-type queue --destination orders-paid --routing-key payed\nrabbitmqadmin bindings declare --source orders --destination-type queue --destination orders-cancelled --routing-key cancelled",
+  "actors": [
+    { "id": "shop-paid", "kind": "producer", "rate": 10, "count": 5, "message": { "body": "paid {n}", "exchange": "orders", "routingKey": "paid" }, "config": {} },
+    { "id": "shop-cancel", "kind": "producer", "rate": 10, "count": 3, "message": { "body": "cancel {n}", "exchange": "orders", "routingKey": "cancelled" }, "config": {} },
+    { "id": "accounting", "kind": "consumer", "queue": "orders-paid", "processMs": 50, "config": { "auto_ack": false } },
+    { "id": "warehouse", "kind": "consumer", "queue": "orders-cancelled", "processMs": 50, "config": { "auto_ack": false } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "processedAtLeast", "actor": "accounting", "count": 5, "byMs": 3000 },
+    { "kind": "processedAtLeast", "actor": "warehouse", "count": 3, "byMs": 3000 }
+  ]
+}

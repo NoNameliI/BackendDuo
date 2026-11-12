@@ -1,0 +1,19 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 4000,
+  "setup": "rabbitmqadmin queues declare --name payments --type classic --durable true",
+  "actors": [
+    { "id": "checkout", "kind": "producer", "rate": 10, "count": 5, "message": { "body": "payment {n}", "exchange": "", "routingKey": "payments" }, "config": {} },
+    { "id": "billing", "kind": "consumer", "queue": "payments", "processMs": 100, "config": { "auto_ack": false, "idempotent": false } }
+  ],
+  "faults": [
+    { "at": 250, "kind": "consumer.crash", "actor": "billing", "afterProcess": true },
+    { "at": 1400, "kind": "consumer.crash", "actor": "billing" }
+  ],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "noDuplicateProcessing", "actor": "billing" },
+    { "kind": "processedAtLeast", "actor": "billing", "count": 5, "byMs": 4000 }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 3000,
+  "setup": "rabbitmqadmin queues declare --name audit-q --type classic --durable true\nrabbitmqadmin exchanges declare --name events --type direct --durable true --arguments '{\"alternate-exchange\":\"events-unrouted\"}'\nrabbitmqadmin bindings declare --source events --destination-type queue --destination audit-q --routing-key audit",
+  "actors": [
+    { "id": "app-audit", "kind": "producer", "rate": 10, "count": 3, "message": { "body": "audit {n}", "exchange": "events", "routingKey": "audit" }, "config": {} },
+    { "id": "app-misc", "kind": "producer", "rate": 10, "count": 3, "message": { "body": "misc {n}", "exchange": "events", "routingKey": "misc" }, "config": {} },
+    { "id": "auditor", "kind": "consumer", "queue": "audit-q", "processMs": 50, "config": { "auto_ack": false } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "noLoss" },
+    { "kind": "noReturned" },
+    { "kind": "processedAtLeast", "actor": "auditor", "count": 3, "byMs": 3000 }
+  ]
+}

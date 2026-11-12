@@ -1,0 +1,17 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 4000,
+  "setup": "rabbitmqadmin queues declare --name invoices --type classic --durable true",
+  "actors": [
+    { "id": "billing", "kind": "producer", "rate": 20, "count": 30, "message": { "body": "invoice {n}", "exchange": "", "routingKey": "invoices" }, "config": {} },
+    { "id": "printer", "kind": "consumer", "queue": "invoices", "processMs": 80, "failEveryN": 3, "config": { "auto_ack": false, "prefetch_count": 1 } }
+  ],
+  "faults": [],
+  "expect": [
+    { "kind": "dlqContains", "queue": "invoices-dead", "count": 10 },
+    { "kind": "processedAtLeast", "actor": "printer", "count": 20, "byMs": 3000 },
+    { "kind": "depthBelow", "queue": "invoices", "value": 0, "byMs": 3000 },
+    { "kind": "noLoss" }
+  ]
+}

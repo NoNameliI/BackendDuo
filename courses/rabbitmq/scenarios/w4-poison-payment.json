@@ -1,0 +1,39 @@
+{
+  "sim": "rabbit",
+  "seed": 1,
+  "durationMs": 5000,
+  "setup": "rabbitmqadmin exchanges declare --name pay.dlx --type fanout --durable true\nrabbitmqadmin queues declare --name payments.poison --type classic --durable true\nrabbitmqadmin bindings declare --source pay.dlx --destination-type queue --destination payments.poison --routing-key \"\"",
+  "actors": [
+    {
+      "id": "checkout",
+      "kind": "producer",
+      "rate": 10,
+      "count": 1,
+      "message": {
+        "body": "payment {n}",
+        "exchange": "",
+        "routingKey": "payments"
+      },
+      "config": {}
+    },
+    {
+      "id": "billing",
+      "kind": "consumer",
+      "queue": "payments",
+      "processMs": 100,
+      "failEveryN": 1,
+      "config": {
+        "auto_ack": false
+      }
+    }
+  ],
+  "faults": [],
+  "expect": [
+    {
+      "kind": "dlqContains",
+      "queue": "payments.poison",
+      "count": 1,
+      "reason": "delivery_limit"
+    }
+  ]
+}
