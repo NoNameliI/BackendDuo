@@ -80,7 +80,8 @@ export interface Console {
 export const out = (...texts: string[]): ConsoleResult => ({ lines: texts.map((text) => ({ text, tone: 'out' as const })), exit: 0 });
 export const err = (text: string, exit = 1): ConsoleResult => ({ lines: [{ text, tone: 'err' }], exit });
 
-const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
+// `<<WORD` / `<<-WORD` start a heredoc; `<<< word` is a here-string and must not.
+const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
 
 export function createConsole(commands: readonly ConsoleCommand[]): Console {
   const hist: string[] = [];

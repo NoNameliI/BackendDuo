@@ -1,15 +1,20 @@
 import type { BrokerTask } from '@/content/loadCourse';
 import type { RuleRegistry } from '@/engine/sim/rules';
-import { createConsole, type Console } from '@/engine/sim/console';
+import { createConsole, type Console, type ConsoleCommand } from '@/engine/sim/console';
 import { explainFailure } from '@/engine/sim/explain';
 import { evaluate } from '@/engine/sim/invariants';
 import { Sim } from '@/engine/sim/kernel';
+import { KafkaModel, kafkaRules, type KafkaSnapshot } from '@/engine/sim/kafka';
+import { createKafkaCommands } from '@/engine/sim/kafka/console';
 import { RabbitModel, rabbitRules, type RabbitSnapshot } from '@/engine/sim/rabbit';
 import { createRabbitCommands } from '@/engine/sim/rabbit/console';
 import { applyProperties, parseScenario, type Scenario } from '@/engine/sim/scenario';
+import type { Flavor, Model } from '@/engine/sim/types';
+import { captureKafka, compareKafka, kafkaCompare, lintKafkaPublications, type KafkaCaptured } from './brokerKafka';
 import { SolutionError, type CheckResult } from './index';
 
 const rules: RuleRegistry = rabbitRules;
+const rulesOf = (sim: Flavor): RuleRegistry => (sim === 'kafka' ? kafkaRules : rabbitRules);
 
 /** What the learner did: console commands (each entry is one typed chunk, a heredoc stays whole) and the properties text. */
 export interface BrokerInput {
@@ -24,24 +29,26 @@ export interface CommandRecord {
   output: string;
 }
 
-export const KAFKA_UNAVAILABLE = 'Симулятор Kafka пока недоступен: задания этого курса нельзя проверить';
-
 const fail = (problems: string[], trace?: string[]): CheckResult => ({ passed: false, problems, ...(trace?.length ? { trace } : {}) });
 const quote = (s: string) => `«${s}»`;
 const show = (v: unknown) => (typeof v === 'string' ? quote(v) : JSON.stringify(v));
 
 // ---------------------------------------------------------------- sandbox
 
-/** A fresh RabbitMQ simulator with its console; the same wiring the lab uses. */
-export interface RabbitSandbox {
-  model: RabbitModel;
-  sim: Sim<RabbitSnapshot>;
+/** A fresh simulator with its console; the same wiring the lab uses. */
+export interface Sandbox<M, S> {
+  model: M;
+  sim: Sim<S>;
   console: Console;
   /** Runs a script command by command and records every one. */
   run(script: string): CommandRecord[];
 }
+export type RabbitSandbox = Sandbox<RabbitModel, RabbitSnapshot>;
+export type KafkaSandbox = Sandbox<KafkaModel, KafkaSnapshot>;
+export type AnySandbox = RabbitSandbox | KafkaSandbox;
 
-const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
+// `<<WORD` starts a heredoc; `<<< word` is a here-string (same rule as src/engine/sim/console.ts).
+const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
 
 /** Splits a script into logical commands: backslash continuations are joined, a heredoc keeps its body. Blank and comment lines are dropped. */
 export function splitScript(text: string): string[] {
@@ -66,11 +73,10 @@ export function splitScript(text: string): string[] {
   return out;
 }
 
-export function createRabbitSandbox(scenario?: Scenario): RabbitSandbox {
-  const model = new RabbitModel(scenario);
-  const sim = new Sim(model, { seed: scenario?.seed ?? 1 });
+function wire<M extends Model<S> & { setClock(advance: (ms: number) => void): void }, S>(model: M, scenario: Scenario | undefined, commands: (m: M) => ConsoleCommand[]): Sandbox<M, S> {
+  const sim = new Sim<S>(model, { seed: scenario?.seed ?? 1 });
   model.setClock((ms) => void sim.runUntil(sim.now + ms));
-  const con = createConsole(createRabbitCommands(model));
+  const con = createConsole(commands(model));
   return {
     model,
     sim,
@@ -84,16 +90,20 @@ export function createRabbitSandbox(scenario?: Scenario): RabbitSandbox {
   };
 }
 
+export const createRabbitSandbox = (scenario?: Scenario): RabbitSandbox => wire(new RabbitModel(scenario), scenario, createRabbitCommands);
+export const createKafkaSandbox = (scenario?: Scenario): KafkaSandbox => wire(new KafkaModel(scenario), scenario, createKafkaCommands);
+export const createSandbox = (flavor: Flavor, scenario?: Scenario): AnySandbox => (flavor === 'kafka' ? createKafkaSandbox(scenario) : createRabbitSandbox(scenario));
+
 const firstFailure = (records: CommandRecord[]) => records.find((r) => r.exit !== 0);
 
 /** Runs a script that must succeed (setup, reference solution); a failing line is a content bug. */
-function runStrict(box: RabbitSandbox, taskId: string, what: string, script: string): void {
+function runStrict(box: AnySandbox, taskId: string, what: string, script: string): void {
   const bad = firstFailure(box.run(script));
   if (bad) throw new SolutionError(`${taskId}: ${what} упал(а) на «${bad.line}»:\n${bad.output}`);
 }
 
 interface Prepared {
-  box: RabbitSandbox;
+  box: AnySandbox;
   scenario?: Scenario;
   /** Mistakes in the properties text. */
   propErrors: string[];
@@ -117,7 +127,7 @@ function prepare(task: BrokerTask, scenarios: Record<string, Scenario>, props: s
   } else if (props.split(/\r?\n/).some((l) => l.trim() !== '' && !l.trim().startsWith('#'))) {
     propErrors = ['В этом задании нет сценария, поэтому свойства ни к чему не применяются'];
   }
-  const box = createRabbitSandbox(scenario);
+  const box = createSandbox(task.sim, scenario);
   if (scenario) runStrict(box, task.id, 'setup сценария', scenario.setup);
   runStrict(box, task.id, 'brokerSetup', task.brokerSetup);
   return { box, scenario, propErrors };
@@ -320,7 +330,7 @@ function checkScenario(task: BrokerTask, prep: Prepared): { problems: string[]; 
   for (const inv of scenario.expect) {
     const r = evaluate(inv, box.sim);
     if (r.ok) continue;
-    const lines = explainFailure(r, box.sim.journal, rules);
+    const lines = explainFailure(r, box.sim.journal, rulesOf(task.sim));
     problems.push(...lines);
     trace.push(...lines.slice(1));
   }
@@ -328,15 +338,15 @@ function checkScenario(task: BrokerTask, prep: Prepared): { problems: string[]; 
 }
 
 /** Plain-data states of finished reference runs; a task's reference does not change between checks. */
-const references = new WeakMap<BrokerTask, Captured>();
+const references = new WeakMap<BrokerTask, Captured | KafkaCaptured>();
 
-function reference(task: BrokerTask, scenarios: Record<string, Scenario>): Captured {
+function reference(task: BrokerTask, scenarios: Record<string, Scenario>): Captured | KafkaCaptured {
   let ref = references.get(task);
   if (!ref) {
     const prep = prepare(task, scenarios, task.propsSolution);
     if (prep.propErrors.length) throw new SolutionError(`${task.id}: propsSolution: ${prep.propErrors.join('; ')}`);
     runStrict(prep.box, task.id, 'эталонное решение', task.brokerSolution);
-    ref = capture(task, prep.box);
+    ref = task.sim === 'kafka' ? captureKafka(task, prep.box as KafkaSandbox) : capture(task, prep.box as RabbitSandbox);
     references.set(task, ref);
   }
   return ref;
@@ -350,7 +360,6 @@ function reference(task: BrokerTask, scenarios: Record<string, Scenario>): Captu
  * the texts of the rules involved (`problems`; `trace` holds only the path lines).
  */
 export function checkBrokerTask(task: BrokerTask, scenarios: Record<string, Scenario>, input: BrokerInput): CheckResult {
-  if (task.sim === 'kafka') return fail([KAFKA_UNAVAILABLE]);
   const prep = prepare(task, scenarios, input.props);
   const records = input.commands.flatMap((c) => prep.box.run(c));
   const complaints = prep.propErrors;
@@ -364,9 +373,11 @@ export function checkBrokerTask(task: BrokerTask, scenarios: Record<string, Scen
     if (task.type === 'console') problems.push(...checkCommands(task, records));
     if (task.type !== 'console' || task.check.compare.length > 0) {
       const want = reference(task, scenarios);
-      const got = capture(task, prep.box);
-      const compare = new Set<string>('compare' in task.check ? task.check.compare : []);
-      const d = compareStates(task, compare, task.check.ignore, want, got, prep.box);
+      const compare: readonly string[] = 'compare' in task.check ? task.check.compare : [];
+      const d =
+        task.sim === 'kafka'
+          ? compareKafka(task, kafkaCompare(compare), task.check.ignore, want as KafkaCaptured, captureKafka(task, prep.box as KafkaSandbox), prep.box as KafkaSandbox)
+          : compareStates(task, new Set(compare), task.check.ignore, want as Captured, capture(task, prep.box as RabbitSandbox), prep.box as RabbitSandbox);
       problems.push(...d.problems);
       trace = d.trace;
     }
@@ -377,22 +388,35 @@ export function checkBrokerTask(task: BrokerTask, scenarios: Record<string, Scen
   return fail([...complaints, ...problems, ...(problems.length > 0 ? hints : [])], trace);
 }
 
+const RABBIT_COMPARE = new Set(['exchanges', 'queues', 'bindings', 'vhosts', 'users', 'permissions']);
+const DEFAULT_COMPARE = 'exchanges,queues,bindings';
+
 /** Content lint for a broker task (run by validate:content): reference runs, no empty topic keys, simulator fits. */
 export function lintBrokerTask(task: BrokerTask, scenarios: Record<string, Scenario>): string[] {
-  if (task.sim === 'kafka') return [`${task.id}: ${KAFKA_UNAVAILABLE}`];
   const problems: string[] = [];
   if (task.type === 'routing') {
     const prep = prepare(task, scenarios, task.propsSolution);
     runStrict(prep.box, task.id, 'эталонное решение', task.brokerSolution);
-    const exchanges = new Map(prep.box.model.snapshot().vhosts.flatMap((v) => v.exchanges.map((e) => [e.name, e.type] as const)));
-    for (const item of task.check.publish) {
-      if (!('body' in item)) problems.push(`${task.id}: публикация topic/key/value относится к Kafka, а симулятор rabbit`);
-      else if (exchanges.get(item.exchange) === 'topic' && item.routingKey === '') problems.push(`${task.id}: пустой ключ маршрутизации в topic-exchange «${item.exchange}» (в документации не описан)`);
+    if (task.sim === 'kafka') {
+      problems.push(...lintKafkaPublications(task, prep.box as KafkaSandbox));
+    } else {
+      const exchanges = new Map((prep.box as RabbitSandbox).model.snapshot().vhosts.flatMap((v) => v.exchanges.map((e) => [e.name, e.type] as const)));
+      for (const item of task.check.publish) {
+        if (!('body' in item)) problems.push(`${task.id}: публикация topic/key/value относится к Kafka, а симулятор rabbit`);
+        else if (exchanges.get(item.exchange) === 'topic' && item.routingKey === '') problems.push(`${task.id}: пустой ключ маршрутизации в topic-exchange «${item.exchange}» (в документации не описан)`);
+      }
     }
   }
   if ('compare' in task.check) {
-    const kafkaOnly = task.check.compare.filter((c) => c === 'topics' || c === 'configs' || c === 'offsets');
-    if (kafkaOnly.length) problems.push(`${task.id}: compare ${kafkaOnly.join(', ')} бывает только у Kafka`);
+    const compare = task.check.compare;
+    if (task.sim === 'kafka') {
+      // The schema default (exchanges, queues, bindings) of an unset list stands for topics + configs here.
+      const rabbitOnly = compare.filter((c) => RABBIT_COMPARE.has(c));
+      if (rabbitOnly.length && compare.join(',') !== DEFAULT_COMPARE) problems.push(`${task.id}: compare ${rabbitOnly.join(', ')} бывает только у RabbitMQ`);
+    } else {
+      const kafkaOnly = compare.filter((c) => c === 'topics' || c === 'configs' || c === 'offsets');
+      if (kafkaOnly.length) problems.push(`${task.id}: compare ${kafkaOnly.join(', ')} бывает только у Kafka`);
+    }
   }
   return problems;
 }
@@ -401,10 +425,9 @@ export function lintBrokerTask(task: BrokerTask, scenarios: Record<string, Scena
  * Theory examples of a lesson: `broker` blocks run in order on one broker (after `setup`), every command must
  * exit 0; `scenario` blocks are whole scenarios that must run to the end without hitting the simulator's limits.
  */
-export function checkBrokerExamples(blocks: { lang: string; code: string; shown?: string }[], setup: string, flavor: 'rabbit' | 'kafka'): string[] {
+export function checkBrokerExamples(blocks: { lang: string; code: string; shown?: string }[], setup: string, flavor: Flavor): string[] {
   const problems: string[] = [];
-  if (flavor === 'kafka') return [KAFKA_UNAVAILABLE];
-  const shared = createRabbitSandbox();
+  const shared = createSandbox(flavor);
   const bad = firstFailure(shared.run(setup));
   if (bad) return [`setup примеров упал на «${bad.line}»: ${bad.output}`];
   for (const { lang, code, shown } of blocks) {
@@ -425,11 +448,7 @@ export function checkBrokerExamples(blocks: { lang: string; code: string; shown?
         problems.push(`Сценарий-пример не читается: ${(e as Error).message}`);
         continue;
       }
-      if (scenario.sim === 'kafka') {
-        problems.push(KAFKA_UNAVAILABLE);
-        continue;
-      }
-      const box = createRabbitSandbox(scenario);
+      const box = createSandbox(scenario.sim, scenario);
       const failedSetup = firstFailure(box.run(scenario.setup));
       if (failedSetup) {
         problems.push(`Сценарий-пример: setup упал на «${failedSetup.line}»: ${failedSetup.output}`);

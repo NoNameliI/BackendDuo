@@ -43,6 +43,10 @@ describe('console', () => {
     expect(r.lines.map((l) => l.text)).toEqual(['x<line1\nline2>', 'after']);
     expect(c().exec('echo <<EOF\nnever closed')).toMatchObject({ exit: 2 });
   });
+  it('leaves a single-word here-string to the command', () => {
+    expect(c().exec('echo <<< word').lines[0].text).toBe('<<<|word');
+    expect(c().exec('echo <<< "word"').lines[0].text).toBe('<<<|word');
+  });
   it('keeps history, help and clear', () => {
     const k = c();
     k.exec('echo 1');

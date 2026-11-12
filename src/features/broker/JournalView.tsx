@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState, type ReactNode } from 'react';
 
 /** Plain data, the shape of the simulator's journal entry. */
 export interface JournalRow {
@@ -39,6 +39,11 @@ const TONE: Record<string, string> = {
   leader: 'text-[color-mix(in_oklab,var(--nav),var(--fg)_30%)]',
   isr: 'text-[color-mix(in_oklab,var(--nav),var(--fg)_30%)]',
 };
+
+/** Identifiers like `orders-11` or `m1.retry` must not break at their hyphen or dot; very long ones may. */
+export function keepTokens(text: string): ReactNode[] {
+  return text.split(/(\s+)/).map((w, i) => (/[-.:/]/.test(w) && w.length <= 32 ? <span key={i} className="whitespace-nowrap">{w}</span> : w));
+}
 
 const stamp = (ms: number): string => `${(ms / 1000).toFixed(2).replace('.', ',')} с`;
 const uniq = (xs: readonly (string | undefined)[]): string[] => [...new Set(xs.filter((x): x is string => !!x))].sort();
@@ -145,11 +150,11 @@ export function JournalView({ entries, selectedMsg, onSelectMsg, ruleTitle, limi
                   {e.actor}
                 </span>
                 <span className="min-w-0 flex-1 text-fg">
-                  {e.text}
+                  {keepTokens(e.text)}
                   {title && (
                     <span className="text-dim" title={e.rule}>
                       {' '}
-                      [правило: {title}]
+                      [правило: {keepTokens(title)}]
                     </span>
                   )}
                 </span>

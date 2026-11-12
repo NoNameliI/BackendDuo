@@ -112,3 +112,87 @@ export function fixtureTask(course: Course, id: string): BrokerTask {
   if (!task || !('brokerSolution' in task)) throw new Error(`no broker task ${id}`);
   return task as BrokerTask;
 }
+
+// ------------------------------------------------------------------------------------------------ Kafka flavor
+
+const BS = '--bootstrap-server localhost:9092';
+
+export const KAFKA_SCENARIO = {
+  sim: 'kafka',
+  seed: 3,
+  durationMs: 120000,
+  setup: `kafka-topics.sh ${BS} --create --topic orders --partitions 3 --replication-factor 3`,
+  actors: [
+    { id: 'api', kind: 'producer', topic: 'orders', rate: 20, count: 40, message: { body: 'm{n}', key: 'k{n%4}' }, config: {} },
+    { id: 'worker', kind: 'consumer', group: 'workers', topics: ['orders'], processMs: 5, config: { 'auto.offset.reset': 'earliest', idempotent: false } },
+  ],
+  faults: [{ at: 4000, kind: 'consumer.crash', actor: 'worker', afterProcess: true }],
+  expect: [{ kind: 'noLoss' }, { kind: 'noDuplicateProcessing', actor: 'worker' }],
+};
+
+const kafkaLesson = [
+  '# Фикстура Kafka',
+  '',
+  'Теория урока.',
+  '',
+  block('broker example', [`kafka-topics.sh ${BS} --create --topic demo --partitions 2`, `kafka-topics.sh ${BS} --list`].join('\n')),
+  block('scenario example', JSON.stringify(KAFKA_SCENARIO)),
+  '## task kx-topology',
+  meta({ type: 'topology', title: 'Топик', hints: ['h'], check: { compare: ['topics', 'configs'] } }),
+  'Создайте топик orders с тремя разделами и хранением 60 секунд.',
+  block('broker solution', [`kafka-topics.sh ${BS} --create --topic orders --partitions 3 --replication-factor 3 --config retention.ms=60000`].join('\n')),
+  '## task kx-routing',
+  meta({
+    type: 'routing',
+    title: 'Ключи',
+    hints: ['h'],
+    check: { publish: ['abc', 'user-2', 'a', 'k1', 'k2', 'k3'].map((key, i) => ({ topic: 'events', key, value: `v${i}` })) },
+  }),
+  'Запись с одним ключом должна попасть в тот же раздел, что и в эталоне: у топика events должно быть три раздела.',
+  block('broker setup', `kafka-topics.sh ${BS} --create --topic events --partitions 2 --replication-factor 3`),
+  block('broker solution', `kafka-topics.sh ${BS} --alter --topic events --partitions 3`),
+  '## task kx-console',
+  meta({
+    type: 'console',
+    title: 'Группа',
+    hints: ['h'],
+    check: { compare: ['messages', 'offsets'], require: [{ pattern: 'kafka-console-producer', message: 'Запишите сообщения kafka-console-producer' }] },
+  }),
+  'Запишите в топик jobs два сообщения и прочитайте их группой g1.',
+  block('broker setup', `kafka-topics.sh ${BS} --create --topic jobs --partitions 1 --replication-factor 3`),
+  block(
+    'broker solution',
+    [
+      `kafka-console-producer.sh ${BS} --topic jobs <<EOF`,
+      'one',
+      'two',
+      'EOF',
+      `kafka-console-consumer.sh ${BS} --topic jobs --group g1 --from-beginning --max-messages 2`,
+    ].join('\n'),
+  ),
+  '## task kx-scenario',
+  meta({ type: 'scenario', title: 'Дубли', hints: ['h'], scenario: 'orders-kafka' }),
+  'Сделайте обработку безопасной к повторному чтению после сбоя.',
+  block('properties starter', '# worker.idempotent=false'),
+  block('properties solution', 'worker.idempotent=true'),
+].join('\n');
+
+const kafkaManifest = {
+  ...manifest,
+  id: 'fixture-kafka',
+  title: 'Fixture Kafka',
+  flavor: 'kafka',
+  scenarios: { 'orders-kafka': 'scenarios/orders-kafka.json' },
+  worlds: [{ id: 'w1', title: 'W', summary: 'S', lessons: [{ id: 'kx-l1', file: 'l1.md' }] }],
+};
+
+export const kafkaFixtureFiles = (root = '/courses/fixture-kafka'): Record<string, string> => ({
+  [`${root}/manifest.json`]: JSON.stringify(kafkaManifest),
+  [`${root}/errors.json`]: '{}',
+  [`${root}/scenarios/orders-kafka.json`]: JSON.stringify(KAFKA_SCENARIO),
+  [`${root}/l1.md`]: kafkaLesson,
+});
+
+export function kafkaFixtureCourse(): Course {
+  return loadCourse(kafkaFixtureFiles(), '/courses/fixture-kafka');
+}

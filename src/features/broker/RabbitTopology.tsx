@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import type { JournalEntry } from '@/engine/sim/types';
-import { DOT_WINDOW_MS, useBroker, type LabView } from './brokerStore';
+import { DOT_WINDOW_MS, useBroker, type RabbitView } from './brokerStore';
 import { NODE_DRAW_R } from './labels';
 import { usePrefersReducedMotion } from './PlayerControls';
 import { layoutTopology, topologyInputOf, topologyOf, vname, type LNode, type NodeRole } from './rabbitLayout';
@@ -39,7 +39,7 @@ interface Look {
   state: string;
 }
 
-function lookOf(node: LNode, view: LabView): Look {
+function lookOf(node: LNode, view: RabbitView): Look {
   const snap = view.snapshot;
   if (node.role === 'queue') {
     const q = snap.vhosts.flatMap((v) => v.queues.map((x) => ({ ...x, label: vname(v.name, x.name) }))).find((x) => x.label === node.label);
@@ -100,7 +100,8 @@ export function RabbitTopology() {
   const [open, setOpen] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
 
-  const view = status === 'ready' ? lab.getState().view() : null;
+  const current = status === 'ready' ? lab.getState().view() : null;
+  const view = current?.flavor === 'rabbit' ? current : null;
   const topo = useMemo(() => (view ? topologyOf(topologyInputOf(view.snapshot, view.scenario, view.consumers)) : null), [view]);
   const key = topo ? JSON.stringify(topo) : '';
   const layout = useMemo(() => (topo ? layoutTopology(topo, width) : null), [key, width]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -267,7 +268,7 @@ export function RabbitTopology() {
   );
 }
 
-function NodeCard({ node, look, view, onClose, onMsg }: { node: LNode; look: Look; view: LabView; onClose: () => void; onMsg: (msg: string) => void }) {
+function NodeCard({ node, look, view, onClose, onMsg }: { node: LNode; look: Look; view: RabbitView; onClose: () => void; onMsg: (msg: string) => void }) {
   const snap = view.snapshot;
   const queue = node.role === 'queue' ? snap.vhosts.flatMap((v) => v.queues.map((q) => ({ ...q, label: vname(v.name, q.name) }))).find((q) => q.label === node.label) : undefined;
   const bindings = node.role === 'exchange' ? snap.vhosts.flatMap((v) => v.bindings.filter((b) => vname(v.name, b.source) === node.label || (node.label === '(default)' && b.source === ''))) : [];

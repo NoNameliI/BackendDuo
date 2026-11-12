@@ -1,8 +1,9 @@
 import { loadBrokerLib } from '@/features/broker/brokerStore';
-import type { Lesson } from '@/content/loadCourse';
+import type { BrokerTask, Lesson } from '@/content/loadCourse';
 import { explainFailure } from '@/engine/sim/explain';
 import { evaluate } from '@/engine/sim/invariants';
 import { parseScenario } from '@/engine/sim/scenario';
+import { kafkaRules } from '@/engine/sim/kafka/rules';
 import { rabbitRules } from '@/engine/sim/rabbit/rules';
 
 export interface BrokerRun {
@@ -24,7 +25,7 @@ export interface ScenarioRun {
 }
 
 type Lib = Awaited<ReturnType<typeof loadBrokerLib>>;
-type Box = ReturnType<Lib['createRabbitSandbox']>;
+type Box = ReturnType<Lib['createSandbox']>;
 
 // Theory examples of a lesson share one example broker and run in order, like commands typed by hand.
 let shared: { lesson: string; box: Box } | null = null;
@@ -32,7 +33,8 @@ let shared: { lesson: string; box: Box } | null = null;
 async function sandboxFor(lesson: Lesson): Promise<Box> {
   if (shared?.lesson === lesson.id) return shared.box;
   const lib = await loadBrokerLib();
-  const box = lib.createRabbitSandbox();
+  const first = lesson.tasks.find((t) => 'brokerSolution' in t);
+  const box = lib.createSandbox((first as BrokerTask | undefined)?.sim ?? 'rabbit');
   box.run(lesson.exampleSetup);
   shared = { lesson: lesson.id, box };
   return box;
@@ -57,13 +59,13 @@ export async function runScenarioExample(json: string): Promise<ScenarioRun> {
   const lib = await loadBrokerLib();
   try {
     const scenario = parseScenario(JSON.parse(json));
-    const box = lib.createRabbitSandbox(scenario);
+    const box = lib.createSandbox(scenario.sim, scenario);
     box.run(scenario.setup);
     box.sim.runUntil(scenario.durationMs);
     const journal = box.sim.journal;
     const checks = scenario.expect.map((inv) => {
       const r = evaluate(inv, box.sim);
-      return { ok: r.ok, text: r.text, trace: r.ok ? [] : explainFailure(r, journal, rabbitRules) };
+      return { ok: r.ok, text: r.text, trace: r.ok ? [] : explainFailure(r, journal, scenario.sim === 'kafka' ? kafkaRules : rabbitRules) };
     });
     const entries = journal.entries();
     return {
@@ -71,7 +73,7 @@ export async function runScenarioExample(json: string): Promise<ScenarioRun> {
       trace: checks.find((c) => !c.ok)?.trace ?? [],
       published: entries.filter((e) => e.kind === 'publish').length,
       notable: entries
-        .filter((e) => ['fault', 'drop', 'deadletter', 'return', 'error', 'handler.error', 'overflow', 'sim.limit'].includes(e.kind))
+        .filter((e) => ['fault', 'drop', 'deadletter', 'return', 'error', 'handler.error', 'overflow', 'sim.limit', 'leader', 'isr', 'rebalance'].includes(e.kind))
         .slice(0, 8)
         .map((e) => `${(e.at / 1000).toFixed(2).replace('.', ',')} с — ${e.text}`),
       durationMs: scenario.durationMs,

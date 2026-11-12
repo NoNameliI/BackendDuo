@@ -19,6 +19,15 @@ const FLAGS = [
 ];
 const NAME_FLAGS = new Set(['--name', '--queue', '--source', '--destination']);
 
+const KAFKA_TOP = ['kafka-topics.sh', 'kafka-console-producer.sh', 'kafka-console-consumer.sh', 'kafka-consumer-groups.sh', 'kafka-configs.sh', 'sim', 'help', 'history', 'clear'];
+const KAFKA_WORDS: Record<string, string[]> = { sim: ['run', 'crash', 'restart', 'stall', 'consumer'] };
+const KAFKA_FLAGS = [
+  '--bootstrap-server', '--create', '--list', '--describe', '--alter', '--delete', '--topic', '--partitions', '--replication-factor', '--config',
+  '--under-replicated-partitions', '--under-min-isr-partitions', '--unavailable-partitions', '--from-beginning', '--group', '--partition', '--offset',
+  '--max-messages', '--property', '--formatter-property', '--members', '--state', '--reset-offsets', '--execute', '--to-earliest', '--to-latest',
+  '--to-offset', '--shift-by', '--all-topics', '--entity-type', '--entity-name', '--add-config', '--delete-config',
+];
+
 function tone(t: 'out' | 'err' | 'dim'): string {
   return t === 'err' ? 'text-err' : t === 'dim' ? 'text-dim' : 'text-fg';
 }
@@ -36,6 +45,7 @@ export function BrokerConsole() {
   const history = lab((s) => s.history);
   const input = lab((s) => s.draft);
   const starter = lab((s) => s.spec?.starter ?? '');
+  const flavor = lab((s) => s.spec?.sim ?? 'rabbit');
   const setInput = lab((s) => s.setDraft);
   const [cursor, setCursor] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -64,13 +74,16 @@ export function BrokerConsole() {
     const words = input.split(/\s+/);
     const last = words.at(-1) ?? '';
     const before = words.slice(0, -1);
+    const view = lab.getState().view();
+    const kafka = view.flavor === 'kafka';
     let pool: string[];
-    if (before.length === 0) pool = TOP;
-    else if (NAME_FLAGS.has(before.at(-1)!)) {
-      const snap = lab.getState().view().snapshot;
-      pool = snap.vhosts.flatMap((v) => [...v.queues.map((q) => q.name), ...v.exchanges.map((e) => e.name)]).filter(Boolean);
-    } else if (last.startsWith('-')) pool = FLAGS;
-    else pool = WORDS[before.slice(0, 2).join(' ')] ?? WORDS[before[0]] ?? [];
+    if (before.length === 0) pool = kafka ? KAFKA_TOP : TOP;
+    else if (view.flavor === 'kafka' && ['--topic', '--entity-name'].includes(before.at(-1)!)) pool = view.snapshot.topics.map((t) => t.name);
+    else if (view.flavor === 'kafka' && before.at(-1) === '--group') pool = view.snapshot.groups.map((g) => g.id);
+    else if (view.flavor === 'rabbit' && NAME_FLAGS.has(before.at(-1)!)) {
+      pool = view.snapshot.vhosts.flatMap((v) => [...v.queues.map((q) => q.name), ...v.exchanges.map((e) => e.name)]).filter(Boolean);
+    } else if (last.startsWith('-')) pool = kafka ? KAFKA_FLAGS : FLAGS;
+    else pool = (kafka ? KAFKA_WORDS : WORDS)[before.slice(0, 2).join(' ')] ?? (kafka ? KAFKA_WORDS : WORDS)[before[0]] ?? [];
     const found = [...new Set(pool)].filter((w) => w.startsWith(last)).sort();
     if (!found.length) return;
     const head = input.slice(0, input.length - last.length);
@@ -113,7 +126,10 @@ export function BrokerConsole() {
       <div role="log" aria-live="polite" aria-label="Вывод консоли">
         {entries.length === 0 && (
           <p className="pb-1 text-dim">
-            Учебная песочница: команды rabbitmqadmin (v2), rabbitmqctl и учебные sim … выполняются в модели внутри приложения. Tab — дополнить, ↑/↓ — история, Ctrl+L — очистить, help — список команд.
+            {flavor === 'kafka'
+              ? 'Учебная песочница: команды kafka-topics, kafka-console-producer/consumer, kafka-consumer-groups, kafka-configs и учебные sim … выполняются в модели внутри приложения. '
+              : 'Учебная песочница: команды rabbitmqadmin (v2), rabbitmqctl и учебные sim … выполняются в модели внутри приложения. '}
+            Tab — дополнить, ↑/↓ — история, Ctrl+L — очистить, help — список команд.
           </p>
         )}
         {entries.map((entry) => (

@@ -1,8 +1,9 @@
 import { createContext, useContext } from 'react';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
-import type { RabbitSandbox } from '@/checker/broker';
+import type { AnySandbox, KafkaSandbox, RabbitSandbox } from '@/checker/broker';
 import type { ConsoleLine } from '@/engine/sim/console';
 import { createPlayer, type Player, type Speed } from '@/engine/sim/player';
+import type { KafkaSnapshot } from '@/engine/sim/kafka';
 import type { RabbitSnapshot } from '@/engine/sim/rabbit';
 import { applyProperties, type Scenario } from '@/engine/sim/scenario';
 import type { Flavor, JournalEntry, Series } from '@/engine/sim/types';
@@ -13,7 +14,6 @@ type Lib = typeof import('@/checker/broker');
 let libPromise: Promise<Lib> | null = null;
 export const loadBrokerLib = (): Promise<Lib> => (libPromise ??= import('@/checker/broker'));
 
-export const KAFKA_NOTICE = 'Симулятор Kafka пока недоступен: задания этого курса нельзя проверить.';
 /** Timeline length of a lab without a scenario (the console moves the clock with `sim run`). */
 export const FREE_TIMELINE_MS = 60_000;
 /** Messages that moved this recently (virtual ms) are drawn as dots on the edges. */
@@ -43,11 +43,10 @@ export type LabTab = 'schema' | 'console' | 'journal' | 'metrics' | 'props';
 export type LabStatus = 'idle' | 'loading' | 'ready' | 'failed';
 
 /** Everything the views draw, derived once per change. */
-export interface LabView {
+interface LabViewBase {
   now: number;
+  /** Rabbit: the node is running; Kafka: at least one broker is up. */
   up: boolean;
-  snapshot: RabbitSnapshot;
-  consumers: LiveConsumer[];
   scenario: Scenario | null;
   journal: readonly JournalEntry[];
   /** Per actor: messages published and processed so far. */
@@ -55,6 +54,16 @@ export interface LabView {
   /** Journal entries of the last `DOT_WINDOW_MS`. */
   recent: JournalEntry[];
 }
+export interface RabbitView extends LabViewBase {
+  flavor: 'rabbit';
+  snapshot: RabbitSnapshot;
+  consumers: LiveConsumer[];
+}
+export interface KafkaView extends LabViewBase {
+  flavor: 'kafka';
+  snapshot: KafkaSnapshot;
+}
+export type LabView = RabbitView | KafkaView;
 
 interface BrokerState {
   spec: LabSpec | null;
@@ -127,7 +136,7 @@ interface Timed {
 }
 
 interface Built {
-  box: RabbitSandbox;
+  box: AnySandbox;
   scenario: Scenario | null;
   propErrors: string[];
   failure: string | null;
@@ -138,8 +147,8 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
     // Bumped by reset: a library that arrives after the task changed belongs to the old task and is dropped.
     let generation = 0;
     let lib: Lib | null = null;
-    let box: RabbitSandbox | null = null;
-    let player: Player<RabbitSnapshot> | null = null;
+    let box: AnySandbox | null = null;
+    let player: Player<RabbitSnapshot | KafkaSnapshot> | null = null;
     let unsubscribe: (() => void) | null = null;
     /** Commands as typed with the virtual time they ran at; going back in time replays those up to the target. */
     let timeline: Timed[] = [];
@@ -159,7 +168,7 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
         scenario = applied.scenario;
         propErrors = applied.errors;
       }
-      const made = libs.createRabbitSandbox(scenario ?? undefined);
+      const made = libs.createSandbox(spec.sim, scenario ?? undefined);
       let broken: string | null = null;
       const strict = (script: string, what: string) => {
         const bad = made.run(script).find((r) => r.exit !== 0);
@@ -196,7 +205,7 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
       counts.clear();
       cache = null;
       seriesCache = null;
-      player = createPlayer<RabbitSnapshot>(() => {
+      player = createPlayer<RabbitSnapshot | KafkaSnapshot>(() => {
         const built = build(libs, spec, get().props, replayLimit);
         box = built.box;
         scenarioNow = built.scenario;
@@ -261,10 +270,6 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
           tab: spec.scenario ? 'schema' : 'console',
           version: get().version + 1,
         });
-        if (spec.sim === 'kafka') {
-          set({ status: 'failed', error: KAFKA_NOTICE });
-          return;
-        }
         let libs: Lib;
         try {
           libs = lib ??= await loadBrokerLib();
@@ -342,17 +347,6 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
         const version = get().version;
         if (cache?.version === version) return cache.view;
         const b = box!;
-        const snapshot = b.model.snapshot();
-        const owner = new Map(snapshot.channels.map((c) => [c.id, c.actor]));
-        const consumers: LiveConsumer[] = [];
-        for (const v of snapshot.vhosts) {
-          const listed = b.model.listConsumers(v.name);
-          if (!listed.ok) continue;
-          for (const c of listed.value) {
-            const channel = Number(/(\d+)>?$/.exec(c.channel)?.[1] ?? NaN);
-            consumers.push({ vhost: v.name, queue: c.queue, tag: c.tag, prefetch: c.prefetch, actor: owner.get(channel) ?? null });
-          }
-        }
         const journal = b.sim.journal.entries();
         for (; counted < journal.length; counted++) {
           const e = journal[counted];
@@ -365,7 +359,26 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
         const recent: JournalEntry[] = [];
         for (let i = journal.length - 1; i >= 0 && journal[i].at >= b.sim.now - DOT_WINDOW_MS; i--) recent.push(journal[i]);
         recent.reverse();
-        const view: LabView = { now: b.sim.now, up: snapshot.up, snapshot, consumers, scenario: scenarioNow, journal, counts, recent };
+        const base = { now: b.sim.now, scenario: scenarioNow, journal, counts, recent };
+        let view: LabView;
+        if (b.model.flavor === 'kafka') {
+          const snapshot = (b as KafkaSandbox).model.snapshot();
+          view = { ...base, flavor: 'kafka', up: snapshot.brokers.some((x) => x.up), snapshot };
+        } else {
+          const rb = b as RabbitSandbox;
+          const snapshot = rb.model.snapshot();
+          const owner = new Map(snapshot.channels.map((c) => [c.id, c.actor]));
+          const consumers: LiveConsumer[] = [];
+          for (const v of snapshot.vhosts) {
+            const listed = rb.model.listConsumers(v.name);
+            if (!listed.ok) continue;
+            for (const c of listed.value) {
+              const channel = Number(/(\d+)>?$/.exec(c.channel)?.[1] ?? NaN);
+              consumers.push({ vhost: v.name, queue: c.queue, tag: c.tag, prefetch: c.prefetch, actor: owner.get(channel) ?? null });
+            }
+          }
+          view = { ...base, flavor: 'rabbit', up: snapshot.up, snapshot, consumers };
+        }
         cache = { version, view };
         return view;
       },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { SCENARIO } from '@/checker/brokerFixture';
+import { KAFKA_SCENARIO, SCENARIO } from '@/checker/brokerFixture';
 import { parseScenario } from '@/engine/sim/scenario';
-import { createBrokerStore, type LabSpec, type Ticker } from './brokerStore';
+import { createBrokerStore, type LabSpec, type LabView, type Ticker } from './brokerStore';
 
 /** A ticker the test drives by hand. */
 function manualTicker(): { tick: Ticker; fire: (dt: number) => void; running: () => boolean } {
@@ -34,12 +34,18 @@ async function open(over: Partial<LabSpec> = {}) {
   return { store, ticker, get: store.getState };
 }
 
+function rabbitSnap(get: () => { view: () => LabView }) {
+  const v = get().view();
+  if (v.flavor !== 'rabbit') throw new Error('a Rabbit lab was expected');
+  return v.snapshot;
+}
+
 describe('brokerStore', () => {
   it('[lab-reset] builds the broker from the setup scripts and shows the scenario timeline', async () => {
     const { get } = await open();
     expect(get().status).toBe('ready');
     expect(get().durationMs).toBe(4000);
-    const names = get().view().snapshot.vhosts[0].queues.map((q) => q.name);
+    const names = rabbitSnap(get).vhosts[0].queues.map((q) => q.name);
     expect(names).toEqual(['emails', 'jobs']);
     expect(get().tab).toBe('schema');
   });
@@ -53,7 +59,7 @@ describe('brokerStore', () => {
     expect(get().entries.map((e) => e.exit)).toEqual([0, 0, 127]);
     expect(get().history).toHaveLength(3);
     expect(get().input().commands).toHaveLength(2);
-    expect(get().view().snapshot.vhosts[0].queues.map((q) => q.name)).toContain('extra');
+    expect(rabbitSnap(get).vhosts[0].queues.map((q) => q.name)).toContain('extra');
   });
 
   it('[lab-player] advances with the ticker, pauses at the end and starts over from the end', async () => {
@@ -82,14 +88,14 @@ describe('brokerStore', () => {
     expect(get().input().commands).toHaveLength(2);
     get().seek(500);
     expect(get().now).toBe(500);
-    const queues = get().view().snapshot.vhosts[0].queues.map((q) => q.name);
+    const queues = rabbitSnap(get).vhosts[0].queues.map((q) => q.name);
     expect(queues).toContain('early');
     expect(queues).not.toContain('late');
     expect(get().input().commands).toHaveLength(1);
     expect(get().entries.at(-1)?.lines[0].text).toContain('отменено: 1');
     get().restart();
     expect(get().now).toBe(0);
-    expect(get().view().snapshot.vhosts[0].queues.map((q) => q.name)).toContain('early');
+    expect(rabbitSnap(get).vhosts[0].queues.map((q) => q.name)).toContain('early');
     expect(ticker.running()).toBe(false);
   });
 
@@ -124,10 +130,32 @@ describe('brokerStore', () => {
     expect(counts.get('mailer')?.processed).toBeGreaterThan(0);
   });
 
-  it('[lab-kafka] says plainly that the Kafka simulator is not there yet', async () => {
-    const { get } = await open({ sim: 'kafka', scenario: null });
-    expect(get().status).toBe('failed');
-    expect(get().error).toContain('Kafka');
+  it('[lab-kafka] a Kafka lab builds the cluster, runs console commands and replays them after rewinding', async () => {
+    const BS = '--bootstrap-server localhost:9092';
+    const { get } = await open({ sim: 'kafka', scenario: parseScenario(KAFKA_SCENARIO), setup: '' });
+    expect(get().status).toBe('ready');
+    expect(get().durationMs).toBe(KAFKA_SCENARIO.durationMs);
+    const view = () => {
+      const v = get().view();
+      if (v.flavor !== 'kafka') throw new Error('a Kafka lab was expected');
+      return v;
+    };
+    expect(view().snapshot.topics.map((t) => t.name)).toEqual(['orders']);
+    expect(view().snapshot.brokers.every((b) => b.up)).toBe(true);
+    get().run(`kafka-topics.sh ${BS} --create --topic extra --partitions 2`);
+    expect(view().snapshot.topics.map((t) => t.name)).toEqual(['extra', 'orders']);
+    get().seek(5000);
+    get().seek(0);
+    expect(view().snapshot.topics.map((t) => t.name)).toEqual(['extra', 'orders']);
+    expect(get().input().commands).toHaveLength(1);
+  });
+
+  it('[lab-kafka-counts] producers and consumers are counted from the journal', async () => {
+    const { get } = await open({ sim: 'kafka', scenario: parseScenario(KAFKA_SCENARIO), setup: '' });
+    get().seek(12000);
+    const counts = get().view().counts;
+    expect(counts.get('api')?.published ?? 0).toBeGreaterThan(0);
+    expect(counts.get('worker')?.processed ?? 0).toBeGreaterThan(0);
   });
 
   it('[lab-bad-setup] a broken setup is reported as a content error', async () => {
@@ -142,6 +170,6 @@ describe('brokerStore', () => {
     const first = store.getState().reset(spec({ setup: '' }));
     const second = store.getState().reset(spec());
     await Promise.all([first, second]);
-    expect(store.getState().view().snapshot.vhosts[0].queues.map((q) => q.name)).toEqual(['emails', 'jobs']);
+    expect(rabbitSnap(store.getState).vhosts[0].queues.map((q) => q.name)).toEqual(['emails', 'jobs']);
   });
 });

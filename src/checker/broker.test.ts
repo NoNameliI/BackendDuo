@@ -141,16 +141,7 @@ describe('scenario', () => {
   });
 });
 
-describe('kafka and lint', () => {
-  it('the Kafka flavor is rejected with a clear problem', () => {
-    const t = { ...task('fx-topology'), sim: 'kafka' } as BrokerTask;
-    const r = check(t, solution(t));
-    expect(r.passed).toBe(false);
-    expect(r.problems[0]).toContain('Kafka пока недоступен');
-    expect(lintBrokerTask(t, course.scenarios)[0]).toContain('Kafka пока недоступен');
-    expect(checkBrokerExamples([], '', 'kafka')[0]).toContain('Kafka пока недоступен');
-  });
-
+describe('lint', () => {
   it('forbids an empty routing key on a topic exchange', () => {
     const t = task('fx-routing');
     expect(lintBrokerTask(t, course.scenarios)).toEqual([]);

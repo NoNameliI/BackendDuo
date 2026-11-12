@@ -2,7 +2,7 @@
 // including stress fixtures, and the real lab (BrokerWorkbench over a simulated broker) in deterministic states: scenario
 // moments, tabs, a stress topology and the practical tasks of the public broker courses.
 import { useSyncExternalStore, type ReactElement } from 'react';
-import { SCENARIO, DECLARE_FANOUT } from '@/checker/brokerFixture';
+import { SCENARIO, DECLARE_FANOUT, KAFKA_SCENARIO } from '@/checker/brokerFixture';
 import { courses } from '@/content/courses';
 import type { BrokerTask } from '@/content/loadCourse';
 import { parseScenario, type Scenario } from '@/engine/sim/scenario';
@@ -272,6 +272,62 @@ function stressScenario(): Scenario {
   return parseScenario({ sim: 'rabbit', seed: 5, durationMs: 6000, setup: lines.join('\n'), actors, faults: [{ at: 2500, kind: 'consumer.stop', actor: 'consumer-service-with-a-long-name-2' }], expect: [] });
 }
 
+// --- Kafka lab states -----------------------------------------------------------------------------------------
+
+const BS = '--bootstrap-server localhost:9092';
+const kafkaSpec = (scenario: Scenario | null, setup = ''): LabSpec => ({ sim: 'kafka', setup, scenario, props: '', starter: '' });
+
+/** A 3-partition topic read by a group of two, no faults. */
+function groupScenario(): Scenario {
+  return parseScenario({
+    sim: 'kafka',
+    seed: 4,
+    durationMs: 30_000,
+    setup: `kafka-topics.sh ${BS} --create --topic orders --partitions 3 --replication-factor 3`,
+    actors: [
+      { id: 'orders-api', kind: 'producer', topic: 'orders', rate: 8, count: 60, message: { body: 'order {n}', key: 'customer-{n%7}' }, config: {} },
+      { id: 'worker-1', kind: 'consumer', group: 'workers', topics: ['orders'], processMs: 120, config: { 'auto.offset.reset': 'earliest' } },
+      { id: 'worker-2', kind: 'consumer', group: 'workers', topics: ['orders'], processMs: 120, config: { 'auto.offset.reset': 'earliest' } },
+    ],
+    faults: [],
+    expect: [],
+  });
+}
+
+/** 12 partitions, three groups, long names and 40-character keys. */
+function kafkaStressScenario(): Scenario {
+  const topic = 'orders-with-a-very-long-topic-name-eu-west-1';
+  const key = 'customer-account-identifier-with-region-{n%9}';
+  const consumers = ['analytics', 'billing-and-invoicing-service', 'notifications'].flatMap((g, gi) =>
+    [1, 2, 3].slice(0, gi === 1 ? 3 : 2).map((i) => ({ id: `${g}-consumer-instance-${i}`, kind: 'consumer', group: `${g}-group`, topics: [topic], processMs: 150 + gi * 100, config: { 'auto.offset.reset': 'earliest' } })),
+  );
+  return parseScenario({
+    sim: 'kafka',
+    seed: 6,
+    durationMs: 30_000,
+    setup: `kafka-topics.sh ${BS} --create --topic ${topic} --partitions 12 --replication-factor 3 --config retention.ms=86400000`,
+    actors: [{ id: 'checkout-service-producer', kind: 'producer', topic, rate: 20, count: 150, message: { body: 'order {n}', key }, config: {} }, ...consumers],
+    faults: [],
+    expect: [],
+  });
+}
+
+/** A broker goes down under load: leaders move, the ISR shrinks, the group keeps reading. */
+function crashScenario(): Scenario {
+  return parseScenario({
+    ...KAFKA_SCENARIO,
+    seed: 2,
+    durationMs: 60_000,
+    setup: `kafka-topics.sh ${BS} --create --topic orders --partitions 3 --replication-factor 3 --config min.insync.replicas=2`,
+    actors: [
+      { id: 'api', kind: 'producer', topic: 'orders', rate: 10, count: 120, message: { body: 'm{n}', key: 'k{n%5}' }, config: { acks: 'all' } },
+      { id: 'worker', kind: 'consumer', group: 'workers', topics: ['orders'], processMs: 40, config: { 'auto.offset.reset': 'earliest' } },
+    ],
+    faults: [{ at: 2000, kind: 'broker.crash', broker: 2 }],
+    expect: [],
+  });
+}
+
 const FANOUT: LabCase = { label: 'fanout', spec: fixtureSpec({ scenario: null, setup: DECLARE_FANOUT }), at: 0, tab: 'schema' };
 const ORDERS: LabCase[] = [
   { label: 'orders start', spec: fixtureSpec(), at: 0, tab: 'schema' },
@@ -302,12 +358,11 @@ function courseCases(): LabCase[] {
         for (const t of lesson.tasks) {
           if (!('brokerSolution' in t) || t.type === 'console') continue;
           const task = t as BrokerTask;
-          if (task.sim !== 'rabbit') continue;
           const base = task.scenario ? course.scenarios[task.scenario] : undefined;
           const scenario = base ? parseScenario({ ...base, ...(task.scenarioPatch ?? {}) }) : null;
           out.push({
             label: task.id,
-            spec: { sim: 'rabbit', setup: task.brokerSetup, scenario, props: task.propsSolution, starter: task.brokerStarter },
+            spec: { sim: task.sim, setup: task.brokerSetup, scenario, props: task.propsSolution, starter: task.brokerStarter },
             script: task.brokerSolution,
             at: 'end',
             tab: 'schema',
@@ -329,7 +384,27 @@ const labFixture = (id: string, stress: boolean, cases: () => LabCase[]): Fixtur
   build: (state) => labElement(cases()[state]),
 });
 
-FIXTURES.push(labFixture('lab-fanout', false, () => [FANOUT]), labFixture('lab-orders', false, () => ORDERS), labFixture('lab-stress', true, () => STRESS), labFixture('lab-courses', false, courseCases));
+const KAFKA: LabCase[] = [
+  { label: 'group start', spec: kafkaSpec(groupScenario()), at: 0, tab: 'schema' },
+  { label: 'group middle', spec: kafkaSpec(groupScenario()), at: 4000, tab: 'schema' },
+  { label: 'group end', spec: kafkaSpec(groupScenario()), at: 'end', tab: 'schema' },
+  { label: 'group journal', spec: kafkaSpec(groupScenario()), at: 'end', tab: 'journal' },
+  { label: 'group metrics', spec: kafkaSpec(groupScenario()), at: 'end', tab: 'metrics' },
+  { label: 'crash after the fault', spec: kafkaSpec(crashScenario()), at: 3000, tab: 'schema' },
+  { label: 'crash shrunk isr', spec: kafkaSpec(crashScenario()), at: 'end', tab: 'schema' },
+  { label: 'crash metrics', spec: kafkaSpec(crashScenario()), at: 'end', tab: 'metrics' },
+  { label: 'console', spec: kafkaSpec(null, `kafka-topics.sh ${BS} --create --topic demo --partitions 2`), script: `kafka-topics.sh ${BS} --describe --topic demo`, at: 0, tab: 'console' },
+  { label: 'empty cluster', spec: kafkaSpec(null), at: 0, tab: 'schema' },
+];
+const KAFKA_STRESS: LabCase[] = [
+  { label: 'stress start', spec: kafkaSpec(kafkaStressScenario()), at: 0, tab: 'schema' },
+  { label: 'stress middle', spec: kafkaSpec(kafkaStressScenario()), at: 6000, tab: 'schema' },
+  { label: 'stress end', spec: kafkaSpec(kafkaStressScenario()), at: 'end', tab: 'schema' },
+  { label: 'stress journal', spec: kafkaSpec(kafkaStressScenario()), at: 'end', tab: 'journal' },
+  { label: 'stress metrics', spec: kafkaSpec(kafkaStressScenario()), at: 'end', tab: 'metrics' },
+];
+
+FIXTURES.push(labFixture('lab-fanout', false, () => [FANOUT]), labFixture('lab-orders', false, () => ORDERS), labFixture('lab-stress', true, () => STRESS), labFixture('lab-courses', false, courseCases), labFixture('lab-kafka', false, () => KAFKA), labFixture('lab-kafka-stress', true, () => KAFKA_STRESS));
 
 // --- page -------------------------------------------------------------------------------------------------------
 
