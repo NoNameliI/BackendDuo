@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { niceStep, reduceSeries } from './MetricChart';
+import { niceStep, reduceSeries, valueAxis } from './MetricChart';
 
 describe('MetricChart helpers', () => {
   it('[chart-reduce] keeps spikes and bounds the point count', () => {
@@ -13,5 +13,16 @@ describe('MetricChart helpers', () => {
   it('[chart-axis] picks round steps', () => {
     expect(niceStep(97, 4)).toBe(50);
     expect(niceStep(10, 5)).toBe(2);
+  });
+
+  it('[chart-axis] keeps every value tick inside the box, also for all-zero data', () => {
+    for (const max of [0, 0.3, 1, 7, 97, 1234]) {
+      const a = valueAxis(max);
+      expect(a.top).toBeGreaterThanOrEqual(max);
+      expect(a.ticks[0]).toBe(0);
+      expect(a.ticks.at(-1)).toBeCloseTo(a.top);
+      expect(a.ticks.every((v) => v <= a.top * (1 + 1e-9))).toBe(true);
+    }
+    expect(valueAxis(0)).toMatchObject({ step: 1, top: 1, ticks: [0, 1] });
   });
 });

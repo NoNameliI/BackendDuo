@@ -16,6 +16,8 @@ export interface CheckResult {
   plan?: QueryPlan;
   /** Planner cost of the untouched query, for plan tasks. */
   baselineCost?: number;
+  /** Broker tasks: the journal path of the first message that broke the check, one step per line. */
+  trace?: string[];
 }
 
 /** Raised when the reference solution itself fails: a content bug, not a learner mistake. */

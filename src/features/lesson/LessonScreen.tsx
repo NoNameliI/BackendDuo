@@ -13,19 +13,22 @@ import { QuizPanel } from './QuizPanel';
 import { ResultPanel } from './ResultPanel';
 import { TaskPanel } from './TaskPanel';
 import { Terminal } from './Terminal';
-import { lessonApi, lessonSandbox, useWorkspace, type EngineStatus } from './workspace';
+import { lessonApi, lessonBroker, lessonSandbox, useWorkspace, type EngineStatus } from './workspace';
+import { BrokerContext } from '@/features/broker/brokerStore';
 import { ApiSandboxContext } from '@/features/api/apiStore';
 import { ApiWorkbench } from '@/features/api/ApiWorkbench';
 import { SandboxContext } from '@/features/git/gitSandbox';
 import { GitWorkbench } from '@/features/git/GitWorkbench';
 
 const SqlEditor = lazy(() => import('./SqlEditor'));
+const BrokerWorkbench = lazy(() => import('@/features/broker/BrokerWorkbench'));
 
 export function LessonScreen() {
   const { task, code, error, status, setCode, run, check, explain, resetDatabase, clearLog, openTask, goRelative, toggleOption } =
     useWorkspace();
   const busy = status === 'busy' || status === 'starting';
   const checking = useWorkspace((s) => s.checking);
+  const trace = useWorkspace((s) => s.verdict?.trace);
 
   useEffect(() => {
     const course = activeCourse();
@@ -79,6 +82,30 @@ export function LessonScreen() {
             }
           />
         </ApiSandboxContext.Provider>
+      </Split>
+    );
+  }
+
+  if (task && 'brokerSolution' in task) {
+    return (
+      <Split direction="row" storageKey="broker-lesson-columns" initial={[30, 70]} min={20}>
+        <TaskPanel />
+        <BrokerContext.Provider value={lessonBroker}>
+          <Suspense fallback={<div className="h-full bg-well" />}>
+            <BrokerWorkbench
+              prefix="broker-lesson"
+              trace={trace}
+              actions={
+                <>
+                  <Button aria-label="Вернуть лабораторию к началу задания" title="Сбросить лабораторию" icon={<ResetIcon />} onClick={() => void resetDatabase()} />
+                  <Button variant="check" icon={<CheckIcon />} shortcut="Ctrl ⇧ ↵" disabled={checking} onClick={() => void check()}>
+                    {checking ? 'Проверяю…' : 'Проверить'}
+                  </Button>
+                </>
+              }
+            />
+          </Suspense>
+        </BrokerContext.Provider>
       </Split>
     );
   }

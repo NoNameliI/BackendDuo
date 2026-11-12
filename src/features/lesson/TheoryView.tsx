@@ -7,6 +7,7 @@ import { Button } from '@/ui/Button';
 import { PlayIcon } from '@/ui/icons';
 import { Markdown } from '@/ui/Markdown';
 import { highlightSql } from '@/ui/highlightSql';
+import { resetBrokerExamples, runBrokerExample, runScenarioExample, type BrokerRun, type ScenarioRun } from './brokerExamples';
 import { resetExamples, runExample } from './examples';
 import { resetShellExamples, runShellExample, type ShellRun } from './shellExamples';
 import { resetHttpExamples, runGraphqlExample, runHttpExample, runProtoExample, runPythonExample, type HttpRun, type SchemaRun } from './httpExamples';
@@ -22,6 +23,7 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
   const runnable = segments.some((s) => s.kind === 'example');
   const shell = segments.some((s) => s.kind === 'example' && s.lang === 'sh');
   const http = segments.some((s) => s.kind === 'example' && (s.lang === 'http' || s.lang === 'graphql' || s.lang === 'proto' || s.lang === 'python'));
+  const broker = segments.some((s) => s.kind === 'example' && (s.lang === 'broker' || s.lang === 'scenario'));
   const python = segments.some((s) => s.kind === 'example' && s.lang === 'python');
 
   // Python takes seconds to load: it starts while the learner reads the theory.
@@ -33,7 +35,9 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
     <div className="space-y-4">
       {runnable && (
         <p className="rounded border border-line bg-well px-3 py-2 text-[12.5px] leading-relaxed text-dim">
-          {http
+          {broker
+            ? 'Примеры работают в отдельной учебной песочнице брокера и не трогают задание. Команды выполняются по порядку и продолжают друг друга; сценарий каждый раз запускается заново.'
+            : http
             ? python
               ? 'Примеры на FastAPI выполняются настоящим Python внутри приложения, сети нет. Каждый пример запускает своё приложение заново и не трогает задание.'
               : 'Примеры запускаются на учебном сервере внутри приложения, сети нет. Сервер примеров отдельный и не трогает задание; запускайте примеры по порядку.'
@@ -43,9 +47,9 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
           <button
             type="button"
             className="text-nav underline underline-offset-2"
-            onClick={() => (http ? resetHttpExamples(lesson) : shell ? resetShellExamples(lesson) : void resetExamples(lesson))}
+            onClick={() => (broker ? resetBrokerExamples() : http ? resetHttpExamples(lesson) : shell ? resetShellExamples(lesson) : void resetExamples(lesson))}
           >
-            {http ? 'Вернуть сервер примеров в исходное состояние' : shell ? 'Начать примеры заново' : 'Вернуть базу примеров в исходное состояние'}
+            {broker ? 'Начать примеры заново' : http ? 'Вернуть сервер примеров в исходное состояние' : shell ? 'Начать примеры заново' : 'Вернуть базу примеров в исходное состояние'}
           </button>
         </p>
       )}
@@ -53,7 +57,11 @@ export function TheoryView({ lesson }: { lesson: Lesson }) {
         segment.kind === 'markdown' ? (
           <Markdown key={i} source={segment.text} />
         ) : (
-          segment.lang === 'sh' ? (
+          segment.lang === 'broker' ? (
+            <BrokerExample key={`${lesson.id}-${i}`} lesson={lesson} script={segment.code} />
+          ) : segment.lang === 'scenario' ? (
+            <ScenarioExample key={`${lesson.id}-${i}`} json={segment.code} />
+          ) : segment.lang === 'sh' ? (
             <ShellExample key={`${lesson.id}-${i}`} lesson={lesson} script={segment.code} />
           ) : segment.lang === 'http' ? (
             <HttpExample key={`${lesson.id}-${i}`} lesson={lesson} text={segment.code} />
@@ -239,6 +247,103 @@ function SchemaExample({ lesson, lang, text }: { lesson: Lesson; lang: 'graphql'
           ))}
         </div>
       )}
+      </div>
+    </figure>
+  );
+}
+
+function BrokerExample({ lesson, script }: { lesson: Lesson; script: string }) {
+  const [result, setResult] = useState<BrokerRun[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      setResult(await runBrokerExample(lesson, script));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <figure className="overflow-hidden rounded-md border border-line bg-well">
+      <div className="relative">
+        <pre className="md-code !rounded-none !border-0 pr-32">{script}</pre>
+        <Button variant="run" icon={<PlayIcon />} className="absolute right-2 top-2" disabled={busy} onClick={() => void run()}>
+          Выполнить
+        </Button>
+      </div>
+      <div aria-live="polite">
+        {result && (
+          <div className="animate-rise border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed">
+            {result.map((step, i) => (
+              <div key={i}>
+                <p className="whitespace-pre-wrap break-words">
+                  <span className="text-ok">$</span> <span className="text-fg">{step.command}</span>
+                </p>
+                {step.lines.map((line, j) => (
+                  <p key={j} className={`min-h-[1.5em] whitespace-pre-wrap break-words ${line.tone === 'err' ? 'text-err' : line.tone === 'dim' ? 'text-dim' : 'text-fg'}`}>
+                    {line.text}
+                  </p>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </figure>
+  );
+}
+
+/** `scenario example`: the scenario runs to its end in its own broker; the verdict of its expectations and the notable journal lines are shown. */
+function ScenarioExample({ json }: { json: string }) {
+  const [result, setResult] = useState<ScenarioRun | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      setResult(await runScenarioExample(json));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <figure className="overflow-hidden rounded-md border border-line bg-well">
+      <div className="relative">
+        <pre className="md-code !rounded-none !border-0 pr-32">{json}</pre>
+        <Button variant="run" icon={<PlayIcon />} className="absolute right-2 top-2" disabled={busy} onClick={() => void run()}>
+          Запустить
+        </Button>
+      </div>
+      <div aria-live="polite">
+        {result && (
+          <div className="animate-rise space-y-1.5 border-t border-line bg-panel px-3 py-2 text-[12.5px] leading-relaxed">
+            {result.error ? (
+              <p className="text-err">{result.error}</p>
+            ) : (
+              <>
+                <p className="text-dim">
+                  Сценарий прошёл {(result.durationMs / 1000).toFixed(1).replace('.', ',')} с виртуального времени, опубликовано сообщений: {result.published}.
+                </p>
+                {result.checks.map((c, i) => (
+                  <p key={i} className={c.ok ? 'text-ok' : 'text-err'}>
+                    {c.ok ? '✓' : '✗'} {c.text}
+                  </p>
+                ))}
+                {result.trace.map((t, i) => (
+                  <p key={i} className="text-fg">
+                    {t}
+                  </p>
+                ))}
+                {result.notable.length > 0 && (
+                  <ul className="list-none space-y-0.5 p-0 font-mono text-[12px] text-dim">
+                    {result.notable.map((n, i) => (
+                      <li key={i}>{n}</li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </figure>
   );

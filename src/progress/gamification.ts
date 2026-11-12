@@ -139,9 +139,9 @@ export function badgeEarned(badge: Badge, course: Course, cp: CourseProgress, st
   }
 }
 
-/** A platform badge: at least `tasks` solved tasks in every course. */
+/** A platform badge: at least `tasks` solved tasks in every course (sealed and companion courses are not counted). */
 export function platformBadgeEarned(badge: PlatformBadge, courses: Course[], progress: (courseId: string) => CourseProgress): boolean {
-  return courses.filter((c) => !c.sealed).every((course) => {
+  return courses.filter((c) => !c.sealed && !c.companion).every((course) => {
     const cp = progress(course.id);
     const solved = course.worlds.flatMap((w) => w.lessons.flatMap((l) => l.tasks)).filter((t) => progressOf(cp, t.id).solved);
     return solved.length >= badge.rule.tasks;

@@ -301,6 +301,90 @@ const fastapiTask = z.object({
     .prefault({}),
 });
 
+
+// Broker courses (RabbitMQ, Kafka): console scripts for the simulators in ```broker setup | starter | solution blocks,
+// scenario properties in ```properties starter | solution; scenarios themselves live in manifest `scenarios`.
+export const flavorEnum = z.enum(['rabbit', 'kafka']);
+
+const brokerBase = {
+  ...taskBase,
+  /** Simulator of the task; by default the course `flavor` (required in companion courses). */
+  sim: flavorEnum.optional(),
+  /** Scenario slug from the manifest `scenarios`: actors, faults and the invariants the check evaluates. */
+  scenario: slug.optional(),
+  /** Replaces the given top-level parts of the scenario (`faults` and `expect` are replaced as a whole). */
+  scenarioPatch: z
+    .object({
+      seed: z.number().int().nonnegative().optional(),
+      durationMs: z.number().positive().optional(),
+      faults: z.array(z.looseObject({ at: z.number().nonnegative(), kind: z.string() })).optional(),
+      expect: z.array(z.looseObject({ kind: z.string() })).optional(),
+    })
+    .optional(),
+  brokerSetup: z.string().default(''),
+  brokerStarter: z.string().default(''),
+  brokerSolution: z.string().default(''),
+  propsStarter: z.string().default(''),
+  propsSolution: z.string().default(''),
+};
+
+/** What `topology` and `console` tasks compare between the learner's broker and the reference one. */
+export const brokerCompareEnum = z.enum(['exchanges', 'queues', 'bindings', 'vhosts', 'users', 'permissions', 'topics', 'configs', 'messages', 'offsets']);
+
+const topologyTask = z.object({
+  ...brokerBase,
+  type: z.literal('topology'),
+  check: z
+    .object({
+      compare: z.array(brokerCompareEnum).min(1).default(['exchanges', 'queues', 'bindings']),
+      /** Attributes that do not matter (e.g. durable, arguments). */
+      ignore: z.array(z.string().min(1)).default([]),
+    })
+    .prefault({}),
+});
+
+const publication = z.union([
+  z.object({
+    exchange: z.string().default(''),
+    routingKey: z.string().default(''),
+    headers: z.record(z.string(), z.unknown()).optional(),
+    body: z.string().min(1),
+    mandatory: z.boolean().default(true),
+  }),
+  z.object({ topic: z.string().min(1), key: z.string().optional(), value: z.string().min(1) }),
+]);
+
+const routingTask = z.object({
+  ...brokerBase,
+  type: z.literal('routing'),
+  check: z.object({
+    /** Messages published on the learner's topology; where they end up is compared with the reference topology. */
+    publish: z.array(publication).min(1),
+    ignore: z.array(z.string().min(1)).default([]),
+  }),
+});
+
+const consoleTask = z.object({
+  ...brokerBase,
+  type: z.literal('console'),
+  check: z
+    .object({
+      compare: z.array(brokerCompareEnum).default([]),
+      ignore: z.array(z.string().min(1)).default([]),
+      /** Regular expressions over the commands typed (successful ones for `require`). */
+      require: z.array(pattern).default([]),
+      forbid: z.array(pattern).default([]),
+    })
+    .refine((c) => c.compare.length > 0 || c.require.length > 0, { message: 'нужно хотя бы одно условие: compare или require' }),
+});
+
+const scenarioTask = z.object({
+  ...brokerBase,
+  type: z.literal('scenario'),
+  /** The scenario's `expect` list is the check: every invariant must hold after the run. */
+  check: z.object({}).prefault({}),
+});
+
 export const levelEnum = z.enum(['base', 'core', 'hard']);
 
 /**
@@ -325,8 +409,15 @@ const drillTask = z.object({
 export const corsConfigSchema = corsConfig;
 
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask, drillTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask, drillTask, topologyTask, routingTask, consoleTask, scenarioTask])
   .superRefine((task, ctx) => {
+    if ('brokerSolution' in task) {
+      if (!task.brokerSolution.trim() && !task.propsSolution.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['brokerSolution'], message: 'нужен хотя бы один из блоков: ```broker solution или ```properties solution' });
+      }
+      if (task.type === 'scenario' && !task.scenario) ctx.addIssue({ code: 'custom', path: ['scenario'], message: 'заданию типа scenario нужно поле scenario' });
+      return;
+    }
     if (task.type !== 'choice' && task.type !== 'review') return;
     if (task.answer.some((i) => i >= task.options.length)) {
       ctx.addIssue({ code: 'custom', path: ['answer'], message: 'индекс ответа вне списка вариантов' });
@@ -352,7 +443,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi', 'drill']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi', 'drill', 'topology', 'routing', 'console', 'scenario']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),
@@ -382,7 +473,7 @@ export const levelsSchema = z
 export const manifestSchema = z.object({
   id: slug,
   title: z.string().min(1),
-  engine: z.enum(['postgres', 'git', 'api', 'drill']),
+  engine: z.enum(['postgres', 'git', 'api', 'drill', 'broker']),
   datasets: z.record(slug, z.string().regex(/\.sql$/)).default({}),
   errors: z.string().regex(/\.json$/),
   /** One or two sentences for the course card in the hub. */
@@ -398,6 +489,14 @@ export const manifestSchema = z.object({
   solutionAfterAttempts: z.number().int().positive().optional(),
   /** Drill course: the file with the DrillConfig. */
   drill: z.string().regex(/\.json$/).optional(),
+  /** Broker course: which simulator the tasks use unless they say otherwise. */
+  flavor: flavorEnum.optional(),
+  /** Broker course: scenarios (JSON, see src/engine/sim/scenario.ts) by name. */
+  scenarios: z.record(slug, z.string().regex(/\.json$/)).default({}),
+  /** A companion course is not counted by the platform badges and is reached from the maps of `companions`' hosts. */
+  companion: z.boolean().optional(),
+  /** Ids of companion courses this course links to (portal on the map). */
+  companions: z.array(slug).default([]),
 });
 
 const nonEmpty = z.string().min(1);
@@ -558,6 +657,7 @@ export const serverDefSchema = z.object({
 
 export type TaskInput = z.input<typeof taskSchema>;
 export type ParsedTask = z.output<typeof taskSchema>;
+export type BrokerCompare = z.infer<typeof brokerCompareEnum>;
 export type DrillTask = Extract<ParsedTask, { type: 'drill' }>;
 export type DrillConfig = z.output<typeof drillConfigSchema>;
 export type Badge =z.output<typeof badgeSchema>;

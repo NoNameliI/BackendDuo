@@ -64,7 +64,17 @@ export function niceStep(range: number, ticks: number): number {
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
 }
 
-const fmtTime = (ms: number): string => (ms >= 1000 ? `${+(ms / 1000).toFixed(1)} с` : `${Math.round(ms)} мс`);
+/** Value axis for the data maximum: ticks from 0 to `top` inclusive, all inside the plot box. */
+export function valueAxis(max: number): { step: number; top: number; ticks: number[] } {
+  // An all-zero series still gets a readable 0..1 axis instead of nano-sized ticks.
+  const step = max > 0 ? niceStep(max, 4) : 1;
+  const top = Math.max(step, Math.ceil(max / step) * step);
+  const ticks: number[] = [];
+  for (let k = 0; k * step <= top * (1 + 1e-9); k++) ticks.push(k * step);
+  return { step, top, ticks };
+}
+
+const fmtTime =(ms: number): string => (ms >= 1000 ? `${+(ms / 1000).toFixed(1)} с` : `${Math.round(ms)} мс`);
 const fmtNum = (v: number): string => (Number.isInteger(v) ? String(v) : v.toFixed(1)).replace('.', ',');
 
 function lastAt(points: readonly (readonly [number, number])[], t: number): number | null {
@@ -89,17 +99,14 @@ export function MetricChart({ series, now, endMs, title, unit = '', width = 520,
     }
     if (endMs === undefined && now !== undefined && now > end) end = now;
     end = Math.max(end, 1000);
-    const step = niceStep(max, 4);
-    const top = Math.max(step, Math.ceil(max / step) * step);
-    return { end, top, step };
+    return { end, ...valueAxis(max) };
   }, [series, now, endMs]);
 
   const iw = width - PAD.l - PAD.r;
   const ih = height - PAD.t - PAD.b;
   const x = (t: number) => PAD.l + (t / model.end) * iw;
   const y = (v: number) => PAD.t + ih - (v / model.top) * ih;
-  const yTicks: number[] = [];
-  for (let v = 0; v <= model.top + 1e-9; v += model.step) yTicks.push(v);
+  const yTicks = model.ticks;
   const tStep = niceStep(model.end, 5);
   const xTicks: number[] = [];
   for (let t = 0; t <= model.end + 1e-9; t += tStep) xTicks.push(t);

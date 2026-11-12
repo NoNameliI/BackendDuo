@@ -1,6 +1,13 @@
 // The lab suite: fixture screens built from the public lab primitives (src/features/broker) in deterministic states,
-// including stress fixtures. No course files are read. Later stages register the real lab views here.
+// including stress fixtures, and the real lab (BrokerWorkbench over a simulated broker) in deterministic states: scenario
+// moments, tabs, a stress topology and the practical tasks of the public broker courses.
 import { useSyncExternalStore, type ReactElement } from 'react';
+import { SCENARIO, DECLARE_FANOUT } from '@/checker/brokerFixture';
+import { courses } from '@/content/courses';
+import type { BrokerTask } from '@/content/loadCourse';
+import { parseScenario, type Scenario } from '@/engine/sim/scenario';
+import { BrokerWorkbench } from '@/features/broker/BrokerWorkbench';
+import { BrokerContext, createBrokerStore, type LabSpec, type LabTab } from '@/features/broker/brokerStore';
 import { labelSize, NODE_R } from '@/engine/drill/gen/shared/graphLayout';
 import { boxCircleDist, boxSegDist, type Box, type Pt, type Seg } from '@/engine/drill/gen/shared/plane';
 import { JournalView, type JournalRow } from '@/features/broker/JournalView';
@@ -152,6 +159,8 @@ interface Fixture {
   stress: boolean;
   states: string[];
   view(state: number): ReactElement;
+  /** The real lab: builds the element for a state (the lab needs its simulator loaded first). */
+  build?(state: number): Promise<ReactElement>;
 }
 
 const noop = () => {};
@@ -215,9 +224,116 @@ const FIXTURES: Fixture[] = [
   },
 ];
 
+// --- the real lab ------------------------------------------------------------------------------------------
+
+interface LabCase {
+  label: string;
+  spec: LabSpec;
+  /** Console script run at the start. */
+  script?: string;
+  /** Virtual time to show; 'end' = the scenario's end. */
+  at: number | 'end';
+  tab: LabTab;
+}
+
+async function labElement(c: LabCase): Promise<ReactElement> {
+  const store = createBrokerStore(() => () => {});
+  await store.getState().reset(c.spec);
+  if (c.script) store.getState().run(c.script);
+  store.getState().seek(c.at === 'end' ? store.getState().durationMs : c.at);
+  store.getState().setTab(c.tab);
+  return (
+    <BrokerContext.Provider value={store}>
+      <div style={{ width: 'min(100%, 780px)', height: 640 }}>
+        <BrokerWorkbench prefix="audit-lab" />
+      </div>
+    </BrokerContext.Provider>
+  );
+}
+
+const fixtureSpec = (over: Partial<LabSpec> = {}): LabSpec => ({ sim: 'rabbit', setup: '', scenario: parseScenario(SCENARIO), props: '', starter: '', ...over });
+
+/** 8 exchanges, 14 queues, 3 producers, 6 consumers, long names and keys. */
+function stressScenario(): Scenario {
+  const lines: string[] = [];
+  const types = ['topic', 'direct', 'fanout'];
+  for (let i = 0; i < 8; i++) lines.push(`rabbitmqadmin exchanges declare --name exchange-with-a-long-name-${i + 1} --type ${types[i % 3]} --durable true`);
+  for (let j = 0; j < 14; j++) {
+    lines.push(`rabbitmqadmin queues declare --name queue-with-a-very-long-name-${j + 1} --type classic --durable true`);
+    const home = Math.floor((j * 8) / 14);
+    for (const x of j % 4 === 3 ? [home, Math.min(7, home + 1)] : [home]) {
+      lines.push(`rabbitmqadmin bindings declare --source exchange-with-a-long-name-${x + 1} --destination-type queue --destination queue-with-a-very-long-name-${j + 1} --routing-key region.${j}.warehouse.shipment.delivery.confirmed.v2`);
+    }
+  }
+  const actors = [
+    ...[0, 1, 2].map((i) => ({ id: `producer-service-with-a-long-name-${i + 1}`, kind: 'producer', rate: 5, count: 20, message: { body: 'm {n}', exchange: `exchange-with-a-long-name-${i + 1}`, routingKey: `region.${i}.warehouse.shipment.delivery.confirmed.v2` }, config: {} })),
+    ...[0, 1, 2, 3, 4, 5].map((i) => ({ id: `consumer-service-with-a-long-name-${i + 1}`, kind: 'consumer', queue: `queue-with-a-very-long-name-${i + 1}`, processMs: 200, config: { prefetch_count: 2 } })),
+  ];
+  return parseScenario({ sim: 'rabbit', seed: 5, durationMs: 6000, setup: lines.join('\n'), actors, faults: [{ at: 2500, kind: 'consumer.stop', actor: 'consumer-service-with-a-long-name-2' }], expect: [] });
+}
+
+const FANOUT: LabCase = { label: 'fanout', spec: fixtureSpec({ scenario: null, setup: DECLARE_FANOUT }), at: 0, tab: 'schema' };
+const ORDERS: LabCase[] = [
+  { label: 'orders start', spec: fixtureSpec(), at: 0, tab: 'schema' },
+  { label: 'orders middle', spec: fixtureSpec(), at: 1500, tab: 'schema' },
+  { label: 'orders after the fault', spec: fixtureSpec(), at: 400, tab: 'schema' },
+  { label: 'orders end', spec: fixtureSpec(), at: 'end', tab: 'schema' },
+  { label: 'orders journal', spec: fixtureSpec(), at: 'end', tab: 'journal' },
+  { label: 'orders metrics', spec: fixtureSpec(), at: 'end', tab: 'metrics' },
+  { label: 'orders properties', spec: fixtureSpec({ props: 'mailer.idempotent=true' }), at: 'end', tab: 'props' },
+  { label: 'orders console', spec: fixtureSpec(), script: 'rabbitmqadmin queues list\nsim run 1s', at: 0, tab: 'console' },
+];
+const stress = (): LabSpec => ({ sim: 'rabbit', setup: '', scenario: stressScenario(), props: '', starter: '' });
+const STRESS: LabCase[] = [
+  { label: 'stress start', spec: stress(), at: 0, tab: 'schema' },
+  { label: 'stress middle', spec: stress(), at: 3000, tab: 'schema' },
+  { label: 'stress end', spec: stress(), at: 'end', tab: 'schema' },
+  { label: 'stress journal', spec: stress(), at: 'end', tab: 'journal' },
+  { label: 'stress metrics', spec: stress(), at: 'end', tab: 'metrics' },
+];
+
+/** Practical tasks of the public broker courses, shown in their solved state. */
+function courseCases(): LabCase[] {
+  const out: LabCase[] = [];
+  for (const course of courses) {
+    if (course.engine !== 'broker' || course.sealed) continue;
+    for (const world of course.worlds) {
+      for (const lesson of world.lessons) {
+        for (const t of lesson.tasks) {
+          if (!('brokerSolution' in t) || t.type === 'console') continue;
+          const task = t as BrokerTask;
+          if (task.sim !== 'rabbit') continue;
+          const base = task.scenario ? course.scenarios[task.scenario] : undefined;
+          const scenario = base ? parseScenario({ ...base, ...(task.scenarioPatch ?? {}) }) : null;
+          out.push({
+            label: task.id,
+            spec: { sim: 'rabbit', setup: task.brokerSetup, scenario, props: task.propsSolution, starter: task.brokerStarter },
+            script: task.brokerSolution,
+            at: 'end',
+            tab: 'schema',
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+const labFixture = (id: string, stress: boolean, cases: () => LabCase[]): Fixture => ({
+  id,
+  stress,
+  get states() {
+    return cases().map((c) => c.label);
+  },
+  view: () => <div />,
+  build: (state) => labElement(cases()[state]),
+});
+
+FIXTURES.push(labFixture('lab-fanout', false, () => [FANOUT]), labFixture('lab-orders', false, () => ORDERS), labFixture('lab-stress', true, () => STRESS), labFixture('lab-courses', false, courseCases));
+
 // --- page -------------------------------------------------------------------------------------------------------
 
-let current: { fixture: number; state: number } | null = null;
+let current: { fixture: number; state: number; element?: ReactElement } | null = null;
 const listeners = new Set<() => void>();
 const subscribe = (f: () => void) => {
   listeners.add(f);
@@ -231,7 +347,7 @@ export function BrokerAuditPage() {
     <main className="min-h-full p-4 text-fg">
       {f && cur && (
         <section aria-label="Фикстура лаборатории" className="flex flex-col gap-3">
-          {f.view(cur.state)}
+          {cur.element ?? f.view(cur.state)}
         </section>
       )}
     </main>
@@ -250,7 +366,14 @@ export const brokerSuite: AuditSuite = registerSuite({
   },
   async render(c) {
     if (!FIXTURES[c.n - 1]) return 'unknown fixture';
-    current = { fixture: c.n - 1, state: c.seed };
+    const f = FIXTURES[c.n - 1];
+    let element: ReactElement | undefined;
+    try {
+      element = await f.build?.(c.seed);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+    current = { fixture: c.n - 1, state: c.seed, element };
     listeners.forEach((l) => l());
     await settle();
     window.scrollTo(0, 0);

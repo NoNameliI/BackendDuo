@@ -35,6 +35,8 @@ const course: Course = {
   errorHints: {},
   terminalHints: [],
   servers: {},
+  companions: [],
+  scenarios: {},
   drill: null,
   levels: [
     { xp: 0, title: 'Trainee' },
@@ -132,6 +134,12 @@ describe('badges', () => {
     const progress = (map: Record<string, CourseProgress>) => (id: string) => map[id] ?? EMPTY_COURSE;
     expect(platformBadgeEarned(shared, [course, other], progress({ [course.id]: solved('a1', 'b1'), other: solved('a1') }))).toBe(false);
     expect(platformBadgeEarned(shared, [course, other], progress({ [course.id]: solved('a1', 'b1'), other: solved('a1', 'c1') }))).toBe(true);
+  });
+
+  it('ignores companion courses for platform badges', () => {
+    const companion: Course = { ...course, id: 'brokers', companion: true };
+    const shared = { id: 'p', title: 'P', description: 'D', glyph: 'P', rule: { kind: 'everyCourse' as const, tasks: 2 } };
+    expect(platformBadgeEarned(shared, [course, companion], (id) => (id === course.id ? solved('a1', 'b1') : EMPTY_COURSE))).toBe(true);
   });
 });
 

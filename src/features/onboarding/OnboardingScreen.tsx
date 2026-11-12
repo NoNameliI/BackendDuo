@@ -5,6 +5,7 @@ import { useProgress } from '@/progress/store';
 import { useFocusHeading } from '@/ui/useFocusHeading';
 import { ApiBeginnerFlow } from './ApiBeginnerFlow';
 import { BeginnerFlow } from './BeginnerFlow';
+import { BrokerBeginnerFlow } from './BrokerBeginnerFlow';
 import { GitBeginnerFlow } from './GitBeginnerFlow';
 import { PlacementFlow } from './PlacementFlow';
 
@@ -36,7 +37,7 @@ export function OnboardingScreen() {
             <div className="mt-8 grid gap-3 md:grid-cols-2">
               <PathCard glyph="00" title={data.welcome.beginner.title} text={data.welcome.beginner.text} onClick={() => setPath('beginner')} />
               {course.placement && (
-                <PathCard glyph={course.engine === 'git' ? 'GIT' : course.engine === 'api' ? 'API' : 'SQL'} title={data.welcome.experienced.title} text={data.welcome.experienced.text} onClick={() => setPath('experienced')} />
+                <PathCard glyph={course.engine === 'git' ? 'GIT' : course.engine === 'api' ? 'API' : course.engine === 'broker' ? 'MQ' : 'SQL'} title={data.welcome.experienced.title} text={data.welcome.experienced.text} onClick={() => setPath('experienced')} />
               )}
             </div>
           </section>
@@ -46,6 +47,8 @@ export function OnboardingScreen() {
             <GitBeginnerFlow data={data} onFinish={() => finish('beginner')} />
           ) : data.kind === 'api' ? (
             <ApiBeginnerFlow data={data} onFinish={() => finish('beginner')} />
+          ) : data.kind === 'broker' ? (
+            <BrokerBeginnerFlow data={data} onFinish={() => finish('beginner')} />
           ) : (
             <BeginnerFlow data={data} onFinish={() => finish('beginner')} />
           ))}

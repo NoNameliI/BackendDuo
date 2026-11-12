@@ -13,7 +13,7 @@ export interface Catalog {
 
 /**
  * Loads every course listed in `platform.json`, in that order. Each course lives in `root/<id>/` and is
- * validated on its own; all problems of all courses are reported together.
+ * validated on its own; all problems of all courses are reported together. Companion links are checked once all are loaded.
  */
 export function loadCatalog(files: Record<string, string>, root = '/courses'): Catalog {
   const problems: string[] = [];
@@ -42,6 +42,13 @@ export function loadCatalog(files: Record<string, string>, root = '/courses'): C
     } catch (e) {
       if (!(e instanceof CourseError)) throw e;
       problems.push(...e.problems);
+    }
+  }
+  for (const course of courses) {
+    for (const id of course.companions) {
+      const target = courses.find((c) => c.id === id);
+      if (!target) problems.push(`${root}/${course.id}/manifest.json: спутник «${id}» не найден среди курсов платформы`);
+      else if (!target.companion) problems.push(`${root}/${course.id}/manifest.json: курс «${id}» не помечен companion: true`);
     }
   }
   if (problems.length > 0) throw new CourseError(problems);

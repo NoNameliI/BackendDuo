@@ -8,7 +8,9 @@ import { pythonClient } from '@/engine/python/pythonClient';
 import { SetupError } from '@/engine/git/GitSandboxEngine';
 import { createGitSandboxStore } from '@/features/git/gitSandbox';
 import { courseById } from '@/content/courses';
-import { allTasks, errorHint, type Lesson, type Task } from '@/content/loadCourse';
+import { allTasks, errorHint, type BrokerTask, type Lesson, type Task } from '@/content/loadCourse';
+import { createBrokerStore } from '@/features/broker/brokerStore';
+import { parseScenario, type Scenario } from '@/engine/sim/scenario';
 import {
   createEngine,
   type QueryPlan,
@@ -96,7 +98,22 @@ const isSqlTask = (task: Task | null) => task !== null && 'solution' in task;
 export const lessonSandbox = createGitSandboxStore();
 /** Request composer and network log of API lessons. */
 export const lessonApi = createApiSandboxStore();
+/** Simulator lab of broker lessons; the simulators load lazily on the first reset. */
+export const lessonBroker = createBrokerStore();
 const gitChecker = createGitChecker();
+
+/** Starts the lab of a broker task: its scenario with the patch, the setup script, the starting properties. */
+function prepareBroker(task: BrokerTask): Promise<void> | string {
+  let scenario: Scenario | null = null;
+  try {
+    const base = task.scenario ? courseById(task.courseId).scenarios[task.scenario] : undefined;
+    if (task.scenario && !base) return `Ошибка в самом задании: нет сценария «${task.scenario}»`;
+    scenario = base ? parseScenario({ ...base, ...(task.scenarioPatch ?? {}) }) : null;
+  } catch (e) {
+    return `Ошибка в самом задании: ${e instanceof Error ? e.message : String(e)}`;
+  }
+  return lessonBroker.getState().reset({ sim: task.sim, setup: task.brokerSetup, scenario, props: task.propsStarter, starter: task.brokerStarter });
+}
 
 /** Fresh server (with the task's setup requests) and, for CORS tasks, the starting settings. */
 function prepareApi(task: Extract<Task, { httpSolution: string }>): string | null {
@@ -238,6 +255,12 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         if (failure) print('error', failure);
         return;
       }
+      if ('brokerSolution' in task) {
+        const started = prepareBroker(task as BrokerTask);
+        if (typeof started === 'string') print('error', started);
+        else await started;
+        return;
+      }
       if (!isSqlTask(task)) return;
       await withSandbox(async ({ engine }) => {
         if (get().task?.id !== task.id) return; // a later navigation superseded this one
@@ -279,6 +302,14 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         if (failure) print('error', failure);
         return Promise.resolve();
       }
+      if (current && 'brokerSolution' in current) {
+        const started = prepareBroker(current as BrokerTask);
+        if (typeof started === 'string') {
+          print('error', started);
+          return Promise.resolve();
+        }
+        return started;
+      }
       return withSandbox(async ({ engine }) => {
         await engine.reset(get().task?.setupSql ?? '');
         await refreshSchema(engine);
@@ -289,6 +320,10 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
 
     run: () => {
       const task = get().task;
+      if (task && 'brokerSolution' in task) {
+        lessonBroker.getState().runScenario();
+        return Promise.resolve();
+      }
       if (task && 'httpSolution' in task) {
         const api = lessonApi.getState();
         return task.type === 'graphql' ? api.runGraphql() : task.type === 'cors' ? Promise.resolve(api.runFrontend()) : task.type === 'proto' ? Promise.resolve() : api.send();
@@ -367,6 +402,25 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
             verdict = await checkFastapi(task, lessonApi.getState().python?.source ?? '', (source, requests) => pythonClient().run(source, requests));
           }
           else verdict = checkApiTask(task, servers, { draft, cors: cors?.config ?? null });
+        } catch (e) {
+          verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };
+        } finally {
+          set({ checking: false });
+        }
+        if (get().task?.id !== task.id) return;
+        const reward = progress.recordAttempt(task, verdict.passed);
+        set({ verdict: { ...verdict, at: Date.now(), reward }, taskTab: 'task' });
+        announce(reward);
+        return;
+      }
+
+      if ('brokerSolution' in task) {
+        if (get().checking) return;
+        set({ checking: true });
+        let verdict: CheckResult;
+        try {
+          const { checkBrokerTask } = await import('@/checker/broker');
+          verdict = checkBrokerTask(task as BrokerTask, courseById(task.courseId).scenarios, lessonBroker.getState().input());
         } catch (e) {
           verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };
         } finally {

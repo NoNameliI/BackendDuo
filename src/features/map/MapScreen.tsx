@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
+import { openCourse } from '@/app/openCourse';
 import { useUi } from '@/app/store';
 import { useCourse } from '@/app/useCourse';
 import type { Lesson, World } from '@/content/loadCourse';
+import { courseById } from '@/content/courses';
 import { useWorkspace } from '@/features/lesson/workspace';
 import { firstOpenTask, isWorldComplete, lessonStatuses, nextLesson, progressOf, type LessonStatus } from '@/progress/gamification';
 import type { CourseProgress } from '@/progress/model';
@@ -50,7 +52,39 @@ export function MapScreen() {
             <WorldColumn key={world.id} world={world} index={i} cp={cp} statuses={statuses} nextId={next?.id} onOpen={open} />
           ))}
         </ol>
+
+        {course.companions.length > 0 && (
+          <section aria-label="Общий мир" className="mt-4 grid gap-3 md:grid-cols-2">
+            {course.companions.map((id) => (
+              <CompanionPortal key={id} id={id} />
+            ))}
+          </section>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Portal tile to a companion course (the shared world): its own progress, one button. */
+function CompanionPortal({ id }: { id: string }) {
+  const companion = courseById(id);
+  const cp = useProgress(selectCourse(id));
+  const lessons = companion.worlds.flatMap((w) => w.lessons);
+  const done = lessons.filter((l) => cp.passedLessons.includes(l.id) || (l.tasks.length > 0 && l.tasks.every((t) => progressOf(cp, t.id).solved))).length;
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-dashed border-line-strong bg-panel p-4">
+      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-faint">Общий мир</p>
+      <h2 className="text-[15px] font-semibold leading-snug">{companion.title}</h2>
+      <p className="text-[12.5px] leading-snug text-dim">{companion.description}</p>
+      <div className="flex items-center gap-2">
+        <ProgressBar value={lessons.length ? done / lessons.length : 0} tone="amber" label={`Пройдено уроков общего мира: ${done} из ${lessons.length}`} />
+        <span className="shrink-0 font-mono text-[11px] text-faint">
+          {done}/{lessons.length}
+        </span>
+      </div>
+      <Button variant="outline" className="self-start" onClick={() => openCourse(id)}>
+        Открыть →
+      </Button>
     </div>
   );
 }

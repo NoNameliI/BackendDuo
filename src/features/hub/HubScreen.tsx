@@ -35,10 +35,21 @@ export function HubScreen() {
           </p>
         </header>
         <ul className="grid gap-3 md:grid-cols-2">
-          {courses.map((course) => (
-            <CourseCard key={course.id} course={course} active={course.id === activeId} />
-          ))}
+          {courses
+            .filter((c) => !c.companion)
+            .map((course) => (
+              <CourseCard key={course.id} course={course} active={course.id === activeId} />
+            ))}
         </ul>
+        {courses.some((c) => c.companion) && (
+          <ul aria-label="Дополнительные материалы" className="mt-3 grid gap-2">
+            {courses
+              .filter((c) => c.companion)
+              .map((course) => (
+                <CompanionCard key={course.id} course={course} active={course.id === activeId} />
+              ))}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -68,6 +79,27 @@ function CourseCard({ course, active }: { course: Course; active: boolean }) {
       <p className="mt-2 text-[12.5px] text-faint">{started ? `Ранг в курсе: ${rank}` : 'Курс ещё не начат'}</p>
       <Button variant="check" className="mt-4 self-start" onClick={() => openCourse(course.id)}>
         {started ? 'Продолжить →' : 'Начать →'}
+      </Button>
+    </li>
+  );
+}
+
+/** A companion course (a shared world for several courses): a quiet, narrow card after the main ones. */
+function CompanionCard({ course, active }: { course: Course; active: boolean }) {
+  const cp = useProgress(selectCourse(course.id));
+  const lessons = course.worlds.flatMap((w) => w.lessons);
+  const done = lessons.filter((l) => isLessonComplete(l, cp)).length;
+  return (
+    <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border bg-panel px-4 py-3 ${active ? 'border-amber/50' : 'border-line'}`}>
+      <div className="min-w-0 flex-1">
+        <h2 className="text-[15px] font-semibold tracking-tight">{course.title}</h2>
+        <p className="text-[13px] leading-snug text-dim">{course.description}</p>
+      </div>
+      <span className="shrink-0 font-mono text-[12px] text-dim">
+        {done}/{lessons.length}
+      </span>
+      <Button variant="outline" onClick={() => openCourse(course.id)}>
+        {done > 0 ? 'Продолжить →' : 'Открыть →'}
       </Button>
     </li>
   );

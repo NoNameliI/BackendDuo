@@ -1,5 +1,7 @@
 import type { EngineKind } from '@/engine';
 import type { ServerDef } from '@/engine/api/server';
+import { scenarioSchema, type Scenario } from '@/engine/sim/scenario';
+import type { Flavor } from '@/engine/sim/types';
 import { LessonParseError, parseLesson } from './parseLesson';
 import {
   errorHintsSchema,
@@ -31,11 +33,13 @@ export type SqlTask = Extract<Task, { solution: string }>;
 export type ChoiceTask = Extract<Task, { type: 'choice' | 'review' }>;
 export type GitTask = Extract<Task, { shellSolution: string }>;
 export type ApiTask = Extract<Task, { httpSolution: string }>;
+/** A broker task with its simulator resolved (task `sim`, else the course `flavor`). */
+export type BrokerTask = Extract<Task, { brokerSolution: string }> & { sim: Flavor };
 export type { DrillConfig };
 
 /** Which course engine a practical task belongs to. */
 export function engineOf(task: ParsedTask): EngineKind {
-  return 'shellSolution' in task ? 'git' : 'httpSolution' in task ? 'api' : 'generator' in task ? 'drill' : 'postgres';
+  return 'shellSolution' in task ? 'git' : 'httpSolution' in task ? 'api' : 'brokerSolution' in task ? 'broker' : 'generator' in task ? 'drill' : 'postgres';
 }
 
 export interface Lesson {
@@ -44,7 +48,7 @@ export interface Lesson {
   worldId: string;
   title: string;
   theory: string;
-  /** Starting state of the theory examples: the setup of the lesson's first task that has one. */
+  /** Starting state of the theory examples: the setup of the lesson's first task that has one (`brokerSetup` in broker courses). */
   exampleSetup: string;
   /** API course: the server the lesson's `http example` blocks talk to (its first task's server). */
   exampleServer?: string;
@@ -79,7 +83,9 @@ export type SqlOnboarding = Omit<OnboardingData, 'firstQuery'> & { kind: 'sql'; 
 export type GitOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'git'; firstTask: GitTask };
 /** API course: the same concept cards, then a first request in the composer (a request or response task). */
 export type ApiOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'api'; firstTask: ApiTask };
-export type Onboarding = SqlOnboarding | GitOnboarding | ApiOnboarding;
+/** Broker course: concept cards, then a first publication in the lab (a topology, routing or console task). */
+export type BrokerOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'broker'; firstTask: BrokerTask };
+export type Onboarding = SqlOnboarding | GitOnboarding | ApiOnboarding | BrokerOnboarding;
 
 export interface Course {
   id: string;
@@ -98,6 +104,14 @@ export interface Course {
   solutionAfterAttempts?: number;
   /** API course: virtual servers by name. */
   servers: Record<string, ServerDef>;
+  /** Broker courses: simulator of the tasks that do not name one. */
+  flavor?: Flavor;
+  /** Broker courses: a companion is skipped by platform badges and reached through a portal. */
+  companion?: boolean;
+  /** Ids of the companion courses linked from this course. */
+  companions: string[];
+  /** Broker courses: scenarios by name. */
+  scenarios: Record<string, Scenario>;
   /** Drill course: settings from drill.json (null for other engines). */
   drill: DrillConfig | null;
   /** Loaded from an encrypted pack; present only while access is open. */
@@ -170,6 +184,26 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     servers[name] = def;
   }
 
+  const scenarios: Record<string, Scenario> = {};
+  // Scenarios are named in the manifest or simply dropped into `scenarios/<name>.json` of a broker course.
+  const scenarioFiles: Record<string, string> = { ...manifest.scenarios };
+  if (manifest.engine === 'broker') {
+    for (const path of Object.keys(files)) {
+      const m = path.startsWith(`${root}/scenarios/`) ? /^([a-z0-9][a-z0-9-]*)\.json$/.exec(path.slice(`${root}/scenarios/`.length)) : null;
+      if (m && !(m[1] in scenarioFiles)) scenarioFiles[m[1]] = `scenarios/${m[1]}.json`;
+    }
+  }
+  for (const [name, file] of Object.entries(scenarioFiles)) {
+    const path = `${root}/${file}`;
+    const parsed = scenarioSchema.safeParse(readJson(files, path, problems));
+    if (parsed.success) scenarios[name] = parsed.data;
+    else if (files[path] !== undefined) problems.push(...formatIssues(path, parsed.error.issues));
+  }
+  if (manifest.engine === 'broker' && !manifest.flavor && !manifest.companion) problems.push(`${manifestPath}: курсу с движком broker нужно поле flavor (или companion: true)`);
+  if (manifest.engine !== 'broker' && (manifest.flavor || manifest.companion || Object.keys(manifest.scenarios).length > 0)) {
+    problems.push(`${manifestPath}: flavor, companion и scenarios бывают только у курсов с движком broker`);
+  }
+
   const errorsPath = `${root}/${manifest.errors}`;
   const errorsJson = readJson(files, errorsPath, problems);
   const hints = errorHintsSchema.safeParse(manifest.engine === 'git' ? {} : (errorsJson ?? {}));
@@ -216,6 +250,16 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     if ('httpSolution' in task && task.server && !manifest.servers[task.server]) problems.push(`${where}: неизвестный сервер «${task.server}»`);
     if ((task.type === 'response' || task.type === 'cors') && !task.server) problems.push(`${where}: заданию типа ${task.type} нужен сервер (поле server)`);
     if (task.type === 'graphql' && !(task.server && servers[task.server]?.graphql)) problems.push(`${where}: заданию graphql нужен сервер с GraphQL-схемой (graphqlFile)`);
+    let resolvedSim: Flavor | undefined;
+    if ('brokerSolution' in task) {
+      resolvedSim = task.sim ?? manifest.flavor;
+      if (!resolvedSim) problems.push(`${where}: не указан симулятор — поле sim (в курсе-спутнике оно обязательно)`);
+      if (task.scenario) {
+        const sc = scenarios[task.scenario];
+        if (!scenarioFiles[task.scenario]) problems.push(`${where}: неизвестный сценарий «${task.scenario}»`);
+        else if (sc && resolvedSim && sc.sim !== resolvedSim) problems.push(`${where}: сценарий «${task.scenario}» для симулятора ${sc.sim}, а у задания ${resolvedSim}`);
+      }
+    }
     let setupSql = '';
     if ('solution' in task) {
       if (task.dataset && datasets[task.dataset] === undefined) {
@@ -223,7 +267,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
       }
       setupSql = [task.dataset ? datasets[task.dataset] : '', task.setup].filter((s) => s?.trim()).join('\n\n');
     }
-    return { ...task, courseId: manifest.id, lessonId, worldId, setupSql };
+    return { ...task, ...(resolvedSim ? { sim: resolvedSim } : {}), courseId: manifest.id, lessonId, worldId, setupSql };
   };
 
   const parseFile = (path: string) => {
@@ -270,8 +314,8 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
         const task = buildTask(rawTask, `${path} › ${String(rawTask.id)}`, ref.id, w.id);
         if (task) lesson.tasks.push(task);
       }
-      const first = lesson.tasks.find((t) => 'solution' in t || 'shellSolution' in t);
-      lesson.exampleSetup = first && 'shellSolution' in first ? first.shellSetup : (first?.setupSql ?? '');
+      const first = lesson.tasks.find((t) => 'solution' in t || 'shellSolution' in t || 'brokerSolution' in t);
+      lesson.exampleSetup = first && 'shellSolution' in first ? first.shellSetup : first && 'brokerSolution' in first ? first.brokerSetup : (first?.setupSql ?? '');
       lesson.exampleServer = lesson.tasks.find((t): t is ApiTask => 'httpSolution' in t && Boolean(t.server))?.server ?? Object.keys(servers)[0];
       return lesson;
     });
@@ -351,10 +395,10 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
   }
 
   function loadOnboarding(file: string): Onboarding | null {
-    return manifest.engine === 'git' || manifest.engine === 'api' ? loadCardsOnboarding(file) : loadSqlOnboarding(file);
+    return manifest.engine === 'git' || manifest.engine === 'api' || manifest.engine === 'broker' ? loadCardsOnboarding(file) : loadSqlOnboarding(file);
   }
 
-  function loadCardsOnboarding(file: string): GitOnboarding | ApiOnboarding | null {
+  function loadCardsOnboarding(file: string): GitOnboarding | ApiOnboarding | BrokerOnboarding | null {
     const path = `${root}/${file}`;
     const parsed = gitOnboardingSchema.safeParse(readJson(files, path, problems));
     if (!parsed.success) {
@@ -367,6 +411,13 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     }
     const firstTask = buildTask(data.firstTask, `${path} › firstTask`, 'onboarding', 'onboarding');
     if (!firstTask) return null;
+    if (manifest.engine === 'broker') {
+      if (!('brokerSolution' in firstTask) || firstTask.type === 'scenario') {
+        problems.push(`${path} › firstTask: ожидается задание topology, routing или console`);
+        return null;
+      }
+      return { ...data, kind: 'broker', firstTask: firstTask as BrokerTask };
+    }
     if (manifest.engine === 'api') {
       if (firstTask.type !== 'request' && firstTask.type !== 'response') {
         problems.push(`${path} › firstTask: ожидается задание request или response`);
@@ -430,6 +481,10 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     solutionAfterAttempts: manifest.solutionAfterAttempts,
     servers,
     drill,
+    flavor: manifest.flavor,
+    companion: manifest.companion,
+    companions: manifest.companions,
+    scenarios,
   };
 }
 

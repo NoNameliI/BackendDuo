@@ -24,7 +24,7 @@ interface JournalViewProps {
 }
 
 /** Kinds that deserve a spoken announcement; ordinary traffic never does. */
-const ANNOUNCED = new Set(['fault', 'error', 'sim.limit', 'deadletter', 'drop', 'return', 'rebalance', 'leader']);
+const ANNOUNCED = new Set(['fault', 'error', 'handler.error', 'sim.limit', 'deadletter', 'drop', 'return', 'rebalance', 'leader']);
 const TONE: Record<string, string> = {
   fault: 'text-[color-mix(in_oklab,var(--err),var(--fg)_30%)]',
   error: 'text-[color-mix(in_oklab,var(--err),var(--fg)_30%)]',

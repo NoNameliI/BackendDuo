@@ -16,6 +16,8 @@
  *   ```
  *   ```http starter | solution  (API course; also graphql, proto, python)
  *   ```
+ *   ```broker setup | starter | solution   (broker courses: console scripts for the simulators)
+ *   ```properties starter | solution       (broker courses: scenario property overrides)
  *   ```md explain           (drill tasks: step-by-step template; ```python starter = scratch code template)
  *   ```<language> code     (review tasks: the snippet to inspect)
  *   ```
@@ -38,6 +40,10 @@ const SHELL_ROLES: Record<string, string> = { setup: 'shellSetup', solution: 'sh
 const API_LANGS = new Set(['http', 'graphql', 'proto', 'python', 'json']);
 const API_ROLES = new Set(['setup', 'starter', 'solution', 'tests']);
 const apiKey = (lang: string, role: string) => `${lang}${role[0].toUpperCase()}${role.slice(1)}`;
+
+/** Broker courses: ```broker starter → brokerStarter, ```properties solution → propsSolution. */
+const BROKER_ROLES: Record<string, string> = { setup: 'brokerSetup', starter: 'brokerStarter', solution: 'brokerSolution' };
+const PROPS_ROLES: Record<string, string> = { starter: 'propsStarter', solution: 'propsSolution' };
 
 const SQL_ROLES: Record<string, string> = {
   setup: 'setup',
@@ -78,7 +84,7 @@ function parseTask(id: string, body: string): Record<string, unknown> {
       }
       return '';
     }
-    const key = role === 'code' ? 'code' : lang === 'md' && role === 'explain' ? 'explain' : lang === 'sql' && role ? SQL_ROLES[role] : lang === 'sh' && role ? SHELL_ROLES[role] : role && API_LANGS.has(lang) && API_ROLES.has(role) ? apiKey(lang, role) : undefined;
+    const key = role === 'code' ? 'code' : lang === 'md' && role === 'explain' ? 'explain' : lang === 'sql' && role ? SQL_ROLES[role] : lang === 'sh' && role ? SHELL_ROLES[role] : lang === 'broker' && role ? BROKER_ROLES[role] : lang === 'properties' && role ? PROPS_ROLES[role] : role && API_LANGS.has(lang) && API_ROLES.has(role) ? apiKey(lang, role) : undefined;
     if (!key) return block;
     if (key in task) throw new LessonParseError(`задание ${id}: блок «${role}» встречается дважды`);
     task[key] = content.trim();

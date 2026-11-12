@@ -10,7 +10,7 @@ import { Panel } from '@/ui/Panel';
 import { Tabs } from '@/ui/Tabs';
 import { highlightSql } from '@/ui/highlightSql';
 import { TheoryView } from './TheoryView';
-import { lessonApi, useWorkspace, type Verdict } from './workspace';
+import { lessonApi, lessonBroker, useWorkspace, type Verdict } from './workspace';
 
 export const TASK_KIND: Record<Task['type'], string> = {
   result: 'SQL · выборка',
@@ -31,6 +31,10 @@ export const TASK_KIND: Record<Task['type'], string> = {
   proto: 'Protobuf',
   fastapi: 'FastAPI',
   drill: 'Тренажёр',
+  topology: 'Брокер · схема',
+  routing: 'Брокер · маршрутизация',
+  console: 'Брокер · консоль',
+  scenario: 'Брокер · сценарий',
 };
 
 const tabs = [
@@ -83,7 +87,7 @@ function TaskView({ task }: { task: Task }) {
   const { verdict, schema, explainTarget, revealHint, revealSolution, setCode, status } = useWorkspace();
   const progress = useProgress(selectTask(task));
   const after = courseById(task.courseId).solutionAfterAttempts ?? 1;
-  const solvable = 'solution' in task || 'shellSolution' in task || 'httpSolution' in task;
+  const solvable = 'solution' in task || 'shellSolution' in task || 'httpSolution' in task || 'brokerSolution' in task;
   const canShowSolution = solvable && (progress.attempts >= after || progress.hintsUsed >= task.hints.length);
 
   return (
@@ -158,6 +162,7 @@ function TaskView({ task }: { task: Task }) {
           </div>
         )}
         {'httpSolution' in task && progress.solutionShown && <ApiSolution task={task} />}
+        {'brokerSolution' in task && progress.solutionShown && <BrokerSolution task={task} />}
         {'shellSolution' in task && progress.solutionShown && (
           <div className="space-y-2">
             <SectionLabel>Эталонное решение</SectionLabel>
@@ -289,6 +294,35 @@ function ApiSolution({ task }: { task: ApiTask }) {
       <Button variant="outline" onClick={insert}>
         {action}
       </Button>
+    </div>
+  );
+}
+
+type BrokerTaskView = Extract<Task, { brokerSolution: string }>;
+
+/** The reference commands and properties of a broker task; buttons put them into the lab. */
+function BrokerSolution({ task }: { task: BrokerTaskView }) {
+  const lab = lessonBroker.getState();
+  return (
+    <div className="space-y-2">
+      {task.brokerSolution.trim() && (
+        <>
+          <SectionLabel>Эталонные команды</SectionLabel>
+          <pre className="md-code whitespace-pre-wrap">{task.brokerSolution}</pre>
+          <Button variant="outline" onClick={() => lab.setDraft(task.brokerSolution)}>
+            Вставить в консоль
+          </Button>
+        </>
+      )}
+      {task.propsSolution.trim() && (
+        <>
+          <SectionLabel>Эталонные свойства</SectionLabel>
+          <pre className="md-code whitespace-pre-wrap">{task.propsSolution}</pre>
+          <Button variant="outline" onClick={() => lab.setProps(task.propsSolution)}>
+            Применить свойства
+          </Button>
+        </>
+      )}
     </div>
   );
 }

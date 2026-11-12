@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
 import { checkApiTask, readCorsConfig, readRequest } from '@/checker/api';
 import { checkGraphql, checkProto } from '@/checker/apiSchema';
+import { checkBrokerExamples, checkBrokerTask, lintBrokerTask } from '@/checker/broker';
 import { schemaOps } from '@/engine/api/schemaOps';
 import { checkFastapi } from '@/checker/fastapi';
 import { splitPythonExample } from '@/engine/python/example';
@@ -15,8 +16,9 @@ import { HttpSimServer, sendTo, splitRequests, type ServerDef } from '@/engine/a
 import { createGitChecker, runReference, stoppedOnConflict } from '@/checker/git';
 import { parseRequest } from '@/engine/api/http';
 import { loadCatalog, type Catalog } from '@/content/catalog';
-import type { Task } from '@/content/loadCourse';
-import { theoryExampleBlocks, theoryExamples } from '@/content/theory';
+import type { BrokerTask, Task } from '@/content/loadCourse';
+import type { Scenario } from '@/engine/sim/scenario';
+import { theoryExampleBlocks, theoryExamples, theoryExamplesWithShownOutput } from '@/content/theory';
 import { GitSandboxEngine } from '@/engine/git/GitSandboxEngine';
 import { splitCommands } from '@/engine/git/shell';
 import { PostgresEngine } from '@/engine/postgres/PostgresEngine';
@@ -39,12 +41,26 @@ const gitChecker = createGitChecker();
 beforeAll(() => engine.init());
 afterAll(() => engine.dispose());
 
-async function validateTask(task: Task, servers: Record<string, ServerDef>) {
+async function validateTask(task: Task, servers: Record<string, ServerDef>, scenarios: Record<string, Scenario> = {}) {
   if (task.type === 'drill') return; // drill tasks are checked in validate-drill.test.ts
   if (task.type === 'choice' || task.type === 'review') {
     expect((await checker.check(task, { kind: 'choice', selected: task.answer })).passed).toBe(true);
     const wrong = task.options.map((_, i) => i).filter((i) => !task.answer.includes(i));
     expect((await checker.check(task, { kind: 'choice', selected: wrong })).passed).toBe(false);
+    return;
+  }
+  if ('brokerSolution' in task) {
+    const broker = task as BrokerTask;
+    expect(lintBrokerTask(broker, scenarios), 'content lint').toEqual([]);
+    const started = performance.now();
+    const solved = checkBrokerTask(broker, scenarios, { commands: [broker.brokerSolution], props: broker.propsSolution });
+    expect(solved.problems, 'reference must pass its own check').toEqual([]);
+    expect(performance.now() - started, 'a broker check must stay fast (budget 300 ms; 1 s here for slow machines)').toBeLessThan(1000);
+    const untouched = checkBrokerTask(broker, scenarios, { commands: [broker.brokerStarter], props: broker.propsStarter });
+    expect(untouched.passed, 'the starter must not pass the check').toBe(false);
+    if (broker.type === 'topology' || broker.type === 'console') {
+      expect(checkBrokerTask(broker, scenarios, { commands: [], props: '' }).passed, 'empty input must not pass the check').toBe(false);
+    }
     return;
   }
   if (task.type === 'fastapi') {
@@ -110,6 +126,10 @@ for (const course of catalog?.courses ?? []) {
           const examples = theoryExamples(lesson.theory);
           if (examples.length > 0) {
             it('theory examples run in order without errors', async () => {
+              if (course.engine === 'broker') {
+                expect(checkBrokerExamples(theoryExamplesWithShownOutput(lesson.theory), lesson.exampleSetup, course.flavor ?? 'rabbit'), 'theory examples').toEqual([]);
+                return;
+              }
               if (course.engine === 'api') {
                 const def = lesson.exampleServer ? course.servers[lesson.exampleServer] : undefined;
                 expect(def, 'http examples need a server (a task of the lesson with "server")').toBeDefined();
@@ -164,7 +184,7 @@ ${sql}`).toBeUndefined();
             });
           }
           for (const task of lesson.tasks) {
-            it(`${task.id} (${task.type})`, () => validateTask(task, course.servers));
+            it(`${task.id} (${task.type})`, () => validateTask(task, course.servers, course.scenarios));
           }
         });
       }
@@ -174,7 +194,7 @@ ${sql}`).toBeUndefined();
     if (extra.length) {
       describe('placement and onboarding', () => {
         for (const task of extra) {
-          it(`${task.id} (${task.type})`, () => validateTask(task, course.servers));
+          it(`${task.id} (${task.type})`, () => validateTask(task, course.servers, course.scenarios));
         }
       });
     }

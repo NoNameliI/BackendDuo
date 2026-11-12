@@ -55,7 +55,8 @@ describe('placePlates', () => {
       });
     }
     expect(placed).toBeGreaterThanOrEqual(120);
-  });
+    // ~2 s alone; the full parallel suite can slow it past the 5 s default
+  }, 30_000);
 
   it('[plates-extra] stays clear of reserved boxes and is deterministic', () => {
     const { nodes, segs, texts } = randomLayout(3);
