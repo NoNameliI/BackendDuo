@@ -107,6 +107,8 @@ function ancestors(el: Element | null): Element[] {
 
 const scrolls = (v: string): boolean => v === 'auto' || v === 'scroll';
 const clips = (v: string): boolean => v === 'hidden' || v === 'clip';
+/** Deliberate truncation: an ellipsis whose full text is offered in `title`. What is cut off is not on screen by design. */
+const abbreviated = (el: Element, s: CSSStyleDeclaration): boolean => s.textOverflow === 'ellipsis' && clips(s.overflowX) && el.hasAttribute('title');
 
 const paddingBox = (el: Element): Box => {
   const r = el.getBoundingClientRect();
@@ -124,7 +126,7 @@ function visibleBox(ctx: Ctx, from: Element | null, r: Box): Box | null {
   let { x, y, w, h } = r;
   for (const a of ancestors(from)) {
     const s = ctx.style(a);
-    const ax = scrolls(s.overflowX);
+    const ax = scrolls(s.overflowX) || abbreviated(a, s);
     const ay = scrolls(s.overflowY) && a.matches('[role=region]');
     if (!ax && !ay) continue;
     const p = paddingBox(a);
@@ -309,7 +311,7 @@ export function collect(): Snapshot {
     flags.box = own;
     const hasText = !!el.textContent?.trim();
     const clipping = clips(s.overflowX) || clips(s.overflowY) || s.textOverflow === 'ellipsis';
-    if (clipping && hasText && !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName) && el.id !== 'root') {
+    if (clipping && !abbreviated(el, s) && hasText && !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName) && el.id !== 'root') {
       flags.clip = { scrollW: el.scrollWidth, clientW: el.clientWidth, scrollH: el.scrollHeight, clientH: el.clientHeight };
     }
     if (scrolls(s.overflowX)) flags.scrollX = { scrollW: el.scrollWidth, clientW: el.clientWidth, minor: el.matches('pre.md-code') };
@@ -364,13 +366,15 @@ function graphOf(ctx: Ctx, svg: Element): Graph {
     const seg: Seg = { a: point(l, num(l, 'x1'), num(l, 'y1')), b: point(l, num(l, 'x2'), num(l, 'y2')) };
     return { i: Number(l.dataset.edge), seg, stroke: parseFloat(ctx.style(l).strokeWidth) * Math.abs(l.getScreenCTM()?.a ?? 1), a: nearest(seg.a), b: nearest(seg.b) };
   });
-  const labels: GLabel[] = [...svg.querySelectorAll<SVGGraphicsElement>('[data-edge]:not(line)')].map((el) => {
+  const labels: GLabel[] = [...svg.querySelectorAll<SVGGraphicsElement>('[data-edge]:not(line),[data-node-label]')].map((el) => {
     const plate = el.tagName === 'g' ? el.querySelector('rect') : null;
     const b = box((plate ?? el).getBoundingClientRect());
     const text = el.tagName === 'text' ? el : el.querySelector('text');
     const s = text ? ctx.style(text) : null;
     const halo = s && s.stroke !== 'none' && s.paintOrder.startsWith('stroke') && !plate ? (parseFloat(s.strokeWidth) * Math.abs((text as SVGGraphicsElement).getScreenCTM()?.a ?? 1)) / 2 : 0;
-    return { i: Number((el as unknown as HTMLElement).dataset.edge), box: { x: b.x - halo, y: b.y - halo, w: b.w + 2 * halo, h: b.h + 2 * halo } };
+    const owner = (el as unknown as HTMLElement).dataset;
+    const nodeLabel = owner.nodeLabel !== undefined;
+    return { i: nodeLabel ? -1 : Number(owner.edge), ...(nodeLabel ? { node: Number(owner.nodeLabel) } : {}), box: { x: b.x - halo, y: b.y - halo, w: b.w + 2 * halo, h: b.h + 2 * halo } };
   });
-  return { where: wherePath(svg), allow: allowOf(svg), edges, nodes, labels };
+  return { chain: svg.getAttribute('data-audit-graph') === 'chain', where: wherePath(svg), allow: allowOf(svg), edges, nodes, labels };
 }

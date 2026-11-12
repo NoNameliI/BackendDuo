@@ -23,6 +23,11 @@ export type RuleId =
   | 'render-error';
 
 export interface AuditCase {
+  /** Suite that plans and renders the case ('drill', 'broker', ...). */
+  suite: string;
+  /** Plain-text name of a case that has no level/seed meaning (lab fixtures); never course text. */
+  label?: string;
+  /** Drill: number of the task list; other suites: ordinal of the screen. */
   n: number;
   level: Level;
   seed: number;
@@ -44,7 +49,8 @@ export interface Defect {
 
 export interface AuditApi {
   ready: boolean;
-  course: { id: string; numbers: number[] } | null;
+  /** Null: nothing to audit (no private course for the drill suite). */
+  course: { id: string; suite: string; numbers: number[] } | null;
   plan(o: { seeds: number; scan: number; bad: number; only?: number[] }): AuditCase[];
   run(cases: AuditCase[]): Promise<Defect[]>;
   /** Re-renders the case with a 2 px red outline over `box` (marked data-audit-overlay). */

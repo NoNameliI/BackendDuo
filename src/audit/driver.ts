@@ -8,12 +8,7 @@ import { renderInstance } from '@/features/drill/instanceView';
 import type { AuditApi, AuditCase, Defect } from './api';
 import { collect } from './collect';
 import { evaluate } from './rules';
-
-const frames = (n: number) =>
-  new Promise<void>((done) => {
-    const step = (left: number) => (left <= 0 ? done() : requestAnimationFrame(() => step(left - 1)));
-    step(n);
-  });
+import { frames, registerSuite, settle, type AuditSuite, type PlanOptions } from './suites';
 
 const drillTasks = (course: Course, n: number): DrillLessonTask[] =>
   (lessonOfNumber(course, n)?.tasks ?? []).filter((t): t is DrillLessonTask => t.type === 'drill');
@@ -43,13 +38,13 @@ function weights(task: DrillTask, inst: Instance): number[] {
   return [r.statement.length + r.explanation.length, volume, longestToken([r.statement, r.explanation, ...r.hints, ...cells]), nm];
 }
 
-export function planCases(course: Course, o: { seeds: number; scan: number; bad: number; only?: number[] }): AuditCase[] {
+export function planCases(course: Course, o: PlanOptions): AuditCase[] {
   const out: AuditCase[] = [];
   for (const { n } of course.drill!.numbers) {
     if (o.only && !o.only.includes(n)) continue;
     const levels = levelsOf(course, n);
     for (const level of levels) {
-      for (let seed = 1; seed <= o.seeds; seed++) out.push({ n, level, seed, tag: 'seed', view: 'task' });
+      for (let seed = 1; seed <= o.seeds; seed++) out.push({ n, level, seed, tag: 'seed', view: 'task', suite: 'drill' });
       const best: { w: number; seed: number }[] = [];
       for (let seed = o.seeds + 1; seed <= o.seeds + o.scan; seed++) {
         const task = taskFor(course, n, level, seed);
@@ -65,9 +60,9 @@ export function planCases(course: Course, o: { seeds: number; scan: number; bad:
         });
       }
       const seeds = [...new Set(best.filter((b) => b.w > 0).map((b) => b.seed))].slice(0, o.bad);
-      for (const seed of seeds) out.push({ n, level, seed, tag: 'bad', view: 'task' });
+      for (const seed of seeds) out.push({ n, level, seed, tag: 'bad', view: 'task', suite: 'drill' });
     }
-    out.push({ n, level: levels.includes('core') ? 'core' : (levels[0] ?? 'core'), seed: 1, tag: 'seed', view: 'theory' });
+    out.push({ n, level: levels.includes('core') ? 'core' : (levels[0] ?? 'core'), seed: 1, tag: 'seed', view: 'theory', suite: 'drill' });
   }
   return out;
 }
@@ -81,21 +76,31 @@ async function open(course: Course, c: AuditCase): Promise<string | null> {
     // Every hint open, so the whole page is on screen.
     if (p && task) useDrill.setState({ practice: { ...p, hints: task.hints.length } });
   }
-  await document.fonts.ready;
-  await frames(2);
+  await settle();
   for (const el of document.querySelectorAll('#drill-panel > div')) el.scrollTop = 0;
   return useDrill.getState().practice?.error ?? null;
 }
 
-export function createAuditApi(course: Course): AuditApi {
+/** The drill suite: the real number view of a private course. */
+export function createDrillSuite(course: Course): AuditSuite {
+  return registerSuite({
+    id: 'drill',
+    plan: (o) => planCases(course, o),
+    render: (c) => open(course, c),
+    scroller: () => document.querySelector('#drill-panel > div'),
+  });
+}
+
+/** Page API for one suite: render each case, collect the DOM, judge it. `numbers` are the screens to show in the report. */
+export function createAuditApi(suite: AuditSuite, info: { id: string; numbers: () => number[] }): AuditApi {
   const api: AuditApi = {
     ready: false,
-    course: { id: course.id, numbers: course.drill!.numbers.map((x) => x.n) },
-    plan: (o) => planCases(course, o),
+    course: { id: info.id, suite: suite.id, numbers: info.numbers() },
+    plan: (o) => suite.plan(o),
     async run(cases) {
       const defects: Defect[] = [];
       for (const c of cases) {
-        const error = await open(course, c);
+        const error = await suite.render(c);
         const at: Pick<Defect, 'c' | 'severity'> = { c, severity: 'critical' };
         if (error !== null) {
           defects.push({ ...at, rule: 'render-error', where: 'main', detail: 'instance failed to build', box: [0, 0, 0, 0] });
@@ -110,10 +115,10 @@ export function createAuditApi(course: Course): AuditApi {
       return defects;
     },
     async show(c, box) {
-      await open(course, c);
+      await suite.render(c);
       document.querySelectorAll('[data-audit-overlay]').forEach((e) => e.remove());
       if (!box) return;
-      const scroller = document.querySelector('#drill-panel > div');
+      const scroller = suite.scroller?.() ?? document.scrollingElement;
       const [x, y, w, h] = box;
       let shift = 0;
       if (scroller && y + h > window.innerHeight - 40) {
@@ -127,6 +132,6 @@ export function createAuditApi(course: Course): AuditApi {
       document.body.appendChild(o);
     },
   };
-  void document.fonts.ready.then(() => frames(2)).then(() => void (api.ready = true));
+  void settle().then(() => void (api.ready = true));
   return api;
 }

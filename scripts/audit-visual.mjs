@@ -1,14 +1,16 @@
-// Visual audit of the drill trainer: `npm run audit:visual` renders every number, level and a set of seeds with the
-// real number view in headless Chromium at several window sizes and themes, and writes private/audit/report.md.
-// `--check-dist` instead proves that no course text is in the production build. Env: AUDIT_ONLY=1,6 AUDIT_SEEDS=10
-// AUDIT_COURSE=fixture AUDIT_PRIVATE_DIR=dir AUDIT_CHROMIUM=path. Writes only under private/audit/.
+// Visual audit: `npm run audit:visual [-- --suite drill|broker|all]` (default all) renders the suites in headless Chromium
+// at several window sizes and themes. drill = every number, level and a set of seeds of the private trainer course with
+// the real number view (report.md); skipped with a message when there is no private course. broker = fixture screens of
+// the public lab primitives, no private files (report-broker.md). Reports go to private/audit/.
+// `--check-dist` instead proves that no course text is in the production build. Env: AUDIT_ONLY=1,6 (screen numbers)
+// AUDIT_SEEDS=10 AUDIT_LIMIT_MIN=5 AUDIT_COURSE=fixture AUDIT_PRIVATE_DIR=dir AUDIT_CHROMIUM=path. Writes only under private/audit/.
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { auditCourseRoot, privateDrillRoots, readTree } from './drillCourses.ts';
 
 const OUT = resolve('private', 'audit');
 const PORT = 1421;
-const LIMIT_MS = 5 * 60 * 1000;
+const LIMIT_MS = Number(process.env.AUDIT_LIMIT_MIN ?? 5) * 60 * 1000;
 
 const PROFILES = [
   { id: 'dark-1100x680', w: 1100, h: 680, theme: 'dark' },
@@ -16,6 +18,21 @@ const PROFILES = [
   { id: 'dark-1920x1080', w: 1920, h: 1080, theme: 'dark' },
   { id: 'light-1280x800', w: 1280, h: 800, theme: 'light' },
 ];
+
+const SUITES = {
+  drill: { title: 'Визуальный аудит тренажёра', subject: 'Курс', report: 'report.md', results: 'results.json', shots: '' },
+  broker: { title: 'Визуальный аудит лаборатории', subject: 'Набор', report: 'report-broker.md', results: 'results-broker.json', shots: 'broker-' },
+};
+
+function suitesFromArgs() {
+  const argv = process.argv;
+  const at = argv.findIndex((a) => a === '--suite' || a.startsWith('--suite='));
+  const value = at < 0 ? 'all' : argv[at].includes('=') ? argv[at].split('=')[1] : argv[at + 1];
+  if (value === 'all') return Object.keys(SUITES);
+  if (value in SUITES) return [value];
+  console.error(`unknown suite "${value}": use drill, broker or all`);
+  process.exit(2);
+}
 
 function safe(path) {
   const full = resolve(path);
@@ -108,10 +125,12 @@ function render(meta, groups, totals) {
   const row = (g) => {
     const e = g.example;
     const profile = PROFILES.find((p) => p.id === e.profile);
-    const where = `${e.c.view === 'theory' ? 'теория' : e.c.level} · ${hex(e.c.seed)} · ${profile.w}×${profile.h} · ${profile.theme === 'dark' ? 'тёмная' : 'светлая'}`;
+    const win = `${profile.w}×${profile.h} · ${profile.theme === 'dark' ? 'тёмная' : 'светлая'}`;
+    const where = e.c.label ? `${e.c.label} · ${win}` : `${e.c.view === 'theory' ? 'теория' : e.c.level} · ${hex(e.c.seed)} · ${win}`;
     return `| ${g.n} | ${g.rule} | ${g.severity === 'critical' ? 'критично' : 'мелко'} | ${g.seeds.size} (из ${meta.perNumber.get(g.n)}) | ${where} | \`${cell(g.where)}\` | ${cell(g.detail)} |`;
   };
-  const head = '| № | Дефект | Важность | Зёрен (из N) | Пример: уровень · зерно (hex) · окно · тема | Где | Деталь |\n|---|---|---|---|---|---|---|';
+  const example = meta.suite === 'drill' ? 'уровень · зерно (hex)' : 'экран/состояние';
+  const head = `| № | Дефект | Важность | Зёрен (из N) | Пример: ${example} · окно · тема | Где | Деталь |\n|---|---|---|---|---|---|---|`;
   const critical = groups.filter((g) => g.severity === 'critical');
   const minor = groups.filter((g) => g.severity === 'minor');
   const summary = new Map();
@@ -120,11 +139,11 @@ function render(meta, groups, totals) {
     summary.set(k, (summary.get(k) ?? 0) + 1);
   }
   const lines = [
-    '# Визуальный аудит тренажёра',
+    `# ${SUITES[meta.suite].title}`,
     '',
     `- Дата: ${meta.date}`,
-    `- Курс: \`${meta.root}\``,
-    `- Случаев на окно: ${meta.cases} (зёрна 1..${meta.seeds}, «плохие» зёрна, теория); окон и тем: ${PROFILES.map((p) => `${p.w}×${p.h} ${p.theme === 'dark' ? 'тёмная' : 'светлая'}`).join(', ')}`,
+    `- ${SUITES[meta.suite].subject}: \`${meta.root}\``,
+    `- Случаев на окно: ${meta.cases}${meta.suite === 'drill' ? ` (зёрна 1..${meta.seeds}, «плохие» зёрна, теория)` : ' (экраны × состояния, стресс-фикстуры)'}; окон и тем: ${PROFILES.map((p) => `${p.w}×${p.h} ${p.theme === 'dark' ? 'тёмная' : 'светлая'}`).join(', ')}`,
     `- Длительность: ${meta.seconds} с`,
     `- Дефектов (уникальных по номеру, правилу и месту): критичных ${critical.length}, мелких ${minor.length}`,
     '',
@@ -152,21 +171,96 @@ function render(meta, groups, totals) {
 
 // --- run --------------------------------------------------------------------------------------------------------
 
-async function main() {
-  const root = auditCourseRoot();
-  if (!root) {
-    console.log('audit:visual skipped: no drill course under private/*/course');
-    return 0;
+async function runSuite(suite, { context, started }) {
+  const spec = SUITES[suite];
+  const root = suite === 'drill' ? auditCourseRoot() : 'src/audit/brokerSuite.tsx (fixtures of src/features/broker)';
+  for (const f of readdirSync(OUT)) {
+    const own = suite === 'drill' ? !f.startsWith('broker-') && /\.png$|^report\.md$|^results\.json$/.test(f) : f.startsWith('broker-') || f === spec.report || f === spec.results;
+    if (own) rmSync(safe(join(OUT, f)));
   }
+  const url = (theme) => `http://127.0.0.1:${PORT}/src/audit/audit.html?suite=${suite}&theme=${theme}`;
+  const open = async (profile) => {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: profile.w, height: profile.h });
+    await page.emulateMedia({ colorScheme: profile.theme });
+    await page.goto(url(profile.theme), { waitUntil: 'load' });
+    await page.waitForFunction(() => window.__audit?.ready === true, undefined, { timeout: 180_000 });
+    return page;
+  };
+
+  // The first load makes Vite optimize its dependencies (and reload once); the four pages start after that.
+  const warm = await open(PROFILES[0]);
+  const info = await warm.evaluate(() => window.__audit.course);
+  if (!info) throw new Error(`the ${suite} audit page has nothing to render`);
+  const only = process.env.AUDIT_ONLY ? process.env.AUDIT_ONLY.split(',').map(Number).filter(Number.isFinite) : undefined;
+  const seeds = Number(process.env.AUDIT_SEEDS ?? 40);
+  const cases = await warm.evaluate((o) => window.__audit.plan(o), { seeds, scan: 200, bad: 4, only });
+  await warm.close();
+  const pages = await Promise.all(PROFILES.map(open));
+
+  const byNumber = new Map();
+  for (const c of cases) byNumber.set(c.n, [...(byNumber.get(c.n) ?? []), c]);
+  const perNumber = new Map([...byNumber].map(([n, list]) => [n, new Set(list.map((c) => `${c.level}:${c.seed}:${c.view}`)).size]));
+
+  const defects = [];
+  await Promise.all(
+    pages.map(async (page, i) => {
+      for (const [n, batch] of byNumber) {
+        if (Date.now() - started > LIMIT_MS) throw new Error('audit exceeded the 5 minute limit');
+        const found = await page.evaluate((cs) => window.__audit.run(cs), batch);
+        for (const d of found) defects.push({ ...d, profile: PROFILES[i].id });
+        console.log(`${suite} ${PROFILES[i].id}: screen ${n}: ${batch.length} cases, ${found.length} findings`);
+      }
+    }),
+  );
+
+  const groups = group(defects);
+  const meta = { suite, date: new Date().toISOString().slice(0, 10), root, cases: cases.length, seeds, seconds: 0, perNumber };
+
+  // One screenshot per rule: the first critical defect, else the first minor one.
+  const shots = new Map();
+  for (const g of groups) {
+    const best = shots.get(g.rule);
+    if (!best || (best.severity !== 'critical' && g.severity === 'critical')) shots.set(g.rule, g);
+  }
+  for (const [rule, g] of [...shots].slice(0, 20)) {
+    const e = g.example;
+    const page = pages[PROFILES.findIndex((p) => p.id === e.profile)];
+    await page.evaluate(([c, box]) => window.__audit.show(c, box), [e.c, e.box]);
+    await page.screenshot({ path: safe(join(OUT, `${spec.shots}${rule}.png`)) });
+  }
+
+  meta.seconds = Math.round((Date.now() - started) / 1000);
+  const critical = groups.filter((g) => g.severity === 'critical').length;
+  const { text, summary } = render(meta, groups, { critical });
+  write(spec.report, text);
+  write(
+    spec.results,
+    JSON.stringify({ meta: { ...meta, perNumber: Object.fromEntries(perNumber), profiles: PROFILES }, defects: groups.map((g) => ({ n: g.n, rule: g.rule, severity: g.severity, where: g.where, detail: g.detail, seeds: g.seeds.size, cases: g.cases })) }, null, 1),
+  );
+  console.log(`audit:visual ${suite}: ${cases.length} cases x ${PROFILES.length} windows in ${meta.seconds} s; critical ${critical}, minor ${groups.length - critical}`);
+  console.log('screen | defect | places');
+  for (const [k, v] of summary) console.log(`${k.split('|')[0]} | ${k.split('|')[1]} | ${v}`);
+  return critical > 0 ? 1 : 0;
+}
+
+async function main() {
+  const wanted = suitesFromArgs();
+  const suites = [];
+  for (const s of wanted) {
+    if (s === 'drill' && !auditCourseRoot()) console.log('audit:visual drill skipped: no drill course under private/*/course');
+    else suites.push(s);
+  }
+  if (suites.length === 0) return 0;
   const started = Date.now();
   const { createServer } = await import('vite');
   const { chromium } = await import('playwright-core');
   const profileDir = safe(join(OUT, '.profile'));
   mkdirSync(OUT, { recursive: true });
-  for (const f of existsSync(OUT) ? readdirSync(OUT) : []) if (/\.png$|^report\.md$|^results\.json$/.test(f)) rmSync(safe(join(OUT, f)));
 
   const server = await createServer({ configFile: 'vite.audit.config.ts', logLevel: 'error', clearScreen: false });
   let context;
+  let code = 0;
   try {
     await server.listen();
     context = await chromium.launchPersistentContext(profileDir, {
@@ -177,70 +271,8 @@ async function main() {
       viewport: { width: 1280, height: 800 },
       args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--force-color-profile=srgb'],
     });
-    const url = (theme) => `http://127.0.0.1:${PORT}/src/audit/audit.html?theme=${theme}`;
-    const open = async (profile) => {
-      const page = await context.newPage();
-      await page.setViewportSize({ width: profile.w, height: profile.h });
-      await page.emulateMedia({ colorScheme: profile.theme });
-      await page.goto(url(profile.theme), { waitUntil: 'load' });
-      await page.waitForFunction(() => window.__audit?.ready === true, undefined, { timeout: 180_000 });
-      return page;
-    };
-
-    // The first load makes Vite optimize its dependencies (and reload once); the four pages start after that.
-    const warm = await open(PROFILES[0]);
-    const info = await warm.evaluate(() => window.__audit.course);
-    if (!info) throw new Error('the audit page has no course');
-    const only = process.env.AUDIT_ONLY ? process.env.AUDIT_ONLY.split(',').map(Number).filter(Number.isFinite) : undefined;
-    const seeds = Number(process.env.AUDIT_SEEDS ?? 40);
-    const cases = await warm.evaluate((o) => window.__audit.plan(o), { seeds, scan: 200, bad: 4, only });
-    await warm.close();
-    const pages = await Promise.all(PROFILES.map(open));
-
-    const byNumber = new Map();
-    for (const c of cases) byNumber.set(c.n, [...(byNumber.get(c.n) ?? []), c]);
-    const perNumber = new Map([...byNumber].map(([n, list]) => [n, new Set(list.map((c) => `${c.level}:${c.seed}:${c.view}`)).size]));
-
-    const defects = [];
-    await Promise.all(
-      pages.map(async (page, i) => {
-        for (const [n, batch] of byNumber) {
-          if (Date.now() - started > LIMIT_MS) throw new Error('audit exceeded the 5 minute limit');
-          const found = await page.evaluate((cs) => window.__audit.run(cs), batch);
-          for (const d of found) defects.push({ ...d, profile: PROFILES[i].id });
-          console.log(`${PROFILES[i].id}: number ${n}: ${batch.length} cases, ${found.length} findings`);
-        }
-      }),
-    );
-
-    const groups = group(defects);
-    const meta = { date: new Date().toISOString().slice(0, 10), root, cases: cases.length, seeds, seconds: 0, perNumber };
-
-    // One screenshot per rule: the first critical defect, else the first minor one.
-    const shots = new Map();
-    for (const g of groups) {
-      const best = shots.get(g.rule);
-      if (!best || (best.severity !== 'critical' && g.severity === 'critical')) shots.set(g.rule, g);
-    }
-    for (const [rule, g] of [...shots].slice(0, 20)) {
-      const e = g.example;
-      const page = pages[PROFILES.findIndex((p) => p.id === e.profile)];
-      await page.evaluate(([c, box]) => window.__audit.show(c, box), [e.c, e.box]);
-      await page.screenshot({ path: safe(join(OUT, `${rule}.png`)) });
-    }
-
-    meta.seconds = Math.round((Date.now() - started) / 1000);
-    const critical = groups.filter((g) => g.severity === 'critical').length;
-    const { text, summary } = render(meta, groups, { critical });
-    write('report.md', text);
-    write(
-      'results.json',
-      JSON.stringify({ meta: { ...meta, perNumber: Object.fromEntries(perNumber), profiles: PROFILES }, defects: groups.map((g) => ({ n: g.n, rule: g.rule, severity: g.severity, where: g.where, detail: g.detail, seeds: g.seeds.size, cases: g.cases })) }, null, 1),
-    );
-    console.log(`audit:visual: ${cases.length} cases x ${PROFILES.length} windows in ${meta.seconds} s; critical ${critical}, minor ${groups.length - critical}`);
-    console.log('number | defect | places');
-    for (const [k, v] of summary) console.log(`${k.split('|')[0]} | ${k.split('|')[1]} | ${v}`);
-    return critical > 0 ? 1 : 0;
+    for (const s of suites) code = Math.max(code, await runSuite(s, { context, started: Date.now() }));
+    return code;
   } finally {
     await context?.close().catch(() => {});
     await server.close().catch(() => {});

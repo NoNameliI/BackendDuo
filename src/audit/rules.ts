@@ -81,11 +81,15 @@ export interface GNode {
   r: number;
 }
 export interface GLabel {
-  /** Edge index. */
+  /** Edge index; -1 for a node name plate. */
   i: number;
+  /** Node index of a name plate (data-node-label). */
+  node?: number;
   box: Box;
 }
 export interface Graph {
+  /** data-audit-graph="chain": a line may run straight through a node. */
+  chain?: boolean;
   where: string;
   allow: string;
   edges: GEdge[];
@@ -173,10 +177,24 @@ export function labelOnCrossing(label: Box, segs: readonly Seg[]): Pt | null {
 
 export const edgeThroughNode = (c: Pt, r: number, edge: Seg): boolean => segDist(c, edge).d < r + T.throughNode;
 
-/** Two edges lying on top of each other, or incident edges almost in one direction. */
-export function edgesOverlap(s: Seg, r: Seg, incident: boolean): boolean {
+/** Incident edges that leave their shared node on opposite sides: one line running through the node. */
+export function runsThrough(s: Seg, r: Seg): boolean {
+  const ends = [s.a, s.b].flatMap((p) => [r.a, r.b].map((q) => ({ p, q, d: Math.hypot(p.x - q.x, p.y - q.y) })));
+  const { p, q } = ends.reduce((best, e) => (e.d < best.d ? e : best));
+  const far = (seg: Seg, near: Pt) => (seg.a === near ? seg.b : seg.a);
+  const u = far(s, p);
+  const v = far(r, q);
+  const m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+  return (u.x - m.x) * (v.x - m.x) + (u.y - m.y) * (v.y - m.y) < 0;
+}
+
+/**
+ * Two edges lying on top of each other, or incident edges almost in one direction. `chain` graphs (lab schemes in
+ * columns) may run one line through a node: that is a chain, not an overlap.
+ */
+export function edgesOverlap(s: Seg, r: Seg, incident: boolean, chain = false): boolean {
   const angle = segAngle(s, r);
-  if (incident) return angle < T.incidentDeg;
+  if (incident) return angle < T.incidentDeg && !(chain && runsThrough(s, r));
   if (angle >= T.parallelDeg) return false;
   const dist = Math.min(segDist(r.a, s).d, segDist(r.b, s).d, segDist(s.a, r).d, segDist(s.b, r).d);
   if (dist >= T.parallelDist) return false;
@@ -286,6 +304,16 @@ function graphRules(g: Graph, add: Add): void {
   const segs = edges.map((e) => e.seg);
 
   for (const l of labels) {
+    if (l.node !== undefined) {
+      // A node name plate: free of every edge and of every other node.
+      for (const e of edges) {
+        if (textOverLine(l.box, e.seg, e.stroke)) add('text-over-line', allow, where, l.box, `node label ${l.node} vs edge ${e.i} dist ${f1(boxSegDist(l.box, e.seg))}px`);
+      }
+      for (const n of nodes) {
+        if (n.i !== l.node && textOverNode(l.box, n.c, n.r)) add('text-over-node', allow, where, l.box, `node label ${l.node} vs node ${n.i} dist ${f1(boxCircleDist(l.box, n.c, n.r))}px`);
+      }
+      continue;
+    }
     const own = edges.find((e) => e.i === l.i);
     if (!own) continue;
     const foreign = edges.filter((e) => e.i !== l.i);
@@ -318,7 +346,7 @@ function graphRules(g: Graph, add: Add): void {
       const s = edges[i];
       const r = edges[j];
       const incident = [s.a, s.b].some((x) => x >= 0 && (x === r.a || x === r.b));
-      if (edgesOverlap(s.seg, r.seg, incident)) add('edges-overlap', allow, where, segBox(s.seg), `edge ${s.i} vs ${r.i} angle ${f1(segAngle(s.seg, r.seg))}`);
+      if (edgesOverlap(s.seg, r.seg, incident, g.chain)) add('edges-overlap', allow, where, segBox(s.seg), `edge ${s.i} vs ${r.i} angle ${f1(segAngle(s.seg, r.seg))}`);
       const p = segCross(s.seg, r.seg);
       if (!p) continue;
       const third = edges.find((e, k) => k !== i && k !== j && segDist(p, e.seg).d < T.concurrentEdge);

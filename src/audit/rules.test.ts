@@ -184,6 +184,14 @@ describe('graph rules', () => {
     expect(edgesOverlap(seg(0, 0, 100, 0), seg(0, 0, 100, 30), true)).toBe(false);
   });
 
+  it('chain graphs let one line run through a node, not leave it twice in one direction', () => {
+    const through = [seg(0, 0, 100, 0), seg(100, 0, 200, 3)];
+    expect(edgesOverlap(through[0], through[1], true)).toBe(true);
+    expect(edgesOverlap(through[0], through[1], true, true)).toBe(false);
+    expect(edgesOverlap(seg(100, 0, 0, 0), seg(100, 0, 200, 3), true, true)).toBe(false);
+    expect(edgesOverlap(seg(0, 0, 100, 0), seg(0, 0, 100, 10), true, true)).toBe(true); // both leave the node alike
+  });
+
   it('edges-concurrent: three edges through one point, the hexagon diagonals', () => {
     const hex: Graph = {
       where: 'svg',
@@ -212,6 +220,26 @@ describe('graph rules', () => {
     expect(found).toContain('label-ownership');
     expect(found).toContain('label-on-crossing');
     expect(found).toContain('text-over-line');
+  });
+
+  it('node name plates: free of every edge and of other nodes, own node ignored', () => {
+    const g: Graph = {
+      where: 'svg',
+      allow: '',
+      nodes: [
+        { i: 0, c: { x: 20, y: 20 }, r: 18 },
+        { i: 1, c: { x: 200, y: 20 }, r: 18 },
+      ],
+      edges: [{ i: 0, seg: seg(38, 20, 182, 20), stroke: 1.5, a: 0, b: 1 }],
+      labels: [{ i: -1, node: 0, box: box(0, 44, 40, 18) }],
+    };
+    expect(rules(evaluate({ ...empty(), graphs: [g] }))).toEqual([]);
+    const onEdge = { ...g, labels: [{ i: -1, node: 0, box: box(60, 12, 40, 18) }] };
+    expect(rules(evaluate({ ...empty(), graphs: [onEdge] }))).toContain('text-over-line');
+    const onNode = { ...g, labels: [{ i: -1, node: 0, box: box(190, 12, 40, 18) }] };
+    expect(rules(evaluate({ ...empty(), graphs: [onNode] }))).toContain('text-over-node');
+    const own = { ...g, labels: [{ i: -1, node: 0, box: box(10, 10, 20, 18) }] };
+    expect(rules(evaluate({ ...empty(), graphs: [own] }))).not.toContain('text-over-node');
   });
 });
 
