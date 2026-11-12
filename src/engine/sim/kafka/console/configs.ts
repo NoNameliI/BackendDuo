@@ -33,7 +33,7 @@ export function createConfigsCommands(api: KafkaModel): ConsoleCommand[] {
       const del = opts.list('delete-config').flatMap((s) => s.split(',').filter((x) => x !== ''));
       if (add.length === 0 && del.length === 0) throw new UsageError('At least one of --add-config or --delete-config must be specified with --alter');
       const r = api.alterConfigs(type, name, Object.fromEntries(add), del);
-      if (!r.ok) return o.err(errorLine(r.error.text)).done(1);
+      if (!r.ok) return o.err(errorLine(r.error.text)).code(r.error.code).done(1);
       return o.out(name === '' ? 'Completed updating default config for brokers in the cluster.' : `Completed updating config for ${what} ${name}.`).done();
     }
 
@@ -44,7 +44,7 @@ export function createConfigsCommands(api: KafkaModel): ConsoleCommand[] {
     const all = opts.has('all');
     for (const n of names) {
       const r = api.describeConfigs(type, n, all);
-      if (!r.ok) return o.err(errorLine(r.error.text)).done(1);
+      if (!r.ok) return o.err(errorLine(r.error.text)).code(r.error.code).done(1);
       o.out(`${all ? 'All' : 'Dynamic'} configs for ${caption(n)} are:`);
       for (const e of r.value) o.out(`  ${e.name}=${e.value} sensitive=false synonyms={${e.source}:${e.name}=${e.value}}`);
     }

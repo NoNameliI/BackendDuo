@@ -385,6 +385,26 @@ const scenarioTask = z.object({
   check: z.object({}).prefault({}),
 });
 
+/**
+ * The learner writes a Python client (pika, confluent_kafka) in main.py: ```python starter | solution. It runs against the
+ * same simulator, then the result is compared like a console task; `require` / `forbid` are regular expressions over
+ * the Python source. A task with a `scenario` is also judged by the scenario's `expect` list after the run.
+ */
+const clientTask = z.object({
+  ...brokerBase,
+  type: z.literal('client'),
+  pythonStarter: z.string().default(''),
+  pythonSolution: z.string().default(''),
+  check: z
+    .object({
+      compare: z.array(brokerCompareEnum).default([]),
+      ignore: z.array(z.string().min(1)).default([]),
+      require: z.array(pattern).default([]),
+      forbid: z.array(pattern).default([]),
+    })
+    .prefault({}),
+});
+
 export const levelEnum = z.enum(['base', 'core', 'hard']);
 
 /**
@@ -409,8 +429,15 @@ const drillTask = z.object({
 export const corsConfigSchema = corsConfig;
 
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask, drillTask, topologyTask, routingTask, consoleTask, scenarioTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask, drillTask, topologyTask, routingTask, consoleTask, scenarioTask, clientTask])
   .superRefine((task, ctx) => {
+    if (task.type === 'client') {
+      if (!task.pythonSolution.trim()) ctx.addIssue({ code: 'custom', path: ['pythonSolution'], message: 'нужен блок ```python solution' });
+      if (task.check.compare.length === 0 && task.check.require.length === 0 && !task.scenario) {
+        ctx.addIssue({ code: 'custom', path: ['check'], message: 'нужно хотя бы одно условие: compare, require или scenario' });
+      }
+      return;
+    }
     if ('brokerSolution' in task) {
       if (!task.brokerSolution.trim() && !task.propsSolution.trim()) {
         ctx.addIssue({ code: 'custom', path: ['brokerSolution'], message: 'нужен хотя бы один из блоков: ```broker solution или ```properties solution' });
@@ -443,7 +470,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi', 'drill', 'topology', 'routing', 'console', 'scenario']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi', 'drill', 'topology', 'routing', 'console', 'scenario', 'client']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),
@@ -607,7 +634,8 @@ export const gitOnboardingSchema = z.object({
  * SQLSTATE (or its two-character class) → hint shown under PostgreSQL's own message; in the API course,
  * an HTTP status code → explanation shown with the response.
  */
-export const errorHintsSchema = z.record(z.string().regex(/^([0-9A-Z]{2}([0-9A-Z]{3})?|[1-5]\d\d)$/), z.string().min(1));
+// SQLSTATE (class or full code), HTTP status, AMQP reply code, Kafka error code (1–3 digits, no leading zero).
+export const errorHintsSchema = z.record(z.string().regex(/^([0-9A-Z]{2}([0-9A-Z]{3})?|[1-9]\d{0,2})$/), z.string().min(1));
 
 /** Git course: a pattern over terminal error lines → explanation shown under git's own message. */
 export const terminalHintsSchema = z.array(z.object({ pattern: z.string().min(1), hint: z.string().min(1) }));

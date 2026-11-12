@@ -10,6 +10,7 @@ export interface BrokerRun {
   command: string;
   lines: { text: string; tone: 'out' | 'err' | 'dim' }[];
   exit: number;
+  code?: string;
 }
 
 export interface ScenarioRun {
@@ -46,7 +47,7 @@ export async function runBrokerExample(lesson: Lesson, script: string): Promise<
   return lib.splitScript(script).map((command) => {
     const r = box.console.exec(command);
     box.sim.runUntil(box.sim.now);
-    return { command: command.split('\n')[0], lines: r.lines, exit: r.exit };
+    return { command: command.split('\n')[0], lines: r.lines, exit: r.exit, ...(r.code !== undefined ? { code: r.code } : {}) };
   });
 }
 

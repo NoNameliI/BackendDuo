@@ -99,6 +99,12 @@ export function parseOpts(args: readonly string[], defs: readonly OptDef[]): { o
 
 export class Lines {
   readonly lines: ConsoleLine[] = [];
+  private errorCode?: string;
+  /** Remembers the first broker error code of the command (decimal text). */
+  code(c: number): this {
+    this.errorCode ??= String(c);
+    return this;
+  }
   out(...t: string[]): this {
     for (const text of t) this.lines.push({ text, tone: 'out' });
     return this;
@@ -112,7 +118,7 @@ export class Lines {
     return this;
   }
   done(exit = 0): ConsoleResult {
-    return { lines: this.lines, exit };
+    return { lines: this.lines, exit, ...(exit !== 0 && this.errorCode !== undefined ? { code: this.errorCode } : {}) };
   }
 }
 

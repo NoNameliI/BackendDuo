@@ -15,7 +15,7 @@ describe('kafka fixture course', () => {
   it('loads with the Kafka simulator on every task', () => {
     expect(course.flavor).toBe('kafka');
     const tasks = course.worlds[0].lessons[0].tasks;
-    expect(tasks.map((t) => t.type)).toEqual(['topology', 'routing', 'console', 'scenario']);
+    expect(tasks.map((t) => t.type)).toEqual(['topology', 'routing', 'console', 'client', 'scenario']);
     expect(tasks.every((t) => 'sim' in t && t.sim === 'kafka')).toBe(true);
   });
 

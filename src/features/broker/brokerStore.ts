@@ -1,6 +1,8 @@
 import { createContext, useContext } from 'react';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import type { AnySandbox, KafkaSandbox, RabbitSandbox } from '@/checker/broker';
+import type { BrokerOp, ClientSetup } from '@/engine/python/brokerBridge';
+import type { ClientRun } from '@/engine/python/runtime';
 import type { ConsoleLine } from '@/engine/sim/console';
 import { createPlayer, type Player, type Speed } from '@/engine/sim/player';
 import type { KafkaSnapshot } from '@/engine/sim/kafka';
@@ -30,6 +32,21 @@ export interface LabSpec {
   props: string;
   /** Learner's starting commands (task `brokerStarter`), offered in the console. */
   starter: string;
+  /** Python client tasks: the starting program (task `pythonStarter`). */
+  client?: { source: string };
+}
+
+/** The Python program of a client task and what its last run did. */
+export interface ClientState {
+  source: string;
+  running: boolean;
+  /** Something has run since the lab was reset. */
+  ran: boolean;
+  output: string;
+  /** The program's mistake, ready to show. */
+  error: string | null;
+  /** The sandbox horizon ended an endless wait. */
+  stopped: boolean;
 }
 
 export interface ConsoleEntry {
@@ -37,9 +54,11 @@ export interface ConsoleEntry {
   command: string;
   lines: ConsoleLine[];
   exit: number;
+  /** Broker error code of a failed command, for the course hint. */
+  code?: string;
 }
 
-export type LabTab = 'schema' | 'console' | 'journal' | 'metrics' | 'props';
+export type LabTab = 'schema' | 'console' | 'journal' | 'metrics' | 'props' | 'client';
 export type LabStatus = 'idle' | 'loading' | 'ready' | 'failed';
 
 /** Everything the views draw, derived once per change. */
@@ -83,6 +102,8 @@ interface BrokerState {
   durationMs: number;
   /** Bumped by every change of the simulation: views depend on it. */
   version: number;
+  /** Python client tasks only. */
+  client: ClientState | null;
 
   reset: (spec: LabSpec) => Promise<void>;
   /** Runs console input (one or several lines) at the current virtual time. */
@@ -101,6 +122,12 @@ interface BrokerState {
   restart: () => void;
   /** Ctrl+Enter: play the scenario (from the start when it is over); without a scenario nothing runs on its own. */
   runScenario: () => void;
+  setClientSource: (source: string) => void;
+  setClientRunning: (running: boolean) => void;
+  /** How a Python run must start: the simulator of this lab, built from scratch. */
+  clientSetup: () => ClientSetup | null;
+  /** Shows a finished Python run: the lab restarts and repeats the run's operations, so the pictures show its result. */
+  playClient: (run: ClientRun) => void;
   /** What a check receives: the typed commands that are still part of the timeline, and the properties text. */
   input: () => { commands: string[]; props: string };
   view: () => LabView;
@@ -133,6 +160,8 @@ let nextEntryId = 1;
 interface Timed {
   at: number;
   text: string;
+  /** A Python run: its operations are repeated instead of typing `text`. */
+  ops?: BrokerOp[];
 }
 
 interface Built {
@@ -179,7 +208,10 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
       for (const t of timeline) {
         if (t.at > limit) break;
         made.sim.runUntil(t.at);
-        made.console.exec(t.text);
+        if (t.ops) {
+          const diverged = libs.replayOps(made, t.ops);
+          if (diverged && !broken) broken = `Внутренняя ошибка: ${diverged}`;
+        } else made.console.exec(t.text);
         made.sim.runUntil(made.sim.now);
       }
       return { box: made, scenario, propErrors, failure: broken };
@@ -221,9 +253,9 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
       sync();
     }
 
-    const record = (command: string, lines: ConsoleLine[], exit: number, cleared: boolean) =>
+    const record = (command: string, lines: ConsoleLine[], exit: number, cleared: boolean, code?: string) =>
       set((s) => ({
-        entries: [...(cleared ? [] : s.entries), { id: nextEntryId++, command, lines, exit }].slice(-ENTRY_LIMIT),
+        entries: [...(cleared ? [] : s.entries), { id: nextEntryId++, command, lines, exit, ...(code !== undefined ? { code } : {}) }].slice(-ENTRY_LIMIT),
         history: command ? [...s.history, command].slice(-HISTORY_LIMIT) : s.history,
       }));
 
@@ -245,6 +277,7 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
       speed: 1,
       durationMs: FREE_TIMELINE_MS,
       version: 0,
+      client: null,
 
       reset: async (spec) => {
         const mine = ++generation;
@@ -267,7 +300,8 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
           playing: false,
           speed: 1,
           durationMs: spec.scenario?.durationMs ?? FREE_TIMELINE_MS,
-          tab: spec.scenario ? 'schema' : 'console',
+          tab: spec.client ? 'client' : spec.scenario ? 'schema' : 'console',
+          client: spec.client ? { source: spec.client.source, running: false, ran: false, output: '', error: null, stopped: false } : null,
           version: get().version + 1,
         });
         let libs: Lib;
@@ -290,7 +324,7 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
         const r = b.console.exec(text);
         b.sim.runUntil(b.sim.now);
         if (!NO_EFFECT.has(word)) timeline.push({ at, text });
-        record(text.trim(), r.lines, r.exit, r.clear === true);
+        record(text.trim(), r.lines, r.exit, r.clear === true, r.code);
         sync();
       },
       setDraft: (draft) => set({ draft }),
@@ -341,7 +375,41 @@ export function createBrokerStore(tick: Ticker = frameTicker): BrokerStore {
         get().play();
       },
 
-      input: () => ({ commands: timeline.map((t) => t.text), props: get().props }),
+      setClientSource: (source) => {
+        const c = get().client;
+        if (c) set({ client: { ...c, source } });
+      },
+      setClientRunning: (running) => {
+        const c = get().client;
+        if (c) set({ client: { ...c, running } });
+      },
+      clientSetup: () => {
+        const { spec } = get();
+        if (!spec) return null;
+        return { flavor: spec.sim, ...(spec.scenario ? { scenario: spec.scenario } : {}), scripts: [spec.scenario?.setup ?? '', spec.setup].filter((x) => x.trim() !== '') };
+      },
+      playClient: (run) => {
+        const { spec, client } = get();
+        if (!spec || !lib || !client) return;
+        timeline = [{ at: 0, text: '', ops: run.ops }];
+        replayLimit = 0;
+        const e = run.error;
+        set({
+          client: {
+            ...client,
+            running: false,
+            ran: true,
+            output: run.output,
+            stopped: run.stopped,
+            error: e ? `${e.kind === 'syntax' ? 'Синтаксическая ошибка' : `${e.type}: `}${e.message}${e.line ? ` (строка ${e.line})` : ''}` : null,
+          },
+        });
+        startPlayer(lib, spec);
+        const end = player!.state().now;
+        set({ now: end, durationMs: Math.max(spec.scenario?.durationMs ?? FREE_TIMELINE_MS, end), status: failure ? 'failed' : 'ready', version: get().version + 1 });
+      },
+
+      input: () => ({ commands: timeline.filter((t) => !t.ops).map((t) => t.text), props: get().props }),
 
       view: () => {
         const version = get().version;

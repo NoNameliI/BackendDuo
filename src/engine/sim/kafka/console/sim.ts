@@ -39,7 +39,7 @@ export function createSimCommand(api: KafkaModel): ConsoleCommand {
             return err(sub === 'stall' ? 'sim stall: sim stall broker N 40s' : `sim ${sub}: sim ${sub} broker N`, 2);
           }
           const r = sub === 'crash' ? api.crashBroker(n) : sub === 'restart' ? api.restartBroker(n) : api.stallReplica(n, ms);
-          if (!r.ok) return err(`sim ${sub}: ${r.error.text}`);
+          if (!r.ok) return err(`sim ${sub}: ${r.error.text}`, 1, String(r.error.code));
           if (sub === 'crash') return sim(`брокер ${n} остановлен`);
           if (sub === 'restart') return sim(`брокер ${n} запущен, данные на диске сохранились`);
           return sim(`брокер ${n}: реплики-подписчики не забирают данные ${ms} мс`);
@@ -47,7 +47,7 @@ export function createSimCommand(api: KafkaModel): ConsoleCommand {
         case 'consumer': {
           if ((what !== 'start' && what !== 'stop') || id === undefined || args.length !== 3) return err('sim consumer: sim consumer start|stop ID', 2);
           const r = what === 'start' ? api.startConsumer(id) : api.stopConsumer(id);
-          if (!r.ok) return err(`sim consumer: ${r.error.text}`);
+          if (!r.ok) return err(`sim consumer: ${r.error.text}`, 1, String(r.error.code));
           return sim(what === 'start' ? `потребитель ${id} запущен и входит в группу` : `потребитель ${id} остановлен и вышел из группы`);
         }
         default:

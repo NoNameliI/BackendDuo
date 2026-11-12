@@ -58,10 +58,10 @@ export function createConsumerCommands(api: KafkaModel): ConsoleCommand[] {
       ...(maxMessages !== undefined ? { maxMessages: intOption(maxMessages, 'max-messages', 1) } : {}),
       ...(timeout !== undefined ? { timeoutMs: intOption(timeout, 'timeout-ms', 1) } : {}),
     });
-    if (!r.ok) return o.err(`Error: ${r.error.text}`, 'Processed a total of 0 messages').done(1);
+    if (!r.ok) return o.err(`Error: ${r.error.text}`, 'Processed a total of 0 messages').code(r.error.code).done(1);
     const { records, idle, error } = r.value;
     o.out(...records.map((rec) => formatRecord(rec, fmt)));
-    if (error) o.err(`Error: ${error.name}: ${error.text}`);
+    if (error) o.err(`Error: ${error.name}: ${error.text}`).code(error.code);
     else if (idle) o.dim('(песочница: новых сообщений нет)');
     o.err(`Processed a total of ${records.length} messages`);
     return o.done(error ? 1 : 0);

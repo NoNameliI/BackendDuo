@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createChecker } from '@/checker';
 import { checkApiTask, readCorsConfig, readRequest } from '@/checker/api';
 import { checkGraphql, checkProto } from '@/checker/apiSchema';
-import { checkBrokerExamples, checkBrokerTask, lintBrokerTask } from '@/checker/broker';
+import { checkBrokerExamples, checkBrokerTask, checkClientTask, lintBrokerTask, type ClientRunner } from '@/checker/broker';
 import { schemaOps } from '@/engine/api/schemaOps';
 import { checkFastapi } from '@/checker/fastapi';
 import { splitPythonExample } from '@/engine/python/example';
@@ -52,6 +52,13 @@ async function validateTask(task: Task, servers: Record<string, ServerDef>, scen
   if ('brokerSolution' in task) {
     const broker = task as BrokerTask;
     expect(lintBrokerTask(broker, scenarios), 'content lint').toEqual([]);
+    if (broker.type === 'client') {
+      const { client } = await nodePython();
+      const run: ClientRunner = async (source, setup) => client(source, setup);
+      expect((await checkClientTask(broker, scenarios, broker.pythonSolution, run)).problems, 'reference must pass its own check').toEqual([]);
+      expect((await checkClientTask(broker, scenarios, broker.pythonStarter, run)).passed, 'the starter must not pass the check').toBe(false);
+      return;
+    }
     const started = performance.now();
     const solved = checkBrokerTask(broker, scenarios, { commands: [broker.brokerSolution], props: broker.propsSolution });
     expect(solved.problems, 'reference must pass its own check').toEqual([]);
@@ -127,7 +134,10 @@ for (const course of catalog?.courses ?? []) {
           if (examples.length > 0) {
             it('theory examples run in order without errors', async () => {
               if (course.engine === 'broker') {
-                expect(checkBrokerExamples(theoryExamplesWithShownOutput(lesson.theory), lesson.exampleSetup, course.flavor ?? 'rabbit'), 'theory examples').toEqual([]);
+                // Same rule as the lesson UI (brokerExamples.ts): the sim of the lesson's first practical task.
+                const first = lesson.tasks.find((t) => 'brokerSolution' in t) as BrokerTask | undefined;
+                const flavor = first?.sim ?? course.flavor ?? 'rabbit';
+                expect(checkBrokerExamples(theoryExamplesWithShownOutput(lesson.theory), lesson.exampleSetup, flavor), 'theory examples').toEqual([]);
                 return;
               }
               if (course.engine === 'api') {

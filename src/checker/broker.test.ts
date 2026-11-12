@@ -4,7 +4,7 @@ import { theoryExampleBlocks } from '@/content/theory';
 import type { BrokerTask } from '@/content/loadCourse';
 import { SolutionError } from './index';
 
-import { checkBrokerExamples, checkBrokerTask, lintBrokerTask, splitScript, type BrokerInput } from './broker';
+import { checkBrokerExamples, checkBrokerTask, createRabbitSandbox, lintBrokerTask, splitScript, type BrokerInput } from './broker';
 import { fixtureCourse, fixtureFiles, fixtureTask } from './brokerFixture';
 
 const course = fixtureCourse();
@@ -19,7 +19,7 @@ describe('fixture course', () => {
     expect(course.flavor).toBe('rabbit');
     expect(Object.keys(course.scenarios)).toEqual(['orders']);
     const tasks = course.worlds[0].lessons[0].tasks;
-    expect(tasks.map((t) => t.type)).toEqual(['topology', 'routing', 'console', 'scenario']);
+    expect(tasks.map((t) => t.type)).toEqual(['topology', 'routing', 'console', 'client', 'scenario']);
     expect(tasks.every((t) => 'sim' in t && t.sim === 'rabbit')).toBe(true);
     expect(course.worlds[0].lessons[0].exampleSetup).toBe('');
     expect(theoryExampleBlocks(course.worlds[0].lessons[0].theory).map((b) => b.lang)).toEqual(['broker', 'scenario']);
@@ -173,6 +173,16 @@ describe('theory examples', () => {
     expect(bad).toHaveLength(2);
     expect(bad[0]).toContain('завершилась с ошибкой');
     expect(bad[1]).toContain('не читается');
+  });
+  it('accept a failing command whose exact output the lesson shows, and reject a wrong one', () => {
+    const declare = 'rabbitmqadmin queues declare --name q --type classic --durable true';
+    const again = 'rabbitmqadmin queues declare --name q --type classic --durable false';
+    const real = createRabbitSandbox();
+    const shown = [...real.run(declare), ...real.run(again)].map((r) => r.output).join('\n');
+    expect(checkBrokerExamples([{ lang: 'broker', code: `${declare}\n${again}`, shown }], '', 'rabbit')).toEqual([]);
+    const wrong = checkBrokerExamples([{ lang: 'broker', code: `${declare}\n${again}`, shown: 'all good' }], '', 'rabbit');
+    expect(wrong.some((p) => p.includes('завершилась с ошибкой'))).toBe(true);
+    expect(wrong.some((p) => p.includes('не совпадает'))).toBe(true);
   });
 });
 

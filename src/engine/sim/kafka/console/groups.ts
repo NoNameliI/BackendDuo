@@ -103,8 +103,8 @@ export function createGroupsCommands(api: KafkaModel): ConsoleCommand[] {
     if (actions.length !== 1) throw new UsageError('Command must include exactly one action: --list, --describe, --delete or --reset-offsets');
     const o = new Lines();
     let exit = 0;
-    const fail = (text: string): void => {
-      o.err(errorLine(text));
+    const fail = (e: { code: number; text: string }): void => {
+      o.err(errorLine(e.text)).code(e.code);
       exit = 1;
     };
 
@@ -117,7 +117,7 @@ export function createGroupsCommands(api: KafkaModel): ConsoleCommand[] {
         for (const id of groupsOf(api, opts, 'describe')) {
           const r = api.describeGroup(id);
           if (!r.ok) {
-            fail(r.error.text);
+            fail(r.error);
             continue;
           }
           const d = r.value;
@@ -133,11 +133,15 @@ export function createGroupsCommands(api: KafkaModel): ConsoleCommand[] {
       case 'delete': {
         const ids = groupsOf(api, opts, 'delete');
         const failed: string[] = [];
+        let failCode: number | undefined;
         for (const id of ids) {
           const r = api.deleteGroup(id);
-          if (!r.ok) failed.push(`* Group '${id}' could not be deleted due to: ${r.error.name}: ${r.error.text}`);
+          if (!r.ok) {
+            failCode ??= r.error.code;
+            failed.push(`* Group '${id}' could not be deleted due to: ${r.error.name}: ${r.error.text}`);
+          }
         }
-        if (failed.length > 0) return o.err(errorLine('Deletion of some consumer groups failed:'), ...failed).done(1);
+        if (failed.length > 0) return o.err(errorLine('Deletion of some consumer groups failed:'), ...failed).code(failCode!).done(1);
         return o.out(`Deletion of requested consumer groups (${ids.map((g) => `'${g}'`).join(', ')}) was successful.`).done();
       }
       case 'reset-offsets': {
@@ -149,7 +153,7 @@ export function createGroupsCommands(api: KafkaModel): ConsoleCommand[] {
         for (const id of ids) {
           const dry = api.resetOffsets(id, spec, false, names);
           if (!dry.ok) {
-            fail(dry.error.text);
+            fail(dry.error);
             continue;
           }
           const rows = dry.value.filter((r) => (parts.get(r.topic)?.has(r.partition) ?? true));
@@ -157,7 +161,7 @@ export function createGroupsCommands(api: KafkaModel): ConsoleCommand[] {
             // Executed from the computed rows so that a `--topic T:0` filter touches only those partitions.
             const done = api.resetOffsets(id, { mode: 'from-file', rows: rows.map((r) => ({ topic: r.topic, partition: r.partition, offset: r.newOffset })) }, true, names);
             if (!done.ok) {
-              fail(done.error.text);
+              fail(done.error);
               continue;
             }
           }

@@ -4,6 +4,7 @@ import { rabbitRules } from '@/engine/sim/rabbit/rules';
 import { Panel } from '@/ui/Panel';
 import { Tabs } from '@/ui/Tabs';
 import { BrokerConsole } from './BrokerConsole';
+import { ClientPanel } from './ClientPanel';
 import { useBroker, type LabTab } from './brokerStore';
 import { ExplainPanel } from './ExplainPanel';
 import { JournalView } from './JournalView';
@@ -38,7 +39,7 @@ const BASE_TABS: { id: LabTab; title: string }[] = [
   { id: 'journal', title: 'Журнал' },
   { id: 'metrics', title: 'Метрики' },
 ];
-const tabsFor = (hasProps: boolean): { id: LabTab; title: string }[] => (hasProps ? [...BASE_TABS, { id: 'props', title: 'Свойства' }] : BASE_TABS);
+const tabsFor = (hasProps: boolean, hasClient: boolean): { id: LabTab; title: string }[] => [...(hasClient ? [{ id: 'client' as const, title: 'Код Python' }] : []), ...BASE_TABS, ...(hasProps ? [{ id: 'props' as const, title: 'Свойства' }] : [])];
 
 function Metrics() {
   const lab = useBroker();
@@ -154,10 +155,12 @@ interface BrokerWorkbenchProps {
   trace?: readonly string[];
   /** Hides the panel chrome (onboarding). */
   bare?: boolean;
+  /** Python client tasks: runs the program (Ctrl+Enter, the Run button). */
+  onRun?: () => void;
 }
 
 /** The lab: scheme, console, journal, metrics (and properties) over one simulated broker, with the player and the explanations. */
-export function BrokerWorkbench({ actions, prefix, trace }: BrokerWorkbenchProps) {
+export function BrokerWorkbench({ actions, prefix, trace, onRun }: BrokerWorkbenchProps) {
   const lab = useBroker();
   const status = lab((s) => s.status);
   const error = lab((s) => s.error);
@@ -169,6 +172,7 @@ export function BrokerWorkbench({ actions, prefix, trace }: BrokerWorkbenchProps
   const msg = lab((s) => s.selectedMsg);
   const kafka = lab((s) => s.spec?.sim === 'kafka');
   const hasProps = lab((s) => Boolean(s.spec && (s.spec.scenario || s.spec.props.trim())));
+  const hasClient = lab((s) => s.client !== null);
   lab((s) => s.version);
   const [showDiff, setShowDiff] = useState(false);
   const act = lab.getState();
@@ -191,7 +195,7 @@ export function BrokerWorkbench({ actions, prefix, trace }: BrokerWorkbenchProps
     }
   };
 
-  const items = tabsFor(hasProps);
+  const items = tabsFor(hasProps, hasClient);
   const body =
     status === 'loading' || status === 'idle' ? (
       <p className="p-4 text-[13px] text-dim" role="status">
@@ -229,6 +233,7 @@ export function BrokerWorkbench({ actions, prefix, trace }: BrokerWorkbenchProps
           />
         </div>
         <div id={`${prefix}-panel`} role="tabpanel" aria-labelledby={`${prefix}-tab-${tab}`} className="min-h-0 flex-1">
+          {tab === 'client' && <ClientPanel onRun={onRun} />}
           {tab === 'schema' && (kafka ? <KafkaSchema /> : <RabbitTopology />)}
           {tab === 'console' && <BrokerConsole />}
           {tab === 'journal' && (

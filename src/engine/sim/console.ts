@@ -7,6 +7,8 @@ export interface ConsoleResult {
   exit: number;
   /** Set by the built-in `clear`: the view drops earlier output. */
   clear?: boolean;
+  /** Broker error code of a failed command (AMQP reply code or Kafka error code, as text); usage errors have none. */
+  code?: string;
 }
 
 export class ConsoleSyntaxError extends Error {}
@@ -78,7 +80,7 @@ export interface Console {
 }
 
 export const out = (...texts: string[]): ConsoleResult => ({ lines: texts.map((text) => ({ text, tone: 'out' as const })), exit: 0 });
-export const err = (text: string, exit = 1): ConsoleResult => ({ lines: [{ text, tone: 'err' }], exit });
+export const err = (text: string, exit = 1, code?: string): ConsoleResult => ({ lines: [{ text, tone: 'err' }], exit, ...(code !== undefined ? { code } : {}) });
 
 // `<<WORD` / `<<-WORD` start a heredoc; `<<< word` is a here-string and must not.
 const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
@@ -115,6 +117,7 @@ export function createConsole(commands: readonly ConsoleCommand[]): Console {
       const lines: ConsoleLine[] = [];
       let exit = 0;
       let clear = false;
+      let code: string | undefined;
       for (let i = 0; i < raw.length; i++) {
         let line = raw[i];
         while (line.endsWith('\\') && !line.endsWith('\\\\') && i + 1 < raw.length) line = `${line.slice(0, -1)} ${raw[++i].trimStart()}`;
@@ -147,8 +150,9 @@ export function createConsole(commands: readonly ConsoleCommand[]): Console {
         }
         lines.push(...r.lines);
         exit = r.exit;
+        code = r.exit !== 0 ? r.code : undefined;
       }
-      return clear ? { lines, exit, clear } : { lines, exit };
+      return { lines, exit, ...(clear ? { clear } : {}), ...(code !== undefined ? { code } : {}) };
     },
   };
 }

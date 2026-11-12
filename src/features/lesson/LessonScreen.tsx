@@ -95,6 +95,7 @@ export function LessonScreen() {
             <BrokerWorkbench
               prefix="broker-lesson"
               trace={trace}
+              onRun={() => void run()}
               actions={
                 <>
                   <Button aria-label="Вернуть лабораторию к началу задания" title="Сбросить лабораторию" icon={<ResetIcon />} onClick={() => void resetDatabase()} />

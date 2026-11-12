@@ -89,10 +89,10 @@ export function createProducerCommands(api: KafkaModel): ConsoleCommand[] {
     let exit = 0;
     if (records.length > 0) {
       const r = api.produce(topic, records, config);
-      if (!r.ok) return o.err(`Error: ${r.error.text}`).done(1);
+      if (!r.ok) return o.err(`Error: ${r.error.text}`).code(r.error.code).done(1);
       for (const d of r.value) {
         if (d.error) {
-          o.err(`Error: record not sent to ${d.topic}: ${d.error.name}: ${d.error.text}`);
+          o.err(`Error: record not sent to ${d.topic}: ${d.error.name}: ${d.error.text}`).code(d.error.code);
           exit = 1;
         }
       }

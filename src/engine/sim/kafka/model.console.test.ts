@@ -196,3 +196,19 @@ describe('kafka-configs and sim', () => {
     expect(run('sim').text).toContain('[sim] run 10s');
   });
 });
+
+describe('error codes', () => {
+  it('broker errors carry the Kafka error code, usage errors none', () => {
+    const { run, model } = setup();
+    run(`kafka-topics.sh ${BS} --create --topic t --partitions 1 --replication-factor 3`);
+    const code = (cmd: string) => {
+      const con = createConsole(createKafkaCommands(model));
+      return con.exec(cmd).code;
+    };
+    expect(code(`kafka-topics.sh ${BS} --create --topic t --partitions 1 --replication-factor 3`)).toBe('36');
+    expect(code(`kafka-topics.sh ${BS} --create --topic u --partitions 0 --replication-factor 3`)).toBe('37');
+    expect(code(`kafka-topics.sh ${BS} --describe --topic nope`)).toBe('3');
+    expect(code(`kafka-topics.sh ${BS}`)).toBeUndefined();
+    expect(code(`kafka-topics.sh ${BS} --list`)).toBeUndefined();
+  });
+});

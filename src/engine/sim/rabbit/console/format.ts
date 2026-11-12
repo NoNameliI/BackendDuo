@@ -1,3 +1,4 @@
+import { err, type ConsoleResult } from '../../console';
 import type { AmqpError } from './api';
 
 /**
@@ -35,6 +36,8 @@ export function formatAmqpError(e: AmqpError): string {
   return `${e.code} ${e.name} - ${e.text}`;
 }
 export const adminError = (e: AmqpError): string => `Error: ${formatAmqpError(e)}`;
+/** A failed command because of a broker error: the AMQP reply code travels with the result. */
+export const amqpFail = (e: AmqpError, ctl = false, exit = 1): ConsoleResult => err(ctl ? ctlError(e) : adminError(e), exit, String(e.code));
 export const ctlError = (e: AmqpError): string => `Error:\n${formatAmqpError(e)}`;
 
 export const V1_HINT =

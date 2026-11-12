@@ -638,6 +638,21 @@ export class Consumer {
     return null;
   }
 
+  /** Commits exactly the given offsets (a client's commit(offsets=...) or commit(message)). */
+  commitOffsets(list: { tp: TP; offset: number }[]): KafkaError | null {
+    const gid = this.cfg.groupId;
+    if (!gid) return kerr(25, 'Group id is required to commit offsets');
+    if (!this.manual && !this.memberId) return kerr(25);
+    const done: string[] = [];
+    for (const { tp, offset } of list) {
+      if (this.coord.committed(gid, tp) === offset) continue;
+      this.coord.commit(gid, tp, offset);
+      done.push(`${tp.topic}-${tp.partition}=${offset}`);
+    }
+    if (done.length > 0) this.env.log({ kind: 'commit', actor: this.id, subject: gid, text: `${this.id}: коммит ${done.join(', ')}`, data: { count: done.length } });
+    return null;
+  }
+
   private revokeAll(): void {
     if (this.assignment.length === 0) return;
     if (this.cfg.autoCommit) this.commitPositions(this.assignment, 'auto-commit-in-poll', 'перед отзывом разделов коммит');

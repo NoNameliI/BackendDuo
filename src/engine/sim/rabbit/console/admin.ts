@@ -1,7 +1,7 @@
 import { err, out, type ConsoleCommand, type ConsoleResult } from '../../console';
 import type { Args, ConsoleSession, Delivery, QueueInfo, RabbitConsoleApi, Result } from './api';
 import { boolValue, jsonObject, parseFlags, requireFlags, UsageError, type FlagDef, type Parsed } from './flags';
-import { adminError, msg, renderTable, V1_HINT, yn, json, type TableStyle } from './format';
+import { adminError, amqpFail, msg, renderTable, V1_HINT, yn, json, type TableStyle } from './format';
 
 const val = (key: string, long: string, short?: string): FlagDef => ({ key, long, short, kind: 'value' });
 const sw = (key: string, long: string, short?: string): FlagDef => ({ key, long, short, kind: 'switch' });
@@ -46,7 +46,7 @@ interface Cmd {
   run(c: Ctx): ConsoleResult;
 }
 
-const fail = (e: Parameters<typeof adminError>[0]): ConsoleResult => err(adminError(e));
+const fail = (e: Parameters<typeof adminError>[0]): ConsoleResult => amqpFail(e);
 const table = (c: Ctx, header: string[], rows: string[][]): ConsoleResult =>
   out(...renderTable(header, rows, c.style));
 

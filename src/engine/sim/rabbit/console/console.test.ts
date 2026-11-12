@@ -204,3 +204,16 @@ describe('sim (teaching only)', () => {
     expect(t.run('sim').tones.every((x) => x === 'dim')).toBe(true);
   });
 });
+
+describe('error codes', () => {
+  it('broker errors carry the AMQP reply code, usage errors none', () => {
+    const b = createTestBackend();
+    const con = createConsole(createRabbitCommands(b.api, b.session));
+    expect(con.exec("rabbitmqadmin get messages -q missing")).toMatchObject({ exit: 1, code: '404' });
+    con.exec('rabbitmqadmin queues declare --name q --durable true');
+    expect(con.exec('rabbitmqadmin queues declare --name q --durable false').code).toBe('406');
+    expect(con.exec('rabbitmqctl delete_queue nope').code).toBe('404');
+    expect(con.exec('rabbitmqadmin queues declare --type bogus --name x').code).toBeUndefined();
+    expect(con.exec('rabbitmqadmin queues list').code).toBeUndefined();
+  });
+});

@@ -1,7 +1,7 @@
 import { err, type ConsoleCommand, type ConsoleResult } from '../../console';
 import type { ChannelId, ConsoleSession, RabbitConsoleApi } from './api';
 import { parseFlags, UsageError, type FlagDef } from './flags';
-import { adminError, parseDuration } from './format';
+import { amqpFail, parseDuration } from './format';
 
 /**
  * Teaching-only commands (no real CLI has an equivalent): they drive consumers, the clock and the
@@ -49,7 +49,7 @@ export function createSimCommand(api: RabbitConsoleApi, session: ConsoleSession,
     const r = kind === 'ack' ? api.ack(ch, tag, multiple) : kind === 'nack' ? api.nack(ch, tag, multiple, requeue) : api.reject(ch, tag, requeue);
     if (!r.ok) {
       session.channels.delete(key(vhost)); // a channel error closes the channel
-      return err(adminError(r.error));
+      return amqpFail(r.error);
     }
     api.advance(0);
     return unackedLines(ch);
@@ -71,12 +71,12 @@ export function createSimCommand(api: RabbitConsoleApi, session: ConsoleSession,
             let ch = channelOf(vhost);
             if (ch === null) {
               const o = api.openChannel(session.user, vhost);
-              if (!o.ok) return err(adminError(o.error));
+              if (!o.ok) return amqpFail(o.error);
               ch = o.value;
               session.channels.set(key(vhost), ch);
             }
             const r = api.consume(ch, p.rest[0], { prefetch, autoAck: p.switches.has('autoAck') });
-            if (!r.ok) return err(adminError(r.error));
+            if (!r.ok) return amqpFail(r.error);
             api.advance(0);
             const head = sim(`потребитель ${r.value} на очереди ${p.rest[0]} (prefetch=${prefetch}, ${p.switches.has('autoAck') ? 'автоподтверждение' : 'ручное подтверждение'})`);
             const tail = unackedLines(ch);

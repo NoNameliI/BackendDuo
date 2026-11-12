@@ -172,4 +172,30 @@ describe('brokerStore', () => {
     await Promise.all([first, second]);
     expect(rabbitSnap(store.getState).vhosts[0].queues.map((q) => q.name)).toEqual(['emails', 'jobs']);
   });
+
+  it('[lab-client] shows the result of a Python run by repeating its operations; typed commands stay separate', async () => {
+    const { get } = await open({ scenario: null, client: { source: 'x = 1' } });
+    expect(get().tab).toBe('client');
+    expect(get().clientSetup()).toEqual({ flavor: 'rabbit', scripts: ['rabbitmqadmin queues declare --name jobs --type classic --durable true'] });
+    const ok = <T,>(value: T) => ({ ok: true as const, value });
+    get().playClient({
+      output: 'hi',
+      stopped: false,
+      ms: 1,
+      ops: [
+        { op: 'connect', args: { user: 'guest', vhost: '/' }, result: ok({ conn: 1 }) },
+        { op: 'channel', args: { conn: 1 }, result: ok({ ch: 1 }) },
+        { op: 'advance', args: { ms: 250 }, result: ok({ now: 250 }) },
+      ],
+    });
+    expect(get().client).toMatchObject({ ran: true, output: 'hi', error: null });
+    expect(get().now).toBe(250);
+    expect(get().status).toBe('ready');
+    get().run('rabbitmqadmin queues declare --name extra --type classic --durable true');
+    expect(get().input().commands).toEqual(['rabbitmqadmin queues declare --name extra --type classic --durable true']);
+    // a result that differs from the recorded one is reported, not hidden
+    get().playClient({ output: '', stopped: false, ms: 1, ops: [{ op: 'connect', args: { user: 'nobody', vhost: '/' }, result: ok({ conn: 1 }) }] });
+    expect(get().status).toBe('failed');
+    expect(get().error).toContain('Внутренняя ошибка');
+  });
 });

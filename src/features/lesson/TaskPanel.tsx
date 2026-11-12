@@ -35,6 +35,7 @@ export const TASK_KIND: Record<Task['type'], string> = {
   routing: 'Брокер · маршрутизация',
   console: 'Брокер · консоль',
   scenario: 'Брокер · сценарий',
+  client: 'Брокер · клиент на Python',
 };
 
 const tabs = [
@@ -305,6 +306,15 @@ function BrokerSolution({ task }: { task: BrokerTaskView }) {
   const lab = lessonBroker.getState();
   return (
     <div className="space-y-2">
+      {task.type === 'client' && task.pythonSolution.trim() && (
+        <>
+          <SectionLabel>Эталонная программа</SectionLabel>
+          <pre className="md-code whitespace-pre-wrap">{task.pythonSolution}</pre>
+          <Button variant="outline" onClick={() => lab.setClientSource(task.pythonSolution)}>
+            Вставить в редактор
+          </Button>
+        </>
+      )}
       {task.brokerSolution.trim() && (
         <>
           <SectionLabel>Эталонные команды</SectionLabel>

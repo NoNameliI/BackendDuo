@@ -1,15 +1,14 @@
 import type { BrokerTask } from '@/content/loadCourse';
+import { replayOps, type ClientSetup } from '@/engine/python/brokerBridge';
+import type { ClientRun, PythonError } from '@/engine/python/runtime';
 import type { RuleRegistry } from '@/engine/sim/rules';
-import { createConsole, type Console, type ConsoleCommand } from '@/engine/sim/console';
 import { explainFailure } from '@/engine/sim/explain';
 import { evaluate } from '@/engine/sim/invariants';
-import { Sim } from '@/engine/sim/kernel';
-import { KafkaModel, kafkaRules, type KafkaSnapshot } from '@/engine/sim/kafka';
-import { createKafkaCommands } from '@/engine/sim/kafka/console';
-import { RabbitModel, rabbitRules, type RabbitSnapshot } from '@/engine/sim/rabbit';
-import { createRabbitCommands } from '@/engine/sim/rabbit/console';
+import { kafkaRules } from '@/engine/sim/kafka';
+import { rabbitRules } from '@/engine/sim/rabbit';
+import { createKafkaSandbox, createRabbitSandbox, createSandbox, splitScript, type AnySandbox, type CommandRecord, type KafkaSandbox, type RabbitSandbox, type Sandbox } from '@/engine/sim/sandbox';
 import { applyProperties, parseScenario, type Scenario } from '@/engine/sim/scenario';
-import type { Flavor, Model } from '@/engine/sim/types';
+import type { Flavor } from '@/engine/sim/types';
 import { captureKafka, compareKafka, kafkaCompare, lintKafkaPublications, type KafkaCaptured } from './brokerKafka';
 import { SolutionError, type CheckResult } from './index';
 
@@ -22,77 +21,14 @@ export interface BrokerInput {
   props: string;
 }
 
-/** A command that ran and how it ended. */
-export interface CommandRecord {
-  line: string;
-  exit: number;
-  output: string;
-}
-
 const fail = (problems: string[], trace?: string[]): CheckResult => ({ passed: false, problems, ...(trace?.length ? { trace } : {}) });
 const quote = (s: string) => `«${s}»`;
 const show = (v: unknown) => (typeof v === 'string' ? quote(v) : JSON.stringify(v));
 
 // ---------------------------------------------------------------- sandbox
 
-/** A fresh simulator with its console; the same wiring the lab uses. */
-export interface Sandbox<M, S> {
-  model: M;
-  sim: Sim<S>;
-  console: Console;
-  /** Runs a script command by command and records every one. */
-  run(script: string): CommandRecord[];
-}
-export type RabbitSandbox = Sandbox<RabbitModel, RabbitSnapshot>;
-export type KafkaSandbox = Sandbox<KafkaModel, KafkaSnapshot>;
-export type AnySandbox = RabbitSandbox | KafkaSandbox;
-
-// `<<WORD` starts a heredoc; `<<< word` is a here-string (same rule as src/engine/sim/console.ts).
-const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
-
-/** Splits a script into logical commands: backslash continuations are joined, a heredoc keeps its body. Blank and comment lines are dropped. */
-export function splitScript(text: string): string[] {
-  const raw = text.split(/\r?\n/);
-  const out: string[] = [];
-  for (let i = 0; i < raw.length; i++) {
-    let line = raw[i];
-    while (line.endsWith('\\') && !line.endsWith('\\\\') && i + 1 < raw.length) line = `${line.slice(0, -1)} ${raw[++i].trimStart()}`;
-    if (line.trim() === '' || line.trim().startsWith('#')) continue;
-    const m = HEREDOC.exec(line);
-    if (!m) {
-      out.push(line);
-      continue;
-    }
-    const body = [line];
-    while (++i < raw.length) {
-      body.push(raw[i]);
-      if (raw[i].trim() === m[2]) break;
-    }
-    out.push(body.join('\n'));
-  }
-  return out;
-}
-
-function wire<M extends Model<S> & { setClock(advance: (ms: number) => void): void }, S>(model: M, scenario: Scenario | undefined, commands: (m: M) => ConsoleCommand[]): Sandbox<M, S> {
-  const sim = new Sim<S>(model, { seed: scenario?.seed ?? 1 });
-  model.setClock((ms) => void sim.runUntil(sim.now + ms));
-  const con = createConsole(commands(model));
-  return {
-    model,
-    sim,
-    console: con,
-    run(script) {
-      return splitScript(script).map((command) => {
-        const r = con.exec(command);
-        return { line: command.split('\n')[0], exit: r.exit, output: r.lines.map((l) => l.text).join('\n') };
-      });
-    },
-  };
-}
-
-export const createRabbitSandbox = (scenario?: Scenario): RabbitSandbox => wire(new RabbitModel(scenario), scenario, createRabbitCommands);
-export const createKafkaSandbox = (scenario?: Scenario): KafkaSandbox => wire(new KafkaModel(scenario), scenario, createKafkaCommands);
-export const createSandbox = (flavor: Flavor, scenario?: Scenario): AnySandbox => (flavor === 'kafka' ? createKafkaSandbox(scenario) : createRabbitSandbox(scenario));
+export { createKafkaSandbox, createRabbitSandbox, createSandbox, replayOps, splitScript };
+export type { AnySandbox, CommandRecord, KafkaSandbox, RabbitSandbox, Sandbox };
 
 const firstFailure = (records: CommandRecord[]) => records.find((r) => r.exit !== 0);
 
@@ -352,6 +288,14 @@ function reference(task: BrokerTask, scenarios: Record<string, Scenario>): Captu
   return ref;
 }
 
+/** What the learner's broker holds compared with the reference state, by the categories the task names. */
+function diffAgainst(task: BrokerTask, want: Captured | KafkaCaptured, box: AnySandbox): { problems: string[]; trace: string[] } {
+  const compare: readonly string[] = 'compare' in task.check ? task.check.compare : [];
+  return task.sim === 'kafka'
+    ? compareKafka(task, kafkaCompare(compare), task.check.ignore, want as KafkaCaptured, captureKafka(task, box as KafkaSandbox), box as KafkaSandbox)
+    : compareStates(task, new Set(compare), task.check.ignore, want as Captured, capture(task, box as RabbitSandbox), box as RabbitSandbox);
+}
+
 /**
  * Checks a broker task. Topology, routing and console tasks compare the learner's broker (setup + typed
  * commands) with the reference one (setup + solution) on a fresh simulator; a scenario task runs the
@@ -360,6 +304,7 @@ function reference(task: BrokerTask, scenarios: Record<string, Scenario>): Captu
  * the texts of the rules involved (`problems`; `trace` holds only the path lines).
  */
 export function checkBrokerTask(task: BrokerTask, scenarios: Record<string, Scenario>, input: BrokerInput): CheckResult {
+  if (task.type === 'client') throw new Error(`${task.id}: задание-клиент проверяет checkClientTask`);
   const prep = prepare(task, scenarios, input.props);
   const records = input.commands.flatMap((c) => prep.box.run(c));
   const complaints = prep.propErrors;
@@ -372,12 +317,7 @@ export function checkBrokerTask(task: BrokerTask, scenarios: Record<string, Scen
     problems = [];
     if (task.type === 'console') problems.push(...checkCommands(task, records));
     if (task.type !== 'console' || task.check.compare.length > 0) {
-      const want = reference(task, scenarios);
-      const compare: readonly string[] = 'compare' in task.check ? task.check.compare : [];
-      const d =
-        task.sim === 'kafka'
-          ? compareKafka(task, kafkaCompare(compare), task.check.ignore, want as KafkaCaptured, captureKafka(task, prep.box as KafkaSandbox), prep.box as KafkaSandbox)
-          : compareStates(task, new Set(compare), task.check.ignore, want as Captured, capture(task, prep.box as RabbitSandbox), prep.box as RabbitSandbox);
+      const d = diffAgainst(task, reference(task, scenarios), prep.box);
       problems.push(...d.problems);
       trace = d.trace;
     }
@@ -386,6 +326,77 @@ export function checkBrokerTask(task: BrokerTask, scenarios: Record<string, Scen
   const failed = records.filter((r) => r.exit !== 0).slice(0, 3);
   const hints = failed.map((r) => `Команда ${quote(r.line)} завершилась с ошибкой: ${r.output.split('\n')[0]}`);
   return fail([...complaints, ...problems, ...(problems.length > 0 ? hints : [])], trace);
+}
+
+// ---------------------------------------------------------------- Python clients
+
+/** Runs a Python client against a fresh simulator described by `setup` (the app's Python worker; Node in tests). */
+export type ClientRunner = (source: string, setup: ClientSetup) => Promise<ClientRun>;
+
+type ClientTask = BrokerTask & { type: 'client' };
+
+const clientSetup = (task: BrokerTask, prep: Prepared): ClientSetup => ({
+  flavor: task.sim,
+  ...(prep.scenario ? { scenario: prep.scenario } : {}),
+  scripts: [prep.scenario?.setup ?? '', task.brokerSetup].filter((s) => s.trim() !== ''),
+});
+
+const programError = (e: PythonError): string =>
+  `${e.kind === 'syntax' ? 'Синтаксическая ошибка' : 'Ошибка в программе'}: ${e.kind === 'syntax' ? e.message : `${e.type}: ${e.message}`}${e.line ? ` (строка ${e.line})` : ''}`;
+
+/** Runs the client, then repeats its operations on the prepared simulator; the two must agree. */
+async function runClient(task: BrokerTask, prep: Prepared, source: string, run: ClientRunner): Promise<ClientRun> {
+  const result = await run(source, clientSetup(task, prep));
+  if (!result.error) {
+    const mismatch = replayOps(prep.box, result.ops);
+    if (mismatch) throw new Error(`${task.id}: внутренняя ошибка. ${mismatch}`);
+    prep.box.sim.runUntil(prep.box.sim.now);
+  }
+  return result;
+}
+
+const clientReferences = new WeakMap<BrokerTask, Promise<Captured | KafkaCaptured>>();
+
+function clientReference(task: BrokerTask, scenarios: Record<string, Scenario>, run: ClientRunner): Promise<Captured | KafkaCaptured> {
+  let ref = clientReferences.get(task);
+  if (!ref) {
+    ref = (async () => {
+      const prep = prepare(task, scenarios, '');
+      const result = await runClient(task, prep, (task as ClientTask).pythonSolution, run);
+      if (result.error) throw new SolutionError(`${task.id}: эталонное решение: ${programError(result.error)}`);
+      return task.sim === 'kafka' ? captureKafka(task, prep.box as KafkaSandbox) : capture(task, prep.box as RabbitSandbox);
+    })();
+    clientReferences.set(task, ref);
+    ref.catch(() => clientReferences.delete(task));
+  }
+  return ref;
+}
+
+/**
+ * Checks a `client` task: the learner's Python program runs against a fresh simulator (setup + scenario), its operations
+ * are repeated on the checker's own simulator, then `require` / `forbid` (regular expressions over the source), the
+ * comparison with the reference program's result and the scenario's `expect` list are applied.
+ */
+export async function checkClientTask(task: BrokerTask, scenarios: Record<string, Scenario>, source: string, run: ClientRunner): Promise<CheckResult> {
+  if (task.type !== 'client') throw new Error(`${task.id}: это не задание-клиент`);
+  const prep = prepare(task, scenarios, '');
+  const problems: string[] = [];
+  for (const rule of task.check.require) if (!new RegExp(rule.pattern, 'm').test(source)) problems.push(rule.message);
+  for (const rule of task.check.forbid) if (new RegExp(rule.pattern, 'm').test(source)) problems.push(rule.message);
+  const result = await runClient(task, prep, source, run);
+  if (result.error) return fail([programError(result.error), ...problems]);
+  let trace: string[] = [];
+  if (task.check.compare.length > 0) {
+    const d = diffAgainst(task, await clientReference(task, scenarios, run), prep.box);
+    problems.push(...d.problems);
+    trace = d.trace;
+  }
+  if (task.scenario) {
+    const s = checkScenario(task, prep);
+    problems.push(...s.problems);
+    trace = [...trace, ...s.trace];
+  }
+  return problems.length === 0 ? { passed: true, problems: [] } : fail(problems, trace);
 }
 
 const RABBIT_COMPARE = new Set(['exchanges', 'queues', 'bindings', 'vhosts', 'users', 'permissions']);
@@ -433,13 +444,13 @@ export function checkBrokerExamples(blocks: { lang: string; code: string; shown?
   for (const { lang, code, shown } of blocks) {
     if (lang === 'broker') {
       const records = shared.run(code);
-      for (const r of records) if (r.exit !== 0) problems.push(`Команда примера «${r.line}» завершилась с ошибкой: ${r.output}`);
       // The output printed in the lesson right after the example must be what the sandbox really prints.
-      if (shown !== undefined) {
-        const norm = (s: string) => s.split('\n').map((l) => l.trimEnd()).filter((l) => l !== '').join('\n');
-        const actual = norm(records.map((r) => r.output).join('\n'));
-        if (norm(shown) !== actual) problems.push(`Вывод в тексте после примера «${records[0]?.line ?? ''}» не совпадает с песочницей. Настоящий вывод:\n${actual}`);
-      }
+      // An example that shows its exact output may demonstrate an error; one without shown output must succeed.
+      const norm = (s: string) => s.split('\n').map((l) => l.trimEnd()).filter((l) => l !== '').join('\n');
+      const actual = norm(records.map((r) => r.output).join('\n'));
+      const matches = shown !== undefined && norm(shown) === actual;
+      if (!matches) for (const r of records) if (r.exit !== 0) problems.push(`Команда примера «${r.line}» завершилась с ошибкой: ${r.output}`);
+      if (shown !== undefined && !matches) problems.push(`Вывод в тексте после примера «${records[0]?.line ?? ''}» не совпадает с песочницей. Настоящий вывод:\n${actual}`);
     } else if (lang === 'scenario') {
       let scenario: Scenario;
       try {

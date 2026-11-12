@@ -1284,6 +1284,9 @@ export class ConsumerHandle {
   commitSync(): KafkaError | null {
     return this.raw.commitSync();
   }
+  commitOffsets(list: { tp: TP; offset: number }[]): KafkaError | null {
+    return this.raw.commitOffsets(list);
+  }
   close(): void {
     this.raw.close();
   }

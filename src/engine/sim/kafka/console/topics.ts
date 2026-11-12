@@ -53,7 +53,7 @@ export function createTopicsCommands(api: KafkaModel): ConsoleCommand[] {
     if (actions.length !== 1) throw new UsageError('Command must include exactly one action: --list, --describe, --create, --alter or --delete');
     const action = actions[0];
     const o = new Lines();
-    const fail = (e: { text: string }) => o.err(errorLine(e.text)).done(1);
+    const fail = (e: { code: number; text: string }) => o.err(errorLine(e.text)).code(e.code).done(1);
     const topic = opts.value('topic');
     const exists = (name: string): boolean => api.listTopics().includes(name);
 

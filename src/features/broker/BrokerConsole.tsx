@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCourse } from '@/app/useCourse';
+import { consoleHint } from './errorHint';
 import { useBroker } from './brokerStore';
 
 const TOP = ['rabbitmqadmin', 'rabbitmqctl', 'lq', 'sim', 'help', 'history', 'clear'];
@@ -41,6 +43,7 @@ function commonPrefix(xs: string[]): string {
 /** Command line of the broker lab: history on ↑/↓, Tab completion, Ctrl+L to clear; modelled on the Git terminal. */
 export function BrokerConsole() {
   const lab = useBroker();
+  const course = useCourse();
   const entries = lab((s) => s.entries);
   const history = lab((s) => s.history);
   const input = lab((s) => s.draft);
@@ -144,6 +147,7 @@ export function BrokerConsole() {
                 {line.text}
               </p>
             ))}
+            {consoleHint(course, entry.code) && <p className="whitespace-pre-wrap break-words font-sans text-[12.5px] leading-snug text-dim">{consoleHint(course, entry.code)}</p>}
           </div>
         ))}
       </div>

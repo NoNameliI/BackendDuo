@@ -412,7 +412,7 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
     const firstTask = buildTask(data.firstTask, `${path} › firstTask`, 'onboarding', 'onboarding');
     if (!firstTask) return null;
     if (manifest.engine === 'broker') {
-      if (!('brokerSolution' in firstTask) || firstTask.type === 'scenario') {
+      if (!('brokerSolution' in firstTask) || firstTask.type === 'scenario' || firstTask.type === 'client') {
         problems.push(`${path} › firstTask: ожидается задание topology, routing или console`);
         return null;
       }

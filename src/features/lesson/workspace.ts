@@ -10,6 +10,7 @@ import { createGitSandboxStore } from '@/features/git/gitSandbox';
 import { courseById } from '@/content/courses';
 import { allTasks, errorHint, type BrokerTask, type Lesson, type Task } from '@/content/loadCourse';
 import { createBrokerStore } from '@/features/broker/brokerStore';
+import type { ClientRun } from '@/engine/python/runtime';
 import { parseScenario, type Scenario } from '@/engine/sim/scenario';
 import {
   createEngine,
@@ -112,7 +113,31 @@ function prepareBroker(task: BrokerTask): Promise<void> | string {
   } catch (e) {
     return `Ошибка в самом задании: ${e instanceof Error ? e.message : String(e)}`;
   }
-  return lessonBroker.getState().reset({ sim: task.sim, setup: task.brokerSetup, scenario, props: task.propsStarter, starter: task.brokerStarter });
+  return lessonBroker.getState().reset({
+    sim: task.sim,
+    setup: task.brokerSetup,
+    scenario,
+    props: task.propsStarter,
+    starter: task.brokerStarter,
+    ...(task.type === 'client' ? { client: { source: task.pythonStarter } } : {}),
+  });
+}
+
+/** Client tasks: runs the learner's Python on a fresh simulator, then lets the lab show what it did. */
+async function runClientProgram(): Promise<void> {
+  const lab = lessonBroker.getState();
+  const setup = lab.clientSetup();
+  const spec = lab.spec;
+  if (!setup || !lab.client || lab.client.running || lab.status !== 'ready') return;
+  lab.setClientRunning(true);
+  let run: ClientRun;
+  try {
+    run = await pythonClient().client(lab.client.source, setup);
+  } catch (e) {
+    run = { ops: [], output: '', stopped: false, ms: 0, error: { kind: 'load', type: 'Error', message: e instanceof Error ? e.message : String(e), line: null } };
+  }
+  if (lessonBroker.getState().spec !== spec) return; // another task opened meanwhile
+  lessonBroker.getState().playClient(run);
 }
 
 /** Fresh server (with the task's setup requests) and, for CORS tasks, the starting settings. */
@@ -321,6 +346,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     run: () => {
       const task = get().task;
       if (task && 'brokerSolution' in task) {
+        if (task.type === 'client') return runClientProgram();
         lessonBroker.getState().runScenario();
         return Promise.resolve();
       }
@@ -419,8 +445,12 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         set({ checking: true });
         let verdict: CheckResult;
         try {
-          const { checkBrokerTask } = await import('@/checker/broker');
-          verdict = checkBrokerTask(task as BrokerTask, courseById(task.courseId).scenarios, lessonBroker.getState().input());
+          const broker = await import('@/checker/broker');
+          const scenarios = courseById(task.courseId).scenarios;
+          verdict =
+            task.type === 'client'
+              ? await broker.checkClientTask(task as BrokerTask, scenarios, lessonBroker.getState().client?.source ?? '', (source, setup) => pythonClient().client(source, setup))
+              : broker.checkBrokerTask(task as BrokerTask, scenarios, lessonBroker.getState().input());
         } catch (e) {
           verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };
         } finally {

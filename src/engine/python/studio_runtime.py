@@ -207,3 +207,69 @@ def script(source, files_json):
     if error:
         result["error"] = error
     return json.dumps(result, ensure_ascii=False)
+
+
+class SandboxStop(BaseException):
+    """The client program reached the sandbox horizon (endless wait or too many operations): a clean stop, not an error."""
+
+
+def broker_call(op, **args):
+    """One operation of a client library shim on the broker simulator; returns {"ok": ..., "value" | "error": ...}."""
+    import _studio_broker
+
+    reply = json.loads(_studio_broker.call(json.dumps({"op": op, "args": args})))
+    if reply.get("stop"):
+        raise SandboxStop("остановлено по горизонту песочницы")
+    return reply["result"]
+
+
+_SHIMS = ("pika", "confluent_kafka")
+
+
+def _forget_shims():
+    for name in list(sys.modules):
+        if name.split(".")[0] in _SHIMS:
+            del sys.modules[name]
+
+
+def client(source):
+    """Runs a learner's pika / confluent_kafka program against the broker simulator the host has attached.
+
+    time.sleep moves the simulator's virtual clock instead of waiting. A stop at the sandbox horizon is reported
+    as `stopped`, not as an error. The shims are imported afresh by every run.
+    """
+    import time
+
+    output = io.StringIO()
+    error = None
+    stopped = False
+    started = time.perf_counter()
+
+    def virtual_sleep(seconds):
+        if seconds < 0:
+            raise ValueError("sleep length must be non-negative")
+        broker_call("advance", ms=int(seconds * 1000))
+
+    real_sleep = time.sleep
+    time.sleep = virtual_sleep
+    _forget_shims()
+    namespace = {"__name__": "__main__", "__file__": "main.py", "__builtins__": _BUILTINS}
+    try:
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            try:
+                exec(compile(source, "main.py", "exec"), namespace)
+            except SandboxStop:
+                stopped = True
+            except SystemExit:
+                pass
+            except SyntaxError as exc:
+                error = _error(exc, "syntax")
+            except Exception as exc:
+                error = _error(exc, "load")
+    finally:
+        time.sleep = real_sleep
+        _forget_shims()
+    result = {"output": output.getvalue()[-_OUTPUT_LIMIT:], "stopped": stopped, "ms": round((time.perf_counter() - started) * 1000, 1)}
+    if error:
+        result["error"] = error
+    return json.dumps(result, ensure_ascii=False)

@@ -1,7 +1,7 @@
 import { err, out, type ConsoleCommand, type ConsoleResult, type ConsoleLine } from '../../console';
 import type { BindingInfo, ExchangeInfo, QueueInfo, RabbitConsoleApi, Result } from './api';
 import { parseFlags, UsageError, type FlagDef } from './flags';
-import { ctlError, json, msg, renderTsv, yn } from './format';
+import { amqpFail, json, msg, renderTsv, yn } from './format';
 
 const CTL_FLAGS: FlagDef[] = [
   { key: 'vhost', long: '--vhost', short: '-p', kind: 'value' },
@@ -65,7 +65,7 @@ function itemTable<T>(items: readonly string[], defaults: readonly string[], col
 }
 
 function unwrap<T>(r: Result<T>, then: (v: T) => ConsoleResult): ConsoleResult {
-  return r.ok ? then(r.value) : err(ctlError(r.error), 70);
+  return r.ok ? then(r.value) : amqpFail(r.error, true, 70);
 }
 
 export function createCtlCommands(api: RabbitConsoleApi): ConsoleCommand[] {

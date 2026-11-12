@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { courseById } from '@/content/courses';
+import { consoleHint } from '@/features/broker/errorHint';
 import { errorHint, type Lesson } from '@/content/loadCourse';
 import { splitTheory } from '@/content/theory';
 import type { ExecOutcome } from '@/engine';
@@ -274,18 +275,22 @@ function BrokerExample({ lesson, script }: { lesson: Lesson; script: string }) {
       <div aria-live="polite">
         {result && (
           <div className="animate-rise border-t border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed">
-            {result.map((step, i) => (
-              <div key={i}>
-                <p className="whitespace-pre-wrap break-words">
-                  <span className="text-ok">$</span> <span className="text-fg">{step.command}</span>
-                </p>
-                {step.lines.map((line, j) => (
-                  <p key={j} className={`min-h-[1.5em] whitespace-pre-wrap break-words ${line.tone === 'err' ? 'text-err' : line.tone === 'dim' ? 'text-dim' : 'text-fg'}`}>
-                    {line.text}
+            {result.map((step, i) => {
+              const hint = consoleHint(courseById(lesson.courseId), step.code);
+              return (
+                <div key={i}>
+                  <p className="whitespace-pre-wrap break-words">
+                    <span className="text-ok">$</span> <span className="text-fg">{step.command}</span>
                   </p>
-                ))}
-              </div>
-            ))}
+                  {step.lines.map((line, j) => (
+                    <p key={j} className={`min-h-[1.5em] whitespace-pre-wrap break-words ${line.tone === 'err' ? 'text-err' : line.tone === 'dim' ? 'text-dim' : 'text-fg'}`}>
+                      {line.text}
+                    </p>
+                  ))}
+                  {hint && <p className="whitespace-pre-wrap break-words font-sans text-[12.5px] leading-snug text-dim">{hint}</p>}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

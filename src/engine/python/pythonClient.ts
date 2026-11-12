@@ -1,6 +1,7 @@
 import type { ApiRequest } from '@/engine/api/http';
 import { CONNECT, type PythonReply, type PythonRequest } from './protocol';
-import type { AppRun, ScriptRun } from './runtime';
+import type { ClientSetup } from './brokerBridge';
+import type { AppRun, ClientRun, ScriptRun } from './runtime';
 
 /** The subset of the Worker API the client relies on (lets tests substitute a fake). */
 export interface PythonWorkerLike {
@@ -37,6 +38,8 @@ export interface PythonClient {
   run(source: string, requests: ApiRequest[], options?: { keep?: boolean }): Promise<AppRun>;
   /** Runs a standalone script with the given text files in a scratch directory; a stuck script is terminated. */
   script(source: string, files: Record<string, string>): Promise<ScriptRun>;
+  /** Runs a broker client program (pika, confluent_kafka) against a fresh simulator; a stuck program is terminated. */
+  client(source: string, setup: ClientSetup): Promise<ClientRun>;
   /** Drops the app kept between sends (the next send loads main.py afresh). */
   forget(): Promise<void>;
 }
@@ -161,6 +164,17 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
         });
         return new PythonTimeoutError(`Скрипт выполнялся дольше ${seconds} с и был остановлен. Проверьте, нет ли бесконечного цикла.`);
       })) as ScriptRun;
+    },
+    async client(source, setup) {
+      await start();
+      const seconds = limits.runMs / 1000;
+      return (await call({ op: 'client', source, setup }, limits.runMs, () => {
+        queueMicrotask(() => {
+          setStatus({ state: 'idle' });
+          start().catch(() => {});
+        });
+        return new PythonTimeoutError(`Программа работала дольше ${seconds} с и была остановлена. Проверьте, нет ли бесконечного цикла.`);
+      })) as ClientRun;
     },
     async forget() {
       if (worker && status.state === 'ready') await call({ op: 'forget' }, limits.runMs, () => new PythonTimeoutError('forget'));
