@@ -207,8 +207,50 @@ Processed a total of 4 messages
 
 Четыре маленькие записи не набрали и 16384 байт, поэтому все лежат в одной партиции. Какая именно партиция выбрана, определяет случайный выбор песочницы, и у вас номер может быть другим. Для проверок с публикацией записей без ключа в топик из нескольких партиций лаборатория не годится: результат не фиксирован. Поэтому в заданиях ключ всегда есть.
 
+### То же из кода на Python
+
+В реальных сервисах записи шлёт не консоль, а клиентская библиотека. Для Python это `confluent_kafka`. В песочнице она работает по-настоящему на уровне вызовов, но поверх учебной модели Kafka, а не настоящего кластера. Поддерживается основная часть библиотеки; чего нет, то сообщает `NotImplementedError` с названием вызова. Время в песочнице виртуальное: `poll()` и `flush()` ничего не ждут.
+
+```python
+from confluent_kafka import Producer
+
+producer = Producer({'bootstrap.servers': 'localhost:9092'})
+producer.produce('ТОПИК', key='КЛЮЧ', value='ЗНАЧЕНИЕ')
+producer.poll(0)
+producer.flush()
+```
+
+- `Producer(conf)` создаёт продюсера. `conf` — словарь настроек. `bootstrap.servers` — адрес брокера, как у консольных команд.
+- `produce(topic, value=…, key=…)` ставит запись в очередь отправки. Передавайте `key` и `value` по именам: порядок позиционных аргументов в этом методе другой, чем в консольной строке `ключ:значение`. Ключ и значение — строки или `bytes`. Партицию выбирает продюсер по формуле выше, самому указывать её не нужно.
+- `on_delivery=функция` — необязательный аргумент. Функция `f(err, msg)` вызывается, когда брокер подтвердил запись или отказал. `err` равен `None` при успехе, `msg.partition()` и `msg.offset()` показывают, куда легла запись.
+- `poll(0)` раздаёт накопленные отчёты о доставке: вызывает `on_delivery`.
+- `flush()` отправляет всё, что осталось в очереди, и ждёт подтверждений.
+
+Главное: `produce()` ничего не отправляет сразу. Запись лежит в очереди продюсера. Если программа закончилась без `flush()`, неотправленные записи пропадают, и в топике их не будет.
+
+Пример. Ключи из таблицы выше, топик `tracking` из трёх партиций уже создан:
+
+```python
+from confluent_kafka import Producer
+
+def report(err, msg):
+    if err is not None:
+        print('ошибка', err)
+    else:
+        print(msg.key().decode(), 'партиция', msg.partition(), 'offset', msg.offset())
+
+producer = Producer({'bootstrap.servers': 'localhost:9092'})
+for key in ('abc', 'user-1', 'abc'):
+    producer.produce('tracking', key=key, value='событие', on_delivery=report)
+producer.flush()
+```
+
+Ключ `abc` по таблице даёт партицию 0, `user-1` — партицию 2. Обе записи `abc` ложатся в партицию 0 с offset 0 и 1, запись `user-1` — в партицию 2 с offset 0. `msg.key()` возвращает `bytes`, поэтому для печати вызван `.decode()`. Этот блок не запускается кнопкой в теории: он выполняется в заданиях типа «клиент» внизу урока.
+
 ### Частые ошибки
 
+- **Ошибка:** `producer.produce('orders', 'o-17', 'создан')` и ждать, что первым аргументом после темы идёт ключ. **Верно:** `produce('orders', key='o-17', value='создан')`, имена задают роль.
+- **Ошибка:** закончить программу после `produce()`, не вызвав `flush()`. **Верно:** `flush()` в конце, иначе записи останутся в очереди и пропадут.
 - **Ошибка:** считать, что ключ — это уникальный идентификатор записи, и подставлять в него номер события. **Верно:** ключ задаёт группу записей, у которых должен сохраняться порядок: номер заказа, посылки, клиента. Записи с разными ключами тоже могут оказаться в одной партиции.
 - **Ошибка:** ждать, что при увеличении числа партиций записи старых ключей «подтянутся» за ключом. **Верно:** старые записи остаются в своих партициях, а новые считаются по новому числу партиций.
 - **Ошибка:** писать `--reader-property parse.key=true` и забыть про разделитель, когда строки записаны через двоеточие. Тогда продюсер ищет табуляцию и сообщает `No key separator found`. **Верно:** задать `key.separator=:`.
@@ -224,6 +266,7 @@ Processed a total of 4 messages
 - Продюсер: `--reader-property parse.key=true --reader-property key.separator=:`.
 - Потребитель: `--formatter-property print.key=true`, `print.partition=true`, `print.offset=true`; поля `Partition`, `Offset`, ключ, значение.
 - Читать одну партицию: `--partition N --offset earliest --max-messages N`.
+- Python: `Producer({'bootstrap.servers': …})`, `produce(тема, key=…, value=…, on_delivery=…)`, `poll(0)`, `flush()` в конце обязателен.
 
 ## task kfk-key-partitions
 
@@ -365,3 +408,66 @@ EOF
 ```
 
 В топике шесть партиций. Сервис пишет в него события заказов без ключа (ключ `null`). Что верно?
+
+## task kfk-client-order-keys
+
+```json
+{
+  "type": "client",
+  "title": "События заказов с ключом из Python",
+  "xp": 20,
+  "hints": [
+    "Раздел «То же из кода на Python»: как задаются ключ и значение и зачем нужен `flush()`.",
+    "Ключ — номер заказа, значение — событие. Партицию выбирает продюсер по ключу, поэтому события одного заказа лягут в одну партицию. Передавайте `key=` и `value=` по именам и закончите программу вызовом `flush()`.",
+    "Шаблон: `producer.produce('order-events', key=…, value=…)` для каждого события по порядку, в конце `producer.flush()`."
+  ],
+  "check": {
+    "compare": ["messages"],
+    "require": [
+      { "pattern": "flush\\(", "message": "Вызовите producer.flush(): без него записи не уйдут в Kafka" },
+      { "pattern": "key\\s*=", "message": "Передайте номер заказа в аргументе key=" }
+    ]
+  }
+}
+```
+
+В топике `order-events` три партиции. Напишите на Python программу, которая отправляет шесть событий заказов продюсером `confluent_kafka`. Ключ записи — номер заказа, значение — название события. События по порядку (заказ → событие):
+
+1. `o-17` → `created`;
+2. `o-18` → `created`;
+3. `o-17` → `paid`;
+4. `o-19` → `created`;
+5. `o-18` → `paid`;
+6. `o-17` → `shipped`.
+
+Так все события одного заказа окажутся в одной партиции в правильном порядке. Проверка сравнит содержимое партиций с эталонным.
+
+```broker setup
+kafka-topics.sh --bootstrap-server localhost:9092 --create --topic order-events --partitions 3 --replication-factor 3
+```
+
+```python starter
+from confluent_kafka import Producer
+
+producer = Producer({'bootstrap.servers': 'localhost:9092'})
+events = [('o-17', 'created'), ('o-18', 'created'), ('o-17', 'paid')]
+for order_id, event in events:
+    producer.produce('order-events', value=event)
+```
+
+```python solution
+from confluent_kafka import Producer
+
+producer = Producer({'bootstrap.servers': 'localhost:9092'})
+events = [
+    ('o-17', 'created'),
+    ('o-18', 'created'),
+    ('o-17', 'paid'),
+    ('o-19', 'created'),
+    ('o-18', 'paid'),
+    ('o-17', 'shipped'),
+]
+for order_id, event in events:
+    producer.produce('order-events', key=order_id, value=event)
+producer.flush()
+```

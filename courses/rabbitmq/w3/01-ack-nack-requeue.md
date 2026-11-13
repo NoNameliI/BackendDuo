@@ -153,6 +153,52 @@ Error: 406 PRECONDITION_FAILED - unknown delivery tag 3
 
 Если сообщение «ядовитое» (любая попытка заканчивается ошибкой), а потребитель всегда возвращает его в очередь, оно крутится по кругу и занимает потребителя. Документация RabbitMQ предупреждает об этом. Песочница не показывает такой цикл: `failEveryN` ошибается по счёту попыток, а не из-за конкретного сообщения. Лекарство — ограничить число повторов и убирать такие сообщения в dead-letter очередь, это тема урока 4.1.
 
+### Потребитель на Python: basic_consume
+
+Те же ответы даёт код на `pika`. Подключение, канал и `queue_declare` вы видели в уроке 1.3. Потребитель добавляет подписку и функцию-обработчик.
+
+```text
+def on_message(channel, method, properties, body):
+    ...
+    channel.basic_ack(delivery_tag=method.delivery_tag)
+
+channel.basic_qos(prefetch_count=N)
+channel.basic_consume(queue="ИМЯ", on_message_callback=on_message, auto_ack=False)
+channel.start_consuming()
+```
+
+- `basic_consume(queue=…, on_message_callback=…, auto_ack=False)` — подписка на очередь, то же, что `sim consume`. `auto_ack=False` включает ручное подтверждение; без него сообщения считались бы обработанными в момент доставки.
+- `on_message_callback` — ваша функция. Библиотека вызывает её для каждого сообщения с четырьмя аргументами: канал, `method`, `properties` и `body`.
+- `method.delivery_tag` — тег доставки, о котором шла речь выше. Он нужен для ответа.
+- `body` — тело сообщения в виде байтов. Чтобы получить строку, используйте `body.decode("utf-8")`.
+- `channel.basic_ack(delivery_tag=…)` — подтвердить, как `sim ack`.
+- `channel.basic_nack(delivery_tag=…, requeue=False)` — отклонить, как `sim nack`. С `requeue=True` сообщение вернётся в очередь, с `requeue=False` будет отброшено или уйдёт в dead-letter очередь.
+- `channel.basic_qos(prefetch_count=N)` — окно: сколько неподтверждённых сообщений брокер выдаёт сразу, как `--prefetch N`. Вызывается до `basic_consume`.
+- `channel.start_consuming()` — запускает приём. Вызов не заканчивается сам: настоящий потребитель работает, пока его не остановят. В песочнице бесконечный приём прерывается через 60 секунд виртуального времени, это не ошибка. Время виртуальное: ожидание не занимает реальных минут.
+
+Пример. Очередь `jobs`, подтверждаются все сообщения, кроме пустых:
+
+```python
+import pika
+
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+channel = connection.channel()
+channel.queue_declare(queue="jobs", durable=True)
+
+def on_message(channel, method, properties, body):
+    text = body.decode("utf-8")
+    if text == "":
+        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+    else:
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+
+channel.basic_qos(prefetch_count=1)
+channel.basic_consume(queue="jobs", on_message_callback=on_message, auto_ack=False)
+channel.start_consuming()
+```
+
+Если в `jobs` лежат `job 1`, пустое сообщение и `job 3`, первое и третье подтверждаются и исчезают, второе отбрасывается. Очередь пуста, пока не придут новые сообщения. Как и в уроке 1.3, программа выполняется в учебном брокере, а не на настоящем сервере.
+
 ### Частые ошибки
 
 - **Ошибка:** `sim ack 3` второй раз для того же тега. **Результат:** `406 PRECONDITION_FAILED - unknown delivery tag`, канал закрыт, остальные неподтверждённые вернулись в очередь. **Верно:** подтверждать каждый тег один раз.
@@ -167,6 +213,7 @@ Error: 406 PRECONDITION_FAILED - unknown delivery tag 3
 - `--multiple` действует на все теги до указанного; тег `0` с ним — все.
 - Тег принадлежит каналу; повторный `ack` — `406`, канал закрывается, неподтверждённые возвращаются.
 - Сценарий: `failEveryN` — ошибка каждой N-й попытки, `on_error` — `requeue`, `nack-drop`, `reject-drop`, `ack`.
+- Python: `basic_consume(queue=…, on_message_callback=…, auto_ack=False)`, в обработчике `basic_ack(delivery_tag=method.delivery_tag)` или `basic_nack(delivery_tag=…, requeue=False)`, `basic_qos(prefetch_count=N)`, `start_consuming()`.
 
 ## task rmq-settle-three
 
@@ -308,4 +355,73 @@ refunder.on_error=ack
 
 ```properties solution
 refunder.on_error=requeue
+```
+
+## task rmq-client-dead-letter
+
+```json
+{
+  "type": "client",
+  "title": "Потребитель, который отправляет брак в DLQ",
+  "xp": 25,
+  "hints": [
+    "Раздел «Потребитель на Python: basic_consume».",
+    "Обработчик получает `method.delivery_tag`. Хорошее сообщение подтвердите через `basic_ack`, повреждённое отклоните через `basic_nack` с `requeue=False`. Автоподтверждение должно быть выключено.",
+    "Шаблон: в обработчике `if \"BROKEN\" in text:` → `channel.basic_nack(delivery_tag=…, requeue=False)`, иначе `channel.basic_ack(delivery_tag=…)`; затем `basic_consume(queue=\"…\", on_message_callback=…, auto_ack=False)` и `start_consuming()`."
+  ],
+  "check": {
+    "compare": ["queues", "messages"],
+    "require": [
+      { "pattern": "basic_ack", "message": "Подтверждайте хорошие сообщения через basic_ack" },
+      { "pattern": "basic_nack\\(.*requeue\\s*=\\s*False", "message": "Повреждённое сообщение отклоните через basic_nack с requeue=False" }
+    ],
+    "forbid": [{ "pattern": "auto_ack\\s*=\\s*True", "message": "Автоподтверждение должно быть выключено: подтверждайте сами" }]
+  }
+}
+```
+
+Очередь `reports` настроена так, что отклонённые без возврата сообщения попадают через exchange `reports.dlx` в очередь `reports.dead`. Эта настройка уже сделана, вам её менять не нужно: подробно dead-letter exchange разобран в уроке 4.1. В `reports` лежат четыре сообщения: `report 1`, `report 2`, `report 3 BROKEN`, `report 4`.
+
+Напишите потребитель в `main.py`. Он подписывается на `reports` с ручным подтверждением и окном 1. Нормальные отчёты подтверждает. Сообщение, в тексте которого есть слово `BROKEN`, отклоняет без возврата в очередь. В итоге `reports` пуста, а в `reports.dead` лежит `report 3 BROKEN`. Программа заканчивается вызовом `start_consuming()`: в песочнице он остановится сам.
+
+```broker setup
+rabbitmqadmin exchanges declare --name reports.dlx --type fanout --durable true
+rabbitmqadmin queues declare --name reports.dead --type classic --durable true
+rabbitmqadmin bindings declare --source reports.dlx --destination-type queue --destination reports.dead --routing-key ""
+rabbitmqadmin queues declare --name reports --type classic --durable true --arguments '{"x-dead-letter-exchange": "reports.dlx"}'
+rabbitmqadmin publish message --routing-key reports --payload "report 1"
+rabbitmqadmin publish message --routing-key reports --payload "report 2"
+rabbitmqadmin publish message --routing-key reports --payload "report 3 BROKEN"
+rabbitmqadmin publish message --routing-key reports --payload "report 4"
+```
+
+```python starter
+import pika
+
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+channel = connection.channel()
+
+def on_message(channel, method, properties, body):
+    text = body.decode("utf-8")
+    # подтвердите хорошее сообщение, отклоните повреждённое
+
+# подпишитесь на очередь reports и запустите приём
+```
+
+```python solution
+import pika
+
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+channel = connection.channel()
+
+def on_message(channel, method, properties, body):
+    text = body.decode("utf-8")
+    if "BROKEN" in text:
+        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+    else:
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+
+channel.basic_qos(prefetch_count=1)
+channel.basic_consume(queue="reports", on_message_callback=on_message, auto_ack=False)
+channel.start_consuming()
 ```

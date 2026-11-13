@@ -164,6 +164,44 @@ rabbitmqadmin queues list --columns name,messages_ready,messages_unacknowledged,
 
 До подключения в очереди два готовых сообщения, потребителей нет. После `sim consume` одно сообщение готово, одно выдано и один потребитель: при `--prefetch 1` брокер держит у потребителя не больше одного неподтверждённого сообщения. Команда `sim ack 1` подтверждает `ticket 3`, и брокер выдаёт следующее: `tag=2`, `ticket 4`. Команда `sim ack 2` подтверждает и его; строка `нет неподтверждённых сообщений` сообщает, что после этого у потребителя ничего не осталось. Очередь пуста, потребитель остаётся подключённым.
 
+### То же из кода на Python
+
+Сервисы обычно работают с RabbitMQ не из консоли, а из кода. Для Python есть библиотека `pika`. Всё, что вы делали командами, она умеет делать вызовами. Публикация прямо в очередь выглядит так.
+
+```text
+import pika
+
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+channel = connection.channel()
+channel.queue_declare(queue="ИМЯ", durable=True)
+channel.basic_publish(exchange="", routing_key="ИМЯ", body="ТЕКСТ")
+connection.close()
+```
+
+- `pika.ConnectionParameters("localhost")` — куда подключаться. Первый аргумент — адрес сервера. Остальное (порт `5672`, пользователь `guest`) берётся по умолчанию.
+- `pika.BlockingConnection(...)` — открывает соединение. «Blocking» значит, что каждый вызов ждёт ответа брокера и только потом идёт дальше.
+- `connection.channel()` — открывает канал. Все команды отправляются через канал, а не через соединение.
+- `channel.queue_declare(queue="ИМЯ", durable=True)` — то же, что `queues declare --name ИМЯ --type classic --durable true`. Если очередь уже есть с такими же свойствами, вызов ничего не меняет.
+- `channel.basic_publish(exchange="", routing_key="ИМЯ", body="ТЕКСТ")` — то же, что `publish message`. `exchange=""` — exchange по умолчанию, `routing_key` — имя очереди, `body` — тело сообщения.
+- `connection.close()` — закрывает соединение. Без него программа оставляет соединение открытым.
+
+Полный пример. Очередь `tickets` и два сообщения:
+
+```python
+import pika
+
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+channel = connection.channel()
+channel.queue_declare(queue="tickets", durable=True)
+for number in (1, 2):
+    channel.basic_publish(exchange="", routing_key="tickets", body=f"ticket {number}")
+connection.close()
+```
+
+После запуска в очереди `tickets` два сообщения: `ticket 1` и `ticket 2`, в этом порядке. Цикл `for` повторяет публикацию для каждого числа из скобок, а запись `f"ticket {number}"` подставляет число в строку. Можно обойтись без цикла и написать два вызова подряд.
+
+Важно: в этом приложении программа выполняется в песочнице. Она работает с тем же учебным брокером, что и консоль, а не с настоящим сервером. Вызовы `pika` ведут себя как настоящие, но поддерживается только часть библиотеки. Остальное вызывает ошибку `NotImplementedError` с именем вызова. В настоящем проекте код тот же, а в `ConnectionParameters` вы указываете адрес своего сервера.
+
 ### Частые ошибки
 
 - **Ошибка:** `rabbitmqadmin bindings declare --source "" …`, чтобы привязать очередь к exchange по умолчанию. Результат: `Error: 403 ACCESS_REFUSED - operation not permitted on the default exchange`. **Верно:** ничего привязывать не нужно, очередь уже привязана по своему имени.
@@ -179,6 +217,7 @@ rabbitmqadmin queues list --columns name,messages_ready,messages_unacknowledged,
 - `get messages -q Q -c N -a РЕЖИМ`: `ack_requeue_false` (по умолчанию) забирает, `ack_requeue_true` оставляет с `redelivered`.
 - `sim consume Q --prefetch N` — подключить потребителя; `sim ack ТЕГ` — подтвердить.
 - `messages_ready` — готовы к выдаче, `messages_unacknowledged` — выданы, но не подтверждены.
+- Python: `pika.BlockingConnection(pika.ConnectionParameters("localhost"))`, `connection.channel()`, `channel.queue_declare(queue=…, durable=True)`, `channel.basic_publish(exchange="", routing_key=…, body=…)`, `connection.close()`.
 
 ## task rmq-first-queue
 
@@ -320,4 +359,45 @@ rabbitmqadmin queues declare --name … --type classic --durable true
 ```broker solution
 rabbitmqadmin queues declare --name billing-refund --type classic --durable true
 rabbitmqadmin queues declare --name billing-void --type classic --durable true
+```
+
+## task rmq-client-publish-orders
+
+```json
+{
+  "type": "client",
+  "title": "Три заказа из кода",
+  "xp": 20,
+  "hints": [
+    "Раздел «То же из кода на Python».",
+    "Нужны `queue_declare` для очереди и три вызова `basic_publish` через exchange по умолчанию. Тело сообщения — строка.",
+    "Шаблон: `channel.queue_declare(queue=\"…\", durable=True)`, затем три раза `channel.basic_publish(exchange=\"\", routing_key=\"…\", body=\"order …\")`."
+  ],
+  "check": {
+    "compare": ["queues", "messages"],
+    "require": [{ "pattern": "basic_publish", "message": "Опубликуйте сообщения вызовом basic_publish" }]
+  }
+}
+```
+
+Напишите программу `main.py`, которая объявляет durable-очередь `orders-in` и кладёт в неё через exchange по умолчанию три сообщения по порядку: `order 1`, `order 2`, `order 3`. В конце программа закрывает соединение.
+
+```python starter
+import pika
+
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+channel = connection.channel()
+# объявите очередь и опубликуйте три сообщения
+connection.close()
+```
+
+```python solution
+import pika
+
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+channel = connection.channel()
+channel.queue_declare(queue="orders-in", durable=True)
+for number in (1, 2, 3):
+    channel.basic_publish(exchange="", routing_key="orders-in", body=f"order {number}")
+connection.close()
 ```

@@ -117,6 +117,62 @@ Processed a total of 1 messages
 - Потребитель должен включить `isolation.level=read_committed` (по умолчанию `read_uncommitted`) и `enable.auto.commit=false`. Он видит записи только до **LSO** (last stable offset) и пропускает отменённые. Незавершённая транзакция удерживает LSO.
 - Вместе идемпотентность, транзакции и `read_committed` дают exactly-once внутри Kafka. Внешнее действие, например письмо клиенту, транзакция Kafka не откатит: там нужна идемпотентность на стороне получателя.
 
+### Потребитель на Python с ручным коммитом
+
+Потребитель из `confluent_kafka` работает в песочнице поверх той же учебной модели Kafka. `poll()` выдаёт по одной записи за вызов, время виртуальное. Бесконечный цикл `poll()` песочница останавливает на 60-й виртуальной секунде.
+
+```python
+from confluent_kafka import Consumer
+
+consumer = Consumer({
+    'bootstrap.servers': 'localhost:9092',
+    'group.id': 'ГРУППА',
+    'enable.auto.commit': False,
+    'auto.offset.reset': 'earliest',
+})
+consumer.subscribe(['ТОПИК'])
+while ЕСТЬ_ЧТО_ЧИТАТЬ:
+    msg = consumer.poll(1.0)
+    if msg is None or msg.error():
+        continue
+    # обработка msg.value()
+    consumer.commit(message=msg, asynchronous=False)
+consumer.close()
+```
+
+- `group.id` — имя группы. Без него потребитель не запустится. Закоммиченные offset хранятся по группе.
+- `enable.auto.commit: False` отключает автоматический коммит. Тогда позицию закрепляет только ваш код.
+- `auto.offset.reset: 'earliest'` — с какого места читать, если у группы нет закоммиченного offset. По умолчанию в библиотеке это значение `largest`: только новые записи, а старые потребитель не увидит. `earliest` читает с начала топика.
+- `subscribe(['ТОПИК'])` принимает **список** тем, строка вызовет ошибку. Группа сама распределит партиции между участниками.
+- `poll(1.0)` ждёт запись до секунды. Возвращает `None`, если ничего нет, и `Message` иначе. Первые вызовы после `subscribe()` часто возвращают `None`, пока группа собирается: это нормально, цикл продолжает опрос.
+- `msg.error()` не `None`, если вместо записи пришла ошибка. Такую «запись» пропускают и читают дальше.
+- `msg.value()` возвращает `bytes`; `msg.partition()` и `msg.offset()` показывают положение записи.
+- `commit(message=msg, asynchronous=False)` закрепляет позицию **после** этой записи, то есть `msg.offset() + 1`. С `asynchronous=False` вызов ждёт подтверждения.
+- `close()` выходит из группы. Всегда вызывайте его в конце.
+
+Порядок «обработал, затем `commit`» — это at-least-once из раздела выше. Если программа упадёт между ними, запись будет прочитана снова. Коммит перед обработкой дал бы at-most-once.
+
+Пример. В топике `alerts` три записи, группа `pager` читает с начала:
+
+```python
+from confluent_kafka import Consumer
+
+consumer = Consumer({'bootstrap.servers': 'localhost:9092', 'group.id': 'pager',
+                     'enable.auto.commit': False, 'auto.offset.reset': 'earliest'})
+consumer.subscribe(['alerts'])
+done = 0
+while done < 2:
+    msg = consumer.poll(1.0)
+    if msg is None or msg.error():
+        continue
+    print(msg.value().decode(), msg.offset())
+    consumer.commit(message=msg, asynchronous=False)
+    done += 1
+consumer.close()
+```
+
+Программа обработает и закоммитит ровно две записи: `done` считает обработанные, и цикл заканчивается после второй. Закоммиченный offset группы `pager` станет равным 2, а `LAG` — 1. Третья запись останется для следующего запуска. Блок выполняется только в заданиях типа «клиент».
+
 ### Частые ошибки
 
 - **Ошибка:** считать, что закоммиченный offset указывает на последнюю обработанную запись. **Верно:** он указывает на следующую, ещё не обработанную.
@@ -131,6 +187,7 @@ Processed a total of 1 messages
 - Автокоммит: `enable.auto.commit=true`, `auto.commit.interval.ms=5000`, внутри `poll()` и `close()`.
 - Коммит до обработки — at-most-once; после — at-least-once (дубли); exactly-once — идемпотентность, транзакции, `read_committed`.
 - Транзакции в песочнице не запускаются: только теория.
+- Python: `Consumer({'group.id': …, 'enable.auto.commit': False, 'auto.offset.reset': 'earliest'})`, `subscribe([тема])`, цикл `poll(1.0)`, `commit(message=msg, asynchronous=False)` после обработки, `close()`.
 - В сценарии: `consumer.crash`, `idempotent`, `on_error`, `failEveryN`, `noDuplicateProcessing`, `processedAtLeast`.
 
 ## task kfk-commit-position
@@ -252,3 +309,76 @@ accounting.on_error=retry
 ```
 
 Сервис читает топик `orders`, преобразует записи и пишет результат в топик `orders-enriched`. Нужно, чтобы после падения и перезапуска каждая входная запись давала ровно один результат. Какая схема это обеспечивает?
+
+## task kfk-client-manual-commit
+
+```json
+{
+  "type": "client",
+  "title": "Потребитель с ручным коммитом",
+  "xp": 20,
+  "hints": [
+    "Раздел «Потребитель на Python с ручным коммитом»: настройки, цикл `poll()` и вызов `commit()`.",
+    "Отключите автокоммит, читайте с `earliest`, и после обработки каждой записи вызывайте `commit(message=msg, asynchronous=False)`. Цикл должен остановиться, когда обработаны все пять записей, затем `close()`.",
+    "Шаблон: `consumer.subscribe(['mail-queue'])`, `while processed < 5:`, внутри `msg = consumer.poll(1.0)`, пропуск `None` и ошибок, обработка, `consumer.commit(message=msg, asynchronous=False)`, `processed += 1`."
+  ],
+  "check": {
+    "compare": ["offsets"],
+    "require": [
+      { "pattern": "\\.commit\\(", "message": "Закоммитьте обработанные записи: consumer.commit(message=msg, asynchronous=False)" }
+    ]
+  }
+}
+```
+
+В топике `mail-queue` одна партиция и пять писем. Напишите на Python потребителя группы `mailer`, который читает топик с начала, обрабатывает каждое письмо (достаточно запомнить текст в списке) и коммитит запись вручную сразу после обработки. Автоматический коммит отключите. Когда обработаны все пять писем, закройте потребителя. Закоммиченный offset группы `mailer` должен стать равным концу журнала, то есть 5.
+
+```broker setup
+kafka-topics.sh --bootstrap-server localhost:9092 --create --topic mail-queue --partitions 1 --replication-factor 3
+kafka-console-producer.sh --bootstrap-server localhost:9092 --topic mail-queue <<EOF2
+mail 1
+mail 2
+mail 3
+mail 4
+mail 5
+EOF2
+```
+
+```python starter
+from confluent_kafka import Consumer
+
+consumer = Consumer({
+    'bootstrap.servers': 'localhost:9092',
+    'group.id': 'mailer',
+    'enable.auto.commit': False,
+    'auto.offset.reset': 'earliest',
+})
+consumer.subscribe(['mail-queue'])
+sent = []
+while len(sent) < 5:
+    msg = consumer.poll(1.0)
+    if msg is None or msg.error():
+        continue
+    sent.append(msg.value().decode())
+consumer.close()
+```
+
+```python solution
+from confluent_kafka import Consumer
+
+consumer = Consumer({
+    'bootstrap.servers': 'localhost:9092',
+    'group.id': 'mailer',
+    'enable.auto.commit': False,
+    'auto.offset.reset': 'earliest',
+})
+consumer.subscribe(['mail-queue'])
+sent = []
+while len(sent) < 5:
+    msg = consumer.poll(1.0)
+    if msg is None or msg.error():
+        continue
+    sent.append(msg.value().decode())
+    consumer.commit(message=msg, asynchronous=False)
+consumer.close()
+```
