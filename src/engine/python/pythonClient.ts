@@ -38,8 +38,11 @@ export interface PythonClient {
   run(source: string, requests: ApiRequest[], options?: { keep?: boolean }): Promise<AppRun>;
   /** Runs a standalone script with the given text files in a scratch directory; a stuck script is terminated. */
   script(source: string, files: Record<string, string>): Promise<ScriptRun>;
-  /** Runs a broker client program (pika, confluent_kafka) against a fresh simulator; a stuck program is terminated. */
-  client(source: string, setup: ClientSetup): Promise<ClientRun>;
+  /**
+   * Runs a broker client program (pika, confluent_kafka) against a fresh simulator; a stuck program is terminated.
+   * `reference` (the course's own solution): runs in a worker that has not run learner code, respawning it if needed.
+   */
+  client(source: string, setup: ClientSetup, options?: { reference?: boolean }): Promise<ClientRun>;
   /** Drops the app kept between sends (the next send loads main.py afresh). */
   forget(): Promise<void>;
 }
@@ -53,6 +56,8 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
   let worker: PythonWorkerLike | null = null;
   let port: MessagePort | null = null;
   let ready: Promise<void> | null = null;
+  // Learner code ran in the current worker: it may have patched what survives between runs.
+  let tainted = false;
   let status: PythonStatus = { state: 'idle' };
   let nextId = 1;
   const listeners = new Set<(s: PythonStatus) => void>();
@@ -69,6 +74,7 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
     worker?.terminate();
     worker = null;
     ready = null;
+    tainted = false;
     for (const p of pending.values()) {
       clearTimeout(p.timer);
       p.reject(reason);
@@ -144,6 +150,7 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
     },
     async run(source, requests, options = {}) {
       await start();
+      tainted = true;
       const seconds = limits.runMs / 1000;
       return (await call({ op: 'run', source, requests, keep: Boolean(options.keep) }, limits.runMs, () => {
         // The stuck worker is gone; a fresh one starts loading right away so the next run waits less.
@@ -156,6 +163,7 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
     },
     async script(source, files) {
       await start();
+      tainted = true;
       const seconds = limits.scriptMs / 1000;
       return (await call({ op: 'script', source, files }, limits.scriptMs, () => {
         queueMicrotask(() => {
@@ -165,8 +173,13 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
         return new PythonTimeoutError(`Скрипт выполнялся дольше ${seconds} с и был остановлен. Проверьте, нет ли бесконечного цикла.`);
       })) as ScriptRun;
     },
-    async client(source, setup) {
+    async client(source, setup, options = {}) {
+      if (options.reference && tainted) {
+        stop(new Error('Python перезапущен'));
+        setStatus({ state: 'idle' });
+      }
       await start();
+      if (!options.reference) tainted = true;
       const seconds = limits.runMs / 1000;
       return (await call({ op: 'client', source, setup }, limits.runMs, () => {
         queueMicrotask(() => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { KAFKA_SCENARIO, SCENARIO } from '@/checker/brokerFixture';
 import { parseScenario } from '@/engine/sim/scenario';
-import { createBrokerStore, type LabSpec, type LabView, type Ticker } from './brokerStore';
+import { createBrokerStore, hasPropsTab, type LabSpec, type LabView, type Ticker } from './brokerStore';
 
 /** A ticker the test drives by hand. */
 function manualTicker(): { tick: Ticker; fire: (dt: number) => void; running: () => boolean } {
@@ -171,6 +171,13 @@ describe('brokerStore', () => {
     const second = store.getState().reset(spec());
     await Promise.all([first, second]);
     expect(rabbitSnap(store.getState).vhosts[0].queues.map((q) => q.name)).toEqual(['emails', 'jobs']);
+  });
+
+  it('[lab-client-props] client tasks have no properties tab, so the replay uses the properties the worker ran', async () => {
+    const withClient = await open({ client: { source: 'x = 1' }, props: 'mailer.idempotent=true' });
+    expect(hasPropsTab(withClient.get().spec)).toBe(false);
+    const plain = await open({ props: 'mailer.idempotent=true' });
+    expect(hasPropsTab(plain.get().spec)).toBe(true);
   });
 
   it('[lab-client] shows the result of a Python run by repeating its operations; typed commands stay separate', async () => {

@@ -48,6 +48,21 @@ ch.basic_publish('', 'jobs', 'two')
     expect(r.problems.join('\n')).toMatch(/«three»/);
   });
 
+  it('a program that patches the runtime cannot make a doing-nothing solution pass, nor affect the next run', async () => {
+    const fresh = { ...task } as typeof task; // no cached reference: the reference must be computed before the program runs
+    const tamper = `
+import types, sys
+__builtins__['__import__'] = lambda *a, **k: types.SimpleNamespace(BlockingConnection=lambda *a, **k: types.SimpleNamespace(channel=lambda: types.SimpleNamespace(basic_publish=lambda *a, **k: None)))
+import pika
+sys.modules['pika'] = types.SimpleNamespace()
+`;
+    const r = await checkClientTask(fresh, rabbit.scenarios, tamper, run);
+    expect(r.passed).toBe(false);
+    expect(await checkClientTask(fresh, rabbit.scenarios, task.pythonSolution, run)).toEqual({ passed: true, problems: [] });
+    const again = await checkClientTask({ ...task } as typeof task, rabbit.scenarios, tamper, run);
+    expect(again.passed).toBe(false);
+  });
+
   it('applies forbid and reports a Python error with its line, without comparing', async () => {
     const slept = await checkClientTask(task, rabbit.scenarios, `${task.pythonSolution}\nimport time\ntime.sleep(1)`, run);
     expect(slept.problems).toContain('Без sleep');

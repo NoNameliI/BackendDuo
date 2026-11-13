@@ -5,7 +5,7 @@ import { Panel } from '@/ui/Panel';
 import { Tabs } from '@/ui/Tabs';
 import { BrokerConsole } from './BrokerConsole';
 import { ClientPanel } from './ClientPanel';
-import { useBroker, type LabTab } from './brokerStore';
+import { hasPropsTab, useBroker, type LabTab } from './brokerStore';
 import { ExplainPanel } from './ExplainPanel';
 import { JournalView } from './JournalView';
 import { KafkaSchema } from './KafkaLogs';
@@ -171,8 +171,8 @@ export function BrokerWorkbench({ actions, prefix, trace, onRun }: BrokerWorkben
   const duration = lab((s) => s.durationMs);
   const msg = lab((s) => s.selectedMsg);
   const kafka = lab((s) => s.spec?.sim === 'kafka');
-  const hasProps = lab((s) => Boolean(s.spec && (s.spec.scenario || s.spec.props.trim())));
   const hasClient = lab((s) => s.client !== null);
+  const hasProps = lab((s) => hasPropsTab(s.spec));
   lab((s) => s.version);
   const [showDiff, setShowDiff] = useState(false);
   const act = lab.getState();

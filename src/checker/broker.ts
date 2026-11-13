@@ -331,7 +331,16 @@ export function checkBrokerTask(task: BrokerTask, scenarios: Record<string, Scen
 // ---------------------------------------------------------------- Python clients
 
 /** Runs a Python client against a fresh simulator described by `setup` (the app's Python worker; Node in tests). */
-export type ClientRunner = (source: string, setup: ClientSetup) => Promise<ClientRun>;
+export type ClientRunner = (source: string, setup: ClientSetup, options?: { reference?: boolean }) => Promise<ClientRun>;
+
+/** Makes plain data (objects, arrays) read-only all the way down. */
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value)) deepFreeze(v);
+  }
+  return value;
+}
 
 type ClientTask = BrokerTask & { type: 'client' };
 
@@ -345,8 +354,8 @@ const programError = (e: PythonError): string =>
   `${e.kind === 'syntax' ? 'Синтаксическая ошибка' : 'Ошибка в программе'}: ${e.kind === 'syntax' ? e.message : `${e.type}: ${e.message}`}${e.line ? ` (строка ${e.line})` : ''}`;
 
 /** Runs the client, then repeats its operations on the prepared simulator; the two must agree. */
-async function runClient(task: BrokerTask, prep: Prepared, source: string, run: ClientRunner): Promise<ClientRun> {
-  const result = await run(source, clientSetup(task, prep));
+async function runClient(task: BrokerTask, prep: Prepared, source: string, run: ClientRunner, options?: { reference?: boolean }): Promise<ClientRun> {
+  const result = await run(source, clientSetup(task, prep), options);
   if (!result.error) {
     const mismatch = replayOps(prep.box, result.ops);
     if (mismatch) throw new Error(`${task.id}: внутренняя ошибка. ${mismatch}`);
@@ -362,9 +371,9 @@ function clientReference(task: BrokerTask, scenarios: Record<string, Scenario>, 
   if (!ref) {
     ref = (async () => {
       const prep = prepare(task, scenarios, '');
-      const result = await runClient(task, prep, (task as ClientTask).pythonSolution, run);
+      const result = await runClient(task, prep, (task as ClientTask).pythonSolution, run, { reference: true });
       if (result.error) throw new SolutionError(`${task.id}: эталонное решение: ${programError(result.error)}`);
-      return task.sim === 'kafka' ? captureKafka(task, prep.box as KafkaSandbox) : capture(task, prep.box as RabbitSandbox);
+      return deepFreeze(task.sim === 'kafka' ? captureKafka(task, prep.box as KafkaSandbox) : capture(task, prep.box as RabbitSandbox));
     })();
     clientReferences.set(task, ref);
     ref.catch(() => clientReferences.delete(task));
@@ -383,11 +392,13 @@ export async function checkClientTask(task: BrokerTask, scenarios: Record<string
   const problems: string[] = [];
   for (const rule of task.check.require) if (!new RegExp(rule.pattern, 'm').test(source)) problems.push(rule.message);
   for (const rule of task.check.forbid) if (new RegExp(rule.pattern, 'm').test(source)) problems.push(rule.message);
+  // The reference runs before the learner's program, in a worker that has not run learner code (the runner respawns it).
+  const reference = task.check.compare.length > 0 ? await clientReference(task, scenarios, run) : null;
   const result = await runClient(task, prep, source, run);
   if (result.error) return fail([programError(result.error), ...problems]);
   let trace: string[] = [];
-  if (task.check.compare.length > 0) {
-    const d = diffAgainst(task, await clientReference(task, scenarios, run), prep.box);
+  if (reference) {
+    const d = diffAgainst(task, reference, prep.box);
     problems.push(...d.problems);
     trace = d.trace;
   }

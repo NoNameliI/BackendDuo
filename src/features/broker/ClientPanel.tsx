@@ -30,15 +30,17 @@ export function ClientPanel({ onRun }: { onRun?: () => void }) {
         </div>
       </section>
       <section aria-label="Вывод программы" tabIndex={0} className="min-h-0 space-y-2 overflow-auto p-3 font-mono text-[12.5px]">
-        {!client.ran && !client.running && <p className="text-dim">Запустите программу: она выполнится на том же симуляторе, что и консоль, а схема и журнал покажут её результат.</p>}
-        {client.output && <pre className="m-0 whitespace-pre-wrap break-words text-fg">{client.output}</pre>}
-        {client.stopped && !client.error && <p className="text-amber">Остановлено по горизонту песочницы: программа ждала дольше минуты виртуального времени (так бывает у бесконечных циклов приёма).</p>}
+        <div role="status" aria-live="polite" className="space-y-2">
+          {!client.ran && !client.running && <p className="text-dim">Запустите программу: она выполнится на том же симуляторе, что и консоль, а схема и журнал покажут её результат.</p>}
+          {client.output && <pre className="m-0 whitespace-pre-wrap break-words text-fg">{client.output}</pre>}
+          {client.stopped && !client.error && <p className="text-amber">Остановлено по горизонту песочницы: программа ждала дольше минуты виртуального времени (так бывает у бесконечных циклов приёма).</p>}
+          {client.ran && !client.error && !client.output && !client.stopped && <p className="text-dim">Программа завершилась без вывода.</p>}
+        </div>
         {client.error && (
           <p role="alert" className="text-err">
             {client.error}
           </p>
         )}
-        {client.ran && !client.error && !client.output && !client.stopped && <p className="text-dim">Программа завершилась без вывода.</p>}
       </section>
     </div>
   );

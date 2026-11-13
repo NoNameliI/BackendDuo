@@ -58,6 +58,12 @@ export interface ConsoleEntry {
   code?: string;
 }
 
+/**
+ * Whether the properties editor is offered. Client tasks never get it: their program runs and is checked with the
+ * task's own properties, so the replay always uses exactly what the worker ran.
+ */
+export const hasPropsTab = (spec: LabSpec | null): boolean => Boolean(spec && !spec.client && (spec.scenario || spec.props.trim()));
+
 export type LabTab = 'schema' | 'console' | 'journal' | 'metrics' | 'props' | 'client';
 export type LabStatus = 'idle' | 'loading' | 'ready' | 'failed';
 

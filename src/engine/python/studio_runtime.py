@@ -33,10 +33,23 @@ _BLOCKED = {"js", "pyodide", "pyodide_js", "_pyodide", "micropip"}
 def _guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
     if level == 0 and name.split(".")[0] in _BLOCKED:
         raise ImportError(f"Модуль {name} недоступен: учебное приложение работает без сети и без доступа к браузеру")
-    return builtins.__import__(name, globals, locals, fromlist, level)
+    return _real_import(name, globals, locals, fromlist, level)
 
 
+_real_import = builtins.__import__
 _BUILTINS = dict(builtins.__dict__, __import__=_guarded_import)
+
+
+def _fresh_builtins():
+    """Every learner run gets its own copy, so a patched `__builtins__` never reaches the next run."""
+    return dict(_BUILTINS)
+
+
+def _drop_new_modules(before):
+    """Forgets the modules a learner run added (its own files, patched shims); already loaded ones stay."""
+    for name in list(sys.modules):
+        if name not in before:
+            del sys.modules[name]
 
 
 class LoadError(Exception):
@@ -59,7 +72,7 @@ def _error(exc, kind, filename="main.py"):
 def _load(source):
     module = types.ModuleType("main")
     module.__file__ = "main.py"
-    module.__dict__["__builtins__"] = _BUILTINS
+    module.__dict__["__builtins__"] = _fresh_builtins()
     sys.modules["main"] = module
     exec(compile(source, "main.py", "exec"), module.__dict__)
     app = module.__dict__.get("app")
@@ -180,6 +193,7 @@ def script(source, files_json):
     output = io.StringIO()
     error = None
     started = time.perf_counter()
+    modules_before = set(sys.modules)
     os.makedirs(root, exist_ok=True)
     try:
         for name, text in files.items():
@@ -188,7 +202,7 @@ def script(source, files_json):
             with open(f"{root}/{name}", "wb") as handle:
                 handle.write(text.encode("utf-8"))
         os.chdir(root)
-        namespace = {"__name__": "__main__", "__file__": "script.py", "__builtins__": _BUILTINS}
+        namespace = {"__name__": "__main__", "__file__": "script.py", "__builtins__": _fresh_builtins()}
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
             try:
                 exec(compile(source, "script.py", "exec"), namespace)
@@ -201,6 +215,7 @@ def script(source, files_json):
     except Exception as exc:
         error = _error(exc, "load", "script.py")
     finally:
+        _drop_new_modules(modules_before)
         os.chdir(previous)
         shutil.rmtree(root, ignore_errors=True)
     result = {"output": output.getvalue()[-_OUTPUT_LIMIT:], "ms": round((time.perf_counter() - started) * 1000, 1)}
@@ -253,7 +268,8 @@ def client(source):
     real_sleep = time.sleep
     time.sleep = virtual_sleep
     _forget_shims()
-    namespace = {"__name__": "__main__", "__file__": "main.py", "__builtins__": _BUILTINS}
+    modules_before = set(sys.modules)
+    namespace = {"__name__": "__main__", "__file__": "main.py", "__builtins__": _fresh_builtins()}
     try:
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
             try:
@@ -268,6 +284,7 @@ def client(source):
                 error = _error(exc, "load")
     finally:
         time.sleep = real_sleep
+        _drop_new_modules(modules_before)
         _forget_shims()
     result = {"output": output.getvalue()[-_OUTPUT_LIMIT:], "stopped": stopped, "ms": round((time.perf_counter() - started) * 1000, 1)}
     if error:

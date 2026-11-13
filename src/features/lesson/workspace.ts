@@ -449,7 +449,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
           const scenarios = courseById(task.courseId).scenarios;
           verdict =
             task.type === 'client'
-              ? await broker.checkClientTask(task as BrokerTask, scenarios, lessonBroker.getState().client?.source ?? '', (source, setup) => pythonClient().client(source, setup))
+              ? await broker.checkClientTask(task as BrokerTask, scenarios, lessonBroker.getState().client?.source ?? '', (source, setup, options) => pythonClient().client(source, setup, options))
               : broker.checkBrokerTask(task as BrokerTask, scenarios, lessonBroker.getState().input());
         } catch (e) {
           verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };

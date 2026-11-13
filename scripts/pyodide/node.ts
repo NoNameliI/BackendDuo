@@ -9,10 +9,13 @@ const dir = join(process.cwd(), 'public', 'pyodide').replaceAll('\\', '/');
 
 let shared: ReturnType<typeof setupRuntime> | null = null;
 
+/** A new interpreter with its own runtime (what a respawned worker is). */
+export async function freshNodePython(): Promise<ReturnType<typeof setupRuntime>> {
+  const pyodide = await loadPyodide({ indexURL: `${dir}/`, stdout: () => {}, stderr: () => {} });
+  return setupRuntime(pyodide as unknown as PyodideLike, new Uint8Array(readFileSync(`${dir}/site.tar.gz`)));
+}
+
 export async function nodePython(): Promise<ReturnType<typeof setupRuntime>> {
-  if (!shared) {
-    const pyodide = await loadPyodide({ indexURL: `${dir}/`, stdout: () => {}, stderr: () => {} });
-    shared = setupRuntime(pyodide as unknown as PyodideLike, new Uint8Array(readFileSync(`${dir}/site.tar.gz`)));
-  }
+  shared ??= await freshNodePython();
   return shared;
 }

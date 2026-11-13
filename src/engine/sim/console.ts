@@ -83,7 +83,7 @@ export const out = (...texts: string[]): ConsoleResult => ({ lines: texts.map((t
 export const err = (text: string, exit = 1, code?: string): ConsoleResult => ({ lines: [{ text, tone: 'err' }], exit, ...(code !== undefined ? { code } : {}) });
 
 // `<<WORD` / `<<-WORD` start a heredoc; `<<< word` is a here-string and must not.
-const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
+export const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
 
 export function createConsole(commands: readonly ConsoleCommand[]): Console {
   const hist: string[] = [];

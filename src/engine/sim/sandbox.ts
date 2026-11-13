@@ -1,4 +1,4 @@
-import { createConsole, type Console, type ConsoleCommand } from './console';
+import { createConsole, HEREDOC, type Console, type ConsoleCommand } from './console';
 import { Sim } from './kernel';
 import { KafkaModel, type KafkaSnapshot } from './kafka';
 import { createKafkaCommands } from './kafka/console';
@@ -25,9 +25,6 @@ export interface Sandbox<M, S> {
 export type RabbitSandbox = Sandbox<RabbitModel, RabbitSnapshot>;
 export type KafkaSandbox = Sandbox<KafkaModel, KafkaSnapshot>;
 export type AnySandbox = RabbitSandbox | KafkaSandbox;
-
-// `<<WORD` starts a heredoc; `<<< word` is a here-string (same rule as src/engine/sim/console.ts).
-const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*$/;
 
 /** Splits a script into logical commands: backslash continuations are joined, a heredoc keeps its body. Blank and comment lines are dropped. */
 export function splitScript(text: string): string[] {

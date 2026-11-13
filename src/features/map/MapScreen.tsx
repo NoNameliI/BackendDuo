@@ -5,7 +5,7 @@ import { useCourse } from '@/app/useCourse';
 import type { Lesson, World } from '@/content/loadCourse';
 import { courseById } from '@/content/courses';
 import { useWorkspace } from '@/features/lesson/workspace';
-import { firstOpenTask, isWorldComplete, lessonStatuses, nextLesson, progressOf, type LessonStatus } from '@/progress/gamification';
+import { firstOpenTask, isLessonComplete, isWorldComplete, lessonStatuses, nextLesson, progressOf, type LessonStatus } from '@/progress/gamification';
 import type { CourseProgress } from '@/progress/model';
 import { selectCourse, useProgress } from '@/progress/store';
 import { Button } from '@/ui/Button';
@@ -70,7 +70,7 @@ function CompanionPortal({ id }: { id: string }) {
   const companion = courseById(id);
   const cp = useProgress(selectCourse(id));
   const lessons = companion.worlds.flatMap((w) => w.lessons);
-  const done = lessons.filter((l) => cp.passedLessons.includes(l.id) || (l.tasks.length > 0 && l.tasks.every((t) => progressOf(cp, t.id).solved))).length;
+  const done = lessons.filter((l) => isLessonComplete(l, cp)).length;
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed border-line-strong bg-panel p-4">
       <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-faint">Общий мир</p>
