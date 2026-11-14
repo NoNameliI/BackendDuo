@@ -11,6 +11,7 @@ import { highlightSql } from '@/ui/highlightSql';
 import { resetBrokerExamples, runBrokerExample, runScenarioExample, type BrokerRun, type ScenarioRun } from './brokerExamples';
 import { resetExamples, runExample } from './examples';
 import { resetShellExamples, runShellExample, type ShellRun } from './shellExamples';
+import { lessonGroups } from '@/checker/fastapi';
 import { resetHttpExamples, runGraphqlExample, runHttpExample, runProtoExample, runPythonExample, type HttpRun, type SchemaRun } from './httpExamples';
 import { pythonClient } from '@/engine/python/pythonClient';
 import { PythonStatusLine } from '@/features/api/FastapiPanel';
@@ -163,7 +164,7 @@ function HttpExample({ lesson, text, python = false }: { lesson: Lesson; text: s
   const run = async () => {
     setBusy(true);
     try {
-      setResult(python ? await runPythonExample(text) : runHttpExample(lesson, text));
+      setResult(python ? await runPythonExample(text, lessonGroups(lesson.tasks)) : runHttpExample(lesson, text));
     } finally {
       setBusy(false);
     }

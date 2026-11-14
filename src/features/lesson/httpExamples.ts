@@ -92,7 +92,7 @@ export async function runProtoExample(lesson: Lesson, text: string): Promise<Sch
 }
 
 /** A `python example`: the app runs afresh with its requests; nothing is kept between examples. */
-export async function runPythonExample(text: string): Promise<HttpRun[]> {
+export async function runPythonExample(text: string, groups: string[] = []): Promise<HttpRun[]> {
   let example: ReturnType<typeof splitPythonExample>;
   try {
     example = splitPythonExample(text);
@@ -100,7 +100,7 @@ export async function runPythonExample(text: string): Promise<HttpRun[]> {
     return [{ request: { method: '?', url: '', headers: [], body: '' }, response: null, error: (e as Error).message }];
   }
   try {
-    const run = await pythonClient().run(example.source, example.requests);
+    const run = await pythonClient().run(example.source, example.requests, { groups });
     if (!run.load.ok) return [{ request: { method: 'python', url: 'main.py', headers: [], body: '' }, response: null, error: explainPythonError(run.load.error) }];
     return example.requests.map((request, i) => {
       const res = run.responses[i];

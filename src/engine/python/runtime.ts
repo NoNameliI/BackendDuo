@@ -145,7 +145,8 @@ const toWire = (req: ApiRequest) => {
     path: path || '/',
     query: query.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&'),
     headers: req.headers.map((h) => [h.name, h.value]),
-    body: req.body,
+    // A request written as text has \n line ends; a multipart body needs CRLF between its parts, as a client sends it.
+    body: /^multipart\//i.test(req.headers.find((h) => h.name.toLowerCase() === 'content-type')?.value.trim() ?? '') ? req.body.replace(/\r?\n/g, '\r\n') : req.body,
   };
 };
 
@@ -183,6 +184,14 @@ export function setupRuntime(pyodide: PyodideLike, siteArchive: Uint8Array): Pyt
         loaded.add(name);
       }
       if (added.length) pyodide.runPython('import importlib; importlib.invalidate_caches()');
+      // Starlette looks for python-multipart once, when its modules are first imported (FastAPI imports them at start):
+      // fill in what it found missing, so forms work in a worker that loaded Python before the group arrived.
+      if (added.includes('multipart')) {
+        pyodide.runPython(
+          // reload keeps the module's dict, so parser classes already imported elsewhere see the new globals.
+          'import importlib, sys\nfrom python_multipart.multipart import parse_options_header\nif "starlette.formparsers" in sys.modules: importlib.reload(sys.modules["starlette.formparsers"])\nif "starlette.requests" in sys.modules: sys.modules["starlette.requests"].parse_options_header = parse_options_header',
+        );
+      }
       return added;
     },
     client(source, setup) {

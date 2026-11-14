@@ -5,10 +5,10 @@ const state = (): ProjectState => ({ files: { 'main.py': 'app', 'routers/items.p
 
 describe('pathError', () => {
   it('accepts the names the runtime accepts', () => {
-    for (const p of ['main.py', 'app/main.py', 'routers/items.py', '_x.py', 'a-b.c', 'tests/__init__.py']) expect(pathError(p), p).toBeNull();
+    for (const p of ['main.py', 'app/main.py', 'routers/items.py', '_x.py', 'a-b.c', 'tests/__init__.py', '.env']) expect(pathError(p), p).toBeNull();
   });
   it('refuses the names the runtime refuses', () => {
-    for (const p of ['', ' ', '/main.py', 'a//b.py', 'a/', '../x.py', 'a/../b.py', 'a..b.py', '.env', '-x.py', 'a b.py', 'файл.py', ' main.py']) expect(pathError(p), p).not.toBeNull();
+    for (const p of ['', ' ', '/main.py', 'a//b.py', 'a/', '../x.py', 'a/../b.py', 'a..b.py', '.envrc', '.git', '-x.py', 'a b.py', 'файл.py', ' main.py']) expect(pathError(p), p).not.toBeNull();
   });
   it('explains in Russian', () => {
     expect(pathError('')).toBe('Введите имя файла');

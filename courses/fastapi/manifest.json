@@ -7,6 +7,102 @@
   "solutionAfterAttempts": 3,
   "worlds": [
     {
+      "id": "fa-w0",
+      "title": "Мост от Python к FastAPI",
+      "summary": "Необязательный мир: аннотации типов и Annotated, Enum, генераторы и менеджеры контекста, декораторы, async/await. Пропускается по тесту.",
+      "requires": [],
+      "lessons": [
+        {
+          "id": "fa-py-types",
+          "file": "w0/01-types-annotated.md"
+        },
+        {
+          "id": "fa-py-generators",
+          "file": "w0/02-generators-context.md"
+        },
+        {
+          "id": "fa-py-decorators",
+          "file": "w0/03-decorators.md"
+        },
+        {
+          "id": "fa-py-async",
+          "file": "w0/04-async-await.md"
+        }
+      ]
+    },
+    {
+      "id": "fa-w1",
+      "title": "Основы",
+      "summary": "FastAPI, Starlette и Pydantic, ASGI, def или async def, параметры пути и запроса с проверками, Enum и порядок маршрутов.",
+      "requires": [],
+      "lessons": [
+        {
+          "id": "fa-asgi-basics",
+          "file": "w1/01-asgi-def-async.md"
+        },
+        {
+          "id": "fa-path-query",
+          "file": "w1/02-path-query-validation.md"
+        },
+        {
+          "id": "fa-enum-routes",
+          "file": "w1/03-enum-route-order.md"
+        }
+      ]
+    },
+    {
+      "id": "fa-w2",
+      "title": "Данные и модели",
+      "summary": "Pydantic v2, тело запроса, модели In/Out, коды статусов, формы и файлы, заголовки и cookie, свои обработчики ошибок.",
+      "requires": [
+        "fa-w1"
+      ],
+      "lessons": [
+        {
+          "id": "fa-pydantic-v2",
+          "file": "w2/01-pydantic-v2.md"
+        },
+        {
+          "id": "fa-in-out-models",
+          "file": "w2/02-in-out-models.md"
+        },
+        {
+          "id": "fa-forms-files",
+          "file": "w2/03-forms-files-headers.md"
+        },
+        {
+          "id": "fa-errors",
+          "file": "w2/04-errors-handlers.md"
+        }
+      ]
+    },
+    {
+      "id": "fa-w3",
+      "title": "Структура и зависимости",
+      "summary": "Depends, APIRouter, проект из нескольких файлов, lifespan и app.state, настройки pydantic-settings, middleware.",
+      "requires": [
+        "fa-w2"
+      ],
+      "lessons": [
+        {
+          "id": "fa-depends",
+          "file": "w3/01-depends.md"
+        },
+        {
+          "id": "fa-routers",
+          "file": "w3/02-routers-structure.md"
+        },
+        {
+          "id": "fa-lifespan-settings",
+          "file": "w3/03-lifespan-settings.md"
+        },
+        {
+          "id": "fa-middleware",
+          "file": "w3/04-middleware-cors.md"
+        }
+      ]
+    },
+    {
       "id": "fa-w7",
       "title": "Тестирование и качество",
       "summary": "Тесты pytest и TestClient, поиск ошибок по упавшему тесту, документация OpenAPI и проверка кода.",
@@ -15,12 +111,21 @@
           "id": "fa-pytest-testclient",
           "file": "w7/01-pytest-testclient.md"
         }
+      ],
+      "requires": [
+        "fa-w3"
       ]
     }
   ],
   "levels": [
-    { "xp": 0, "title": "Новичок" },
-    { "xp": 100, "title": "Практик" }
+    {
+      "xp": 0,
+      "title": "Новичок"
+    },
+    {
+      "xp": 100,
+      "title": "Практик"
+    }
   ],
   "badges": [
     {
@@ -28,7 +133,10 @@
       "title": "Первый проект",
       "description": "Решено первое задание курса FastAPI",
       "glyph": "py",
-      "rule": { "kind": "tasksSolved", "count": 1 }
+      "rule": {
+        "kind": "tasksSolved",
+        "count": 1
+      }
     }
   ]
 }

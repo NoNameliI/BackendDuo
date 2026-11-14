@@ -9,10 +9,10 @@ import { checkApiTask, readCorsConfig, readRequest } from '@/checker/api';
 import { checkGraphql, checkProto } from '@/checker/apiSchema';
 import { checkBrokerExamples, checkBrokerTask, checkClientTask, lintBrokerTask, type ClientRunner } from '@/checker/broker';
 import { schemaOps } from '@/engine/api/schemaOps';
-import { solutionProject, starterProject, wrongProject } from '@/checker/fastapi';
+import { lessonGroups, solutionProject, starterProject, wrongProject } from '@/checker/fastapi';
 import { checkPythonTask } from '@/checker/fastapiCourse';
 import { splitPythonExample } from '@/engine/python/example';
-import { nodeCourseRuntime, nodePython } from './pyodide/node';
+import { nodeCourseRuntime, nodeGroups, nodePython } from './pyodide/node';
 import { HttpSimServer, sendTo, splitRequests, type ServerDef } from '@/engine/api/server';
 import { createGitChecker, runReference, stoppedOnConflict } from '@/checker/git';
 import { parseRequest } from '@/engine/api/http';
@@ -164,7 +164,9 @@ for (const course of catalog?.courses ?? []) {
 ${code}`).toEqual([]);
                   } else if (lang === 'python') {
                     const { source, requests, crashes } = splitPythonExample(code);
-                    const out = await (await nodePython()).run(source, requests);
+                    const py = await nodePython();
+                    py.addPackages(nodeGroups(lessonGroups(lesson.tasks)));
+                    const out = await py.run(source, requests);
                     const failed = out.load.ok
                       ? out.responses.flatMap((r, i) => (Boolean(r.error) !== crashes[i] ? [`request ${i + 1}: ${r.error ? `${r.error.type}: ${r.error.message}` : 'expected a crash (### 500)'}`] : []))
                       : [`${out.load.error.type}: ${out.load.error.message}`];

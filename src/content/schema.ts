@@ -284,7 +284,7 @@ const protoTask = z.object({
 // overlays ```python wrong | mutant id=… [path=…]; see parseLesson.ts. Every such task gets a normalized `project`.
 const pythonPath = z
   .string()
-  .regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$/, 'путь файла: латинские буквы, цифры, _ . - и «/» между папками')
+  .regex(/^(?:[A-Za-z0-9_][A-Za-z0-9_.-]*\/)*(?:[A-Za-z0-9_][A-Za-z0-9_.-]*|\.env)$/, 'путь файла: латинские буквы, цифры, _ . - и «/» между папками (из имён с точкой — только .env)')
   .refine((p) => !p.includes('..'), { message: 'в пути не должно быть «..»' });
 const pythonFiles = z.record(pythonPath, z.string());
 

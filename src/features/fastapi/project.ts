@@ -3,7 +3,8 @@ import type { ProjectFiles } from '@/engine/python/runtime';
 /** The limits and the name rules of the runtime (studio_runtime.py): the UI refuses what the runtime would refuse. */
 export const MAX_FILES = 40;
 export const MAX_BYTES = 400 * 1024;
-const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+// `.env` is the one dot name allowed: pydantic-settings and python-dotenv read it by default.
+const SEGMENT = /^(?:[A-Za-z0-9_][A-Za-z0-9_.-]*|\.env)$/;
 
 /** The project as the editor holds it: files, the entry module and the files open in tabs. */
 export interface ProjectState {
@@ -24,7 +25,7 @@ export function pathError(path: string): string | null {
   for (const part of path.split('/')) {
     if (!part) return 'Имя не может быть пустым и не может начинаться или заканчиваться на «/»';
     if (part.includes('..')) return 'В имени не должно быть «..»';
-    if (!SEGMENT.test(part)) return 'Допустимы латинские буквы, цифры, _ . - и «/» между папками; имя не начинается с точки или дефиса';
+    if (!SEGMENT.test(part)) return 'Допустимы латинские буквы, цифры, _ . - и «/» между папками; имя не начинается с точки (кроме .env) или дефиса';
   }
   return null;
 }

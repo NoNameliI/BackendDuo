@@ -59,6 +59,11 @@ export function pythonGroups(task: PythonTask): string[] {
   return [...new Set([...(task.packages ?? []), ...(tests ? ['client', 'pytest'] : [])])];
 }
 
+/** Package groups for a lesson's theory examples: everything its python tasks use. */
+export function lessonGroups(tasks: readonly object[]): string[] {
+  return [...new Set(tasks.flatMap((t) => ('project' in t ? pythonGroups(t as PythonTask) : [])))];
+}
+
 /** The learner's project as the check sees it: read-only files restored, the entry kept. */
 export function learnerProject(task: PythonTask, input: Project | string): Project {
   const project = asProject(input);

@@ -229,7 +229,8 @@ def _load_error(message):
 
 # --- project files ----------------------------------------------------------------------------------------------
 
-_SEGMENT = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
+# `.env` is the one dot name allowed: pydantic-settings and python-dotenv read it by default.
+_SEGMENT = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*|\.env")
 _MAX_FILES = 40
 _MAX_BYTES = 400 * 1024
 _written = {"files": None}
