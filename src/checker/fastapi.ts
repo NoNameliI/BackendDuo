@@ -77,7 +77,7 @@ export async function checkFastapi(task: FastapiTask, source: string, run: AppRu
 
   const requests = testRequests(task);
   const key = `${task.id}\n${task.pythonSolution}`;
-  if (!expected.has(key)) expected.set(key, run(task.pythonSolution, requests));
+  if (!expected.has(key)) expected.set(key, run(task.pythonSolution, requests, { reference: true }));
   let want: AppRun;
   try {
     want = await expected.get(key)!;

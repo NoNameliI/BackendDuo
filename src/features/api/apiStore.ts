@@ -8,6 +8,9 @@ import { schemaClient } from '@/engine/api/schemaClient';
 import { sendTo, type CorsConfig, type HttpSimServer } from '@/engine/api/server';
 import { explainPythonError } from '@/engine/python/explain';
 import { PYTHON_BASE_URL, pythonClient } from '@/engine/python/pythonClient';
+import type { Project, ProjectFiles, PytestRun } from '@/engine/python/runtime';
+import { readSpec, type Spec } from '@/features/fastapi/openapi';
+import { closeTab, createFile, deleteFile, openFile, renameFile, type ProjectState } from '@/features/fastapi/project';
 
 /** Sends a request somewhere inside the app (a virtual server, a simulated browser) — never to the network. */
 export interface ApiEngine {
@@ -31,21 +34,84 @@ export function serverEngine(server: HttpSimServer): ApiEngine {
   };
 }
 
+/** One line of the app log: what the app wrote while loading, the studio's access line, what a request printed. */
+export interface PythonLogEntry {
+  id: number;
+  kind: 'load' | 'access' | 'output' | 'error';
+  text: string;
+}
+
+export const PYTHON_LOG_LIMIT = 200;
+
+/** The learner's project as the sandbox holds it: files, the tabs, whether the file tree shows, lazy package groups. */
+export interface PythonProject extends ProjectState {
+  tree: boolean;
+  groups: string[];
+}
+
+/** What a FastAPI task starts with; `files` and `tree` let a task bring a whole project. */
+export interface PythonStart {
+  files: ProjectFiles;
+  entry: string;
+  tree: boolean;
+  groups: string[];
+}
+
+export interface PythonDocs {
+  spec: Spec | null;
+  loading: boolean;
+  error: string | null;
+  /** Whether the project was edited after the spec was read. */
+  stale: boolean;
+}
+
+export interface PythonTests {
+  running: boolean;
+  run: PytestRun | null;
+  error: string | null;
+}
+
+const NO_TESTS: PythonTests = { running: false, run: null, error: null };
+
+const STREAM_NOTE = 'Потоковый ответ: показан целиком после завершения';
+
+/** `INFO:     127.0.0.1:50000 - "GET /items?limit=2 HTTP/1.1" 200`: the line uvicorn would write; the studio writes it here. */
+export function accessLine(request: ApiRequest, status: number): string {
+  const { origin } = splitUrl(request.url);
+  const target = origin ? request.url.slice(origin.length) || '/' : request.url;
+  return `INFO:     127.0.0.1:50000 - "${request.method} ${target.startsWith('/') ? target : `/${target}`} HTTP/1.1" ${status}`;
+}
+
 /**
- * Requests go to the learner's own FastAPI app (main.py). The app is kept between sends, so a POST is seen by
+ * Requests go to the learner's own FastAPI project. The app is kept between sends, so a POST is seen by
  * the next GET; editing the code starts it afresh, like uvicorn --reload.
  */
-export function pythonEngine(source: () => string): ApiEngine {
+export function pythonEngine(read: () => { project: Project; groups: string[] }, log: (entries: Omit<PythonLogEntry, 'id'>[]) => void = () => {}): ApiEngine {
   return {
     async send(request) {
       const origin = splitUrl(request.url).origin;
       if (origin && origin !== PYTHON_BASE_URL) return [{ kind: 'request', request, response: null, error: `Запрос ушёл на ${origin}, а приложение запущено на ${PYTHON_BASE_URL}` }];
       try {
-        const run = await pythonClient().run(source(), [request], { keep: true });
-        const output = run.output.trim() ? [{ text: `Вывод print: ${run.output.trim()}`, warn: false }] : [];
-        if (!run.load.ok) return [{ kind: 'request', request, response: null, error: explainPythonError(run.load.error), notes: output }];
+        const { project, groups } = read();
+        const run = await pythonClient().run(project, [request], { keep: true, groups });
+        const entries: Omit<PythonLogEntry, 'id'>[] = [];
+        if (run.output.trim()) entries.push({ kind: 'load', text: run.output.trimEnd() });
+        if (!run.load.ok) {
+          const text = explainPythonError(run.load.error);
+          log([...entries, { kind: 'error', text }]);
+          return [{ kind: 'request', request, response: null, error: text, notes: run.output.trim() ? [{ text: `Вывод print: ${run.output.trim()}`, warn: false }] : [] }];
+        }
         const res = run.responses[0];
-        const notes = [...(res.error ? [{ text: explainPythonError(res.error), warn: true }] : []), ...output];
+        entries.push({ kind: 'access', text: accessLine(request, res.status) });
+        if (res.output.trim()) entries.push({ kind: 'output', text: res.output.trimEnd() });
+        if (res.error) entries.push({ kind: 'error', text: explainPythonError(res.error) });
+        log(entries);
+        const printed = [run.output.trim(), res.output.trim()].filter(Boolean).join('\n');
+        const notes = [
+          ...(res.error ? [{ text: explainPythonError(res.error), warn: true }] : []),
+          ...(printed ? [{ text: `Вывод print: ${printed}`, warn: false }] : []),
+          ...(res.chunks > 1 ? [{ text: STREAM_NOTE, warn: false }] : []),
+        ];
         return [{ kind: 'request', request, response: { status: res.status, headers: res.headers, body: res.body, timeMs: Math.max(1, Math.round(res.ms)) }, notes }];
       } catch (e) {
         return [{ kind: 'request', request, response: null, error: (e as Error).message }];
@@ -92,9 +158,24 @@ export interface ApiSandboxState {
   cors: { config: CorsConfig; call: FrontendCall } | null;
   graphql: GraphqlSandbox | null;
   proto: ProtoSandbox | null;
-  /** FastAPI tasks: the learner's main.py. */
-  python: { source: string } | null;
+  /** FastAPI tasks: the learner's project (one main.py unless the task brings a tree). */
+  python: PythonProject | null;
+  /** Replaces the text of the active file. */
   setPythonSource: (source: string) => void;
+  openPythonFile: (path: string) => void;
+  closePythonTab: (path: string) => void;
+  /** File operations answer with an error message in Russian, or null when done. */
+  createPythonFile: (path: string) => string | null;
+  renamePythonFile: (from: string, to: string) => string | null;
+  deletePythonFile: (path: string) => string | null;
+  /** The app log (newest last, capped) and the documentation read from /openapi.json. */
+  pythonLog: PythonLogEntry[];
+  clearPythonLog: () => void;
+  docs: PythonDocs;
+  loadDocs: () => Promise<void>;
+  /** The last pytest run of the project. */
+  tests: PythonTests;
+  runTests: () => Promise<void>;
   setDraft: (patch: Partial<ApiRequest>) => void;
   /** Replaces the draft with a request written as text; returns the error message for bad text. */
   setDraftText: (text: string) => string | null;
@@ -118,7 +199,7 @@ export interface ApiSandboxState {
       cors?: { config: CorsConfig; call: FrontendCall } | null;
       graphql?: Omit<GraphqlSandbox, 'variables'> & { variables: Record<string, unknown> };
       proto?: { source: string; collections: Collections };
-      python?: { source: string };
+      python?: PythonStart;
     },
   ) => void;
 }
@@ -126,6 +207,7 @@ export interface ApiSandboxState {
 export type ApiSandboxStore = UseBoundStore<StoreApi<ApiSandboxState>>;
 
 let nextId = 1;
+const NO_DOCS: PythonDocs = { spec: null, loading: false, error: null, stale: false };
 const EMPTY: ApiRequest = { method: 'GET', url: '/', headers: [], body: '' };
 
 /** JSON object typed by the learner (variables, a message); empty text is an empty object. */
@@ -159,6 +241,14 @@ export function createApiSandboxStore(): ApiSandboxStore {
       const started = generation;
       return () => started === generation;
     };
+    // A file operation: the project it produced replaces the old one, the docs are out of date.
+    const changeProject = (outcome: ReturnType<typeof createFile>): string | null => {
+      const python = get().python;
+      if (!python) return 'Проект не запущен';
+      if (!outcome.ok) return outcome.error;
+      set({ python: { ...python, ...outcome.value }, docs: { ...get().docs, stale: true } });
+      return null;
+    };
     const record = (produced: Omit<Exchange, 'id'>[]) => {
       const group = nextId;
       const withIds = produced.map((e) => ({ ...e, id: nextId++, group }));
@@ -177,7 +267,53 @@ export function createApiSandboxStore(): ApiSandboxStore {
       proto: null,
       python: null,
       setPythonSource: (source) => {
-        if (get().python) set({ python: { source } });
+        const python = get().python;
+        if (!python) return;
+        set({ python: { ...python, files: { ...python.files, [python.active]: source } }, docs: { ...get().docs, stale: true } });
+      },
+      openPythonFile: (path) => {
+        const python = get().python;
+        if (python) set({ python: { ...python, ...openFile(python, path) } });
+      },
+      closePythonTab: (path) => {
+        const python = get().python;
+        if (python) set({ python: { ...python, ...closeTab(python, path) } });
+      },
+      createPythonFile: (path) => changeProject(createFile(get().python as PythonProject, path)),
+      renamePythonFile: (from, to) => changeProject(renameFile(get().python as PythonProject, from, to)),
+      deletePythonFile: (path) => changeProject(deleteFile(get().python as PythonProject, path)),
+      pythonLog: [],
+      clearPythonLog: () => set({ pythonLog: [] }),
+      docs: NO_DOCS,
+      tests: NO_TESTS,
+      runTests: async () => {
+        const python = get().python;
+        if (!python || get().tests.running) return;
+        const alive = current();
+        set({ tests: { running: true, run: null, error: null } });
+        let tests: PythonTests;
+        try {
+          tests = { running: false, run: await pythonClient().test({ files: python.files, entry: python.entry }, { groups: python.groups }), error: null };
+        } catch (e) {
+          tests = { running: false, run: null, error: e instanceof Error ? e.message : String(e) };
+        }
+        if (alive()) set({ tests });
+      },
+      loadDocs: async () => {
+        const python = get().python;
+        if (!python || get().docs.loading) return;
+        const alive = current();
+        set({ docs: { ...get().docs, loading: true, error: null } });
+        let docs: PythonDocs;
+        try {
+          const run = await pythonClient().run({ files: python.files, entry: python.entry }, [{ method: 'GET', url: '/openapi.json', headers: [], body: '' }], { keep: true, groups: python.groups });
+          if (!run.load.ok) docs = { spec: null, loading: false, error: explainPythonError(run.load.error), stale: false };
+          else if (run.responses[0].status !== 200) docs = { spec: null, loading: false, error: `Приложение ответило на /openapi.json кодом ${run.responses[0].status}`, stale: false };
+          else docs = { spec: readSpec(JSON.parse(run.responses[0].body)), loading: false, error: null, stale: false };
+        } catch (e) {
+          docs = { spec: null, loading: false, error: e instanceof Error ? e.message : String(e), stale: false };
+        }
+        if (alive()) set({ docs: { ...docs, stale: get().python?.files !== python.files } });
       },
       setDraft: (patch) => set({ draft: { ...get().draft, ...patch } }),
       setDraftText: (text) => {
@@ -308,7 +444,7 @@ export function createApiSandboxStore(): ApiSandboxStore {
       reset: (starter, options = {}) => {
         const server = options.server ?? null;
         const graphql = options.graphql;
-        const python = options.python ?? null;
+        const python: PythonProject | null = options.python ? { ...options.python, active: options.python.entry, open: [options.python.entry] } : null;
         generation++;
         set({
           sending: false,
@@ -316,9 +452,20 @@ export function createApiSandboxStore(): ApiSandboxStore {
           exchanges: [],
           selected: null,
           server,
-          engine: python ? pythonEngine(() => get().python?.source ?? '') : server ? serverEngine(server) : noServer,
+          engine: python
+            ? pythonEngine(
+                () => {
+                  const now = get().python;
+                  return { project: { files: now?.files ?? {}, entry: now?.entry }, groups: now?.groups ?? [] };
+                },
+                (entries) => set({ pythonLog: [...get().pythonLog, ...entries.map((e) => ({ ...e, id: nextId++ }))].slice(-PYTHON_LOG_LIMIT) }),
+              )
+            : server ? serverEngine(server) : noServer,
           baseUrl: python ? PYTHON_BASE_URL : (server?.def.baseUrl ?? ''),
           python,
+          pythonLog: [],
+          docs: NO_DOCS,
+          tests: NO_TESTS,
           cors: options.cors ?? null,
           graphql: graphql ? { ...graphql, variables: Object.keys(graphql.variables).length ? JSON.stringify(graphql.variables, null, 2) : '' } : null,
           proto: options.proto ? { ...options.proto, summary: null, error: null, encoded: null } : null,

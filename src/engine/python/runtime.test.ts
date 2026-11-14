@@ -53,7 +53,8 @@ describe('FastAPI in Pyodide', () => {
     expect(JSON.parse(out.responses[0].body)).toEqual({ id: 1, title: 'Купить хлеб', done: false });
     expect(JSON.parse(out.responses[1].body)).toEqual({ detail: 'Задача не найдена' });
     expect(JSON.parse(out.responses[2].body).detail[0]).toMatchObject({ type: 'int_parsing', loc: ['path', 'task_id'] });
-    expect(out.output).toBe('создана 2\n');
+    expect(out.output).toBe('');
+    expect(out.responses[3].output).toBe('создана 2\n');
   });
 
   it('keeps the app between sends only when asked and for the same code', async () => {
@@ -66,7 +67,7 @@ describe('FastAPI in Pyodide', () => {
   it('reports errors with the line of main.py', async () => {
     const boom = (await run(APP, [req('GET /boom')])).responses[0];
     expect(boom.status).toBe(500);
-    expect(boom.error).toEqual({ kind: 'request', type: 'ZeroDivisionError', message: 'division by zero', line: 26 });
+    expect(boom.error).toEqual({ kind: 'request', type: 'ZeroDivisionError', message: 'division by zero', line: 26, file: 'main.py', trace: [{ file: 'main.py', line: 26, name: 'boom' }] });
     expect((await run('from fastapi import FastAPI\napp = FastAPI(\n', [])).load).toMatchObject({ ok: false, error: { kind: 'syntax', line: 2 } });
     expect((await run('x = 1', [])).load).toMatchObject({ ok: false, error: { kind: 'load', message: expect.stringMatching(/нет переменной app/) } });
     expect((await run('import js\napp = None', [])).load).toMatchObject({ ok: false, error: { type: 'ImportError', line: 1 } });

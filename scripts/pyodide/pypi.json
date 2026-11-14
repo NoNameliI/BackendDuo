@@ -1,0 +1,30 @@
+[
+  {
+    "name": "python-multipart",
+    "version": "0.0.33",
+    "file": "python_multipart-0.0.33-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/dd/1b/6b1b4164ec734cac911460ab599bfbe46afedd42c5c9627fe4235942c314/python_multipart-0.0.33-py3-none-any.whl",
+    "sha256": "8f16c07b36add9da6b2ee87d3efcaf0a45a6de9c3d0a5dd94e9ccf7675a7bc45"
+  },
+  {
+    "name": "pyjwt",
+    "version": "2.15.1",
+    "file": "pyjwt-2.15.1-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/50/ca/44de4e75f8aadc457f0634be3b542815078ded46dca30efb960edeecad6e/pyjwt-2.15.1-py3-none-any.whl",
+    "sha256": "42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193"
+  },
+  {
+    "name": "pydantic-settings",
+    "version": "2.16.3",
+    "file": "pydantic_settings-2.16.3-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/4c/26/3e68379ca313b6aa58e11fbd8b28d5c6f1b9f4428d70222ba021a76797ec/pydantic_settings-2.16.3-py3-none-any.whl",
+    "sha256": "d1db16a2d34006323a1b42c0640898da58adfbad7ec30baaa9e2b18aafc08999"
+  },
+  {
+    "name": "python-dotenv",
+    "version": "1.2.4",
+    "file": "python_dotenv-1.2.4-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/60/d1/38f3a3405989a89ac18390803e70c6ad7c7760da4f9b83cbeca0c44a0c72/python_dotenv-1.2.4-py3-none-any.whl",
+    "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc"
+  }
+]

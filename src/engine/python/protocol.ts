@@ -1,10 +1,13 @@
 import type { ApiRequest } from '@/engine/api/http';
 import type { ClientSetup } from './brokerBridge';
+import type { Project } from './runtime';
 
 /** Requests to the Python worker; they travel over a private MessagePort, never the worker's own postMessage. */
 export type PythonRequest =
   | { id: number; op: 'init' }
-  | { id: number; op: 'run'; source: string; requests: ApiRequest[]; keep: boolean }
+  | { id: number; op: 'run'; project: Project; requests: ApiRequest[]; keep: boolean }
+  | { id: number; op: 'test'; project: Project; args: string[] }
+  | { id: number; op: 'packages'; archives: Record<string, Uint8Array> }
   | { id: number; op: 'script'; source: string; files: Record<string, string> }
   | { id: number; op: 'client'; source: string; setup: ClientSetup }
   | { id: number; op: 'forget' };

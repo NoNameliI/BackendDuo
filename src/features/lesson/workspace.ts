@@ -134,11 +134,14 @@ async function runClientProgram(): Promise<void> {
   try {
     run = await pythonClient().client(lab.client.source, setup);
   } catch (e) {
-    run = { ops: [], output: '', stopped: false, ms: 0, error: { kind: 'load', type: 'Error', message: e instanceof Error ? e.message : String(e), line: null } };
+    run = { ops: [], output: '', stopped: false, ms: 0, error: { kind: 'load', type: 'Error', message: e instanceof Error ? e.message : String(e), line: null, file: null, trace: [] } };
   }
   if (lessonBroker.getState().spec !== spec) return; // another task opened meanwhile
   lessonBroker.getState().playClient(run);
 }
+
+/** The entry file of the learner's FastAPI project (checks run on it until tasks bring whole projects). */
+const pythonSourceOf = (python: { files: Record<string, string>; entry: string } | null): string => (python ? (python.files[python.entry] ?? '') : '');
 
 /** Fresh server (with the task's setup requests) and, for CORS tasks, the starting settings. */
 function prepareApi(task: Extract<Task, { httpSolution: string }>): string | null {
@@ -148,7 +151,7 @@ function prepareApi(task: Extract<Task, { httpSolution: string }>): string | nul
     const def = task.server ? courseById(task.courseId).servers[task.server] : undefined;
     const graphql = task.type === 'graphql' ? { query: task.graphqlStarter, variables: task.variables, sdl: def?.graphql ?? '', collections: def?.collections ?? {} } : undefined;
     const proto = task.type === 'proto' ? { source: task.protoStarter, collections: def?.collections ?? {} } : undefined;
-    const python = task.type === 'fastapi' ? { source: task.pythonStarter } : undefined;
+    const python = task.type === 'fastapi' ? { files: { 'main.py': task.pythonStarter }, entry: 'main.py', tree: false, groups: [] } : undefined;
     lessonApi.getState().reset(task.httpStarter, { server: python ? null : server, cors, graphql, proto, python });
     return null;
   } catch (e) {
@@ -425,7 +428,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
           } else if (task.type === 'proto') verdict = await schemaClient().checkProto(task, proto?.source ?? '');
           else if (task.type === 'fastapi') {
             const { checkFastapi } = await import('@/checker/fastapi');
-            verdict = await checkFastapi(task, lessonApi.getState().python?.source ?? '', (source, requests) => pythonClient().run(source, requests));
+            verdict = await checkFastapi(task, pythonSourceOf(lessonApi.getState().python), (source, requests, options) => pythonClient().run(source, requests, options));
           }
           else verdict = checkApiTask(task, servers, { draft, cors: cors?.config ?? null });
         } catch (e) {

@@ -101,15 +101,16 @@ export async function runPythonExample(text: string): Promise<HttpRun[]> {
   }
   try {
     const run = await pythonClient().run(example.source, example.requests);
-    const output = run.output.trim() ? `Вывод print: ${run.output.trim()}` : undefined;
     if (!run.load.ok) return [{ request: { method: 'python', url: 'main.py', headers: [], body: '' }, response: null, error: explainPythonError(run.load.error) }];
     return example.requests.map((request, i) => {
       const res = run.responses[i];
+      // What the app wrote while loading belongs to the first request; every request adds what it printed itself.
+      const printed = [i === 0 ? run.output.trim() : '', res.output.trim()].filter(Boolean).join('\n');
       return {
         request,
         response: { status: res.status, headers: res.headers, body: res.body, timeMs: Math.round(res.ms) },
         ...(res.error ? { error: explainPythonError(res.error) } : {}),
-        ...(i === example.requests.length - 1 && output ? { output } : {}),
+        ...(printed ? { output: `Вывод print: ${printed}` } : {}),
       };
     });
   } catch (e) {

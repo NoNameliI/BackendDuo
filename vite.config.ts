@@ -44,6 +44,6 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'scripts/pack-private.test.ts'],
+    include: ['src/**/*.test.ts', 'scripts/pack-private.test.ts', 'scripts/pyodide/groups.test.ts'],
   },
 });

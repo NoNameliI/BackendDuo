@@ -4,7 +4,9 @@ import { useResolvedTheme } from '@/app/useResolvedTheme';
 import { monaco } from '@/ui/monaco/setup';
 
 interface CodeEditorProps {
-  language: 'graphql' | 'protobuf' | 'python' | 'json';
+  language: 'graphql' | 'protobuf' | 'python' | 'json' | 'plaintext';
+  /** A file path: the editor keeps one model (text, undo history, cursor) per path. */
+  path?: string;
   value: string;
   onChange?: (value: string) => void;
   ariaLabel: string;
@@ -14,12 +16,13 @@ interface CodeEditorProps {
 }
 
 /** Monaco for the API course: GraphQL queries, .proto files, Python, JSON. */
-export default function CodeEditor({ language, value, onChange, ariaLabel, readOnly = false, onRun }: CodeEditorProps) {
+export default function CodeEditor({ language, path, value, onChange, ariaLabel, readOnly = false, onRun }: CodeEditorProps) {
   const theme = useResolvedTheme();
   const runRef = useRef(onRun);
   runRef.current = onRun;
   return (
     <Editor
+      path={path}
       language={language === 'json' ? 'javascript' : language}
       theme={theme === 'dark' ? 'studio-dark' : 'studio-light'}
       value={value}

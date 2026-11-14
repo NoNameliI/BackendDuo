@@ -15,6 +15,18 @@ export async function freshNodePython(): Promise<ReturnType<typeof setupRuntime>
   return setupRuntime(pyodide as unknown as PyodideLike, new Uint8Array(readFileSync(`${dir}/site.tar.gz`)));
 }
 
+/** Archives of lazy package groups (public/pyodide/groups/<name>.tar.gz), keyed by group name. */
+export function nodeGroups(names: string[]): Record<string, Uint8Array> {
+  return Object.fromEntries(names.map((name) => [name, new Uint8Array(readFileSync(`${dir}/groups/${name}.tar.gz`))]));
+}
+
+/** A new interpreter with the given lazy package groups already unpacked (what a worker is after `ensure`). */
+export async function freshNodePythonWith(groups: string[]): Promise<ReturnType<typeof setupRuntime>> {
+  const runtime = await freshNodePython();
+  runtime.addPackages(nodeGroups(groups));
+  return runtime;
+}
+
 export async function nodePython(): Promise<ReturnType<typeof setupRuntime>> {
   shared ??= await freshNodePython();
   return shared;

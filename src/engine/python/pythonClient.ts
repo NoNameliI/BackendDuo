@@ -1,7 +1,7 @@
 import type { ApiRequest } from '@/engine/api/http';
 import { CONNECT, type PythonReply, type PythonRequest } from './protocol';
 import type { ClientSetup } from './brokerBridge';
-import type { AppRun, ClientRun, ScriptRun } from './runtime';
+import { asProject, type AppRun, type ClientRun, type Project, type PytestRun, type ScriptRun } from './runtime';
 
 /** The subset of the Worker API the client relies on (lets tests substitute a fake). */
 export interface PythonWorkerLike {
@@ -35,14 +35,23 @@ export interface PythonClient {
   subscribe(listener: (status: PythonStatus) => void): () => void;
   /** Starts loading Python in the background, if it is not loaded yet. */
   prewarm(): void;
-  run(source: string, requests: ApiRequest[], options?: { keep?: boolean }): Promise<AppRun>;
+  /**
+   * Runs a project (a plain string is main.py) and answers the requests. `groups`: lazy package groups it needs,
+   * loaded first without counting against the run limit. `reference` (the course's own solution): runs in a worker
+   * that has not run learner code, respawning it if needed.
+   */
+  run(project: Project | string, requests: ApiRequest[], options?: { keep?: boolean; reference?: boolean; groups?: string[] }): Promise<AppRun>;
+  /** Runs pytest over the project (limited like a script). `test` taints the worker unless it is a `reference`. */
+  test(project: Project, options?: { reference?: boolean; groups?: string[]; args?: string[] }): Promise<PytestRun>;
+  /** Loads lazy package groups into the current worker (each once per worker; resent after a respawn). */
+  ensure(groups: string[]): Promise<void>;
   /** Runs a standalone script with the given text files in a scratch directory; a stuck script is terminated. */
   script(source: string, files: Record<string, string>): Promise<ScriptRun>;
   /**
    * Runs a broker client program (pika, confluent_kafka) against a fresh simulator; a stuck program is terminated.
    * `reference` (the course's own solution): runs in a worker that has not run learner code, respawning it if needed.
    */
-  client(source: string, setup: ClientSetup, options?: { reference?: boolean }): Promise<ClientRun>;
+  client(source: string, setup: ClientSetup, options?: { reference?: boolean; groups?: string[] }): Promise<ClientRun>;
   /** Drops the app kept between sends (the next send loads main.py afresh). */
   forget(): Promise<void>;
 }
@@ -52,12 +61,28 @@ export interface PythonClient {
  * Code that runs too long (an endless loop) cannot be interrupted inside WebAssembly: the worker is terminated
  * and a fresh one starts loading at once.
  */
-export function createPythonClient(spawn: () => PythonWorkerLike, limits: PythonLimits = { startMs: 90_000, runMs: 8_000, scriptMs: 20_000 }): PythonClient {
+export type GroupFetcher = (group: string) => Promise<Uint8Array>;
+
+/** Package groups are files of the app; the main thread fetches them because the worker has no network after start. */
+const fetchGroupFile: GroupFetcher = async (group) => {
+  const res = await fetch(`/pyodide/groups/${group}.tar.gz`);
+  if (!res.ok) throw new Error(`${group}.tar.gz: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+};
+
+export function createPythonClient(
+  spawn: () => PythonWorkerLike,
+  limits: PythonLimits = { startMs: 90_000, runMs: 8_000, scriptMs: 20_000 },
+  fetchGroup: GroupFetcher = fetchGroupFile,
+): PythonClient {
   let worker: PythonWorkerLike | null = null;
   let port: MessagePort | null = null;
   let ready: Promise<void> | null = null;
   // Learner code ran in the current worker: it may have patched what survives between runs.
   let tainted = false;
+  // Groups unpacked in the current worker, and the bytes fetched so far (kept across respawns).
+  let loaded = new Set<string>();
+  const bytes = new Map<string, Promise<Uint8Array>>();
   let status: PythonStatus = { state: 'idle' };
   let nextId = 1;
   const listeners = new Set<(s: PythonStatus) => void>();
@@ -75,6 +100,7 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
     worker = null;
     ready = null;
     tainted = false;
+    loaded = new Set();
     for (const p of pending.values()) {
       clearTimeout(p.timer);
       p.reject(reason);
@@ -139,6 +165,51 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
     return ready;
   };
 
+  const replace = () =>
+    queueMicrotask(() => {
+      setStatus({ state: 'idle' });
+      start().catch(() => {});
+    });
+
+  const ensure = async (groups: string[]) => {
+    await start();
+    const w = worker;
+    const missing = groups.filter((g) => !loaded.has(g));
+    if (!missing.length) return;
+    const archives: Record<string, Uint8Array> = {};
+    for (const g of missing) {
+      let file = bytes.get(g);
+      if (!file) {
+        file = fetchGroup(g);
+        bytes.set(g, file);
+        file.catch(() => bytes.delete(g));
+      }
+      archives[g] = await file;
+    }
+    // Unpacking is not the learner's code: it has its own limit and never counts against the run limit.
+    await call({ op: 'packages', archives }, limits.startMs, () => {
+      replace();
+      return new PythonTimeoutError('Пакеты урока не загрузились вовремя');
+    });
+    if (worker === w) missing.forEach((g) => loaded.add(g));
+  };
+
+  /** Before a run: a clean worker for references, the worker started, the groups loaded, then the worker is marked used. */
+  const prepare = async (options: { reference?: boolean; groups?: string[] }) => {
+    for (;;) {
+      if (options.reference && tainted) {
+        stop(new Error('Python перезапущен'));
+        setStatus({ state: 'idle' });
+      }
+      await start();
+      if (options.groups?.length) await ensure(options.groups);
+      // Learner code may have been sent to this worker while the awaits above were pending.
+      if (options.reference && tainted) continue;
+      if (!options.reference) tainted = true;
+      return;
+    }
+  };
+
   return {
     status: () => status,
     subscribe(listener) {
@@ -148,44 +219,38 @@ export function createPythonClient(spawn: () => PythonWorkerLike, limits: Python
     prewarm() {
       if (!ready) start().catch(() => {});
     },
-    async run(source, requests, options = {}) {
-      await start();
-      tainted = true;
+    async run(project, requests, options = {}) {
+      await prepare(options);
       const seconds = limits.runMs / 1000;
-      return (await call({ op: 'run', source, requests, keep: Boolean(options.keep) }, limits.runMs, () => {
+      return (await call({ op: 'run', project: asProject(project), requests, keep: Boolean(options.keep) }, limits.runMs, () => {
         // The stuck worker is gone; a fresh one starts loading right away so the next run waits less.
-        queueMicrotask(() => {
-          setStatus({ state: 'idle' });
-          start().catch(() => {});
-        });
+        replace();
         return new PythonTimeoutError(`Код выполнялся дольше ${seconds} с и был остановлен. Проверьте, нет ли бесконечного цикла.`);
       })) as AppRun;
     },
+    async test(project, options = {}) {
+      await prepare(options);
+      const seconds = limits.scriptMs / 1000;
+      return (await call({ op: 'test', project, args: options.args ?? [] }, limits.scriptMs, () => {
+        replace();
+        return new PythonTimeoutError(`Тесты выполнялись дольше ${seconds} с и были остановлены. Проверьте, нет ли бесконечного цикла.`);
+      })) as PytestRun;
+    },
+    ensure,
     async script(source, files) {
       await start();
       tainted = true;
       const seconds = limits.scriptMs / 1000;
       return (await call({ op: 'script', source, files }, limits.scriptMs, () => {
-        queueMicrotask(() => {
-          setStatus({ state: 'idle' });
-          start().catch(() => {});
-        });
+        replace();
         return new PythonTimeoutError(`Скрипт выполнялся дольше ${seconds} с и был остановлен. Проверьте, нет ли бесконечного цикла.`);
       })) as ScriptRun;
     },
     async client(source, setup, options = {}) {
-      if (options.reference && tainted) {
-        stop(new Error('Python перезапущен'));
-        setStatus({ state: 'idle' });
-      }
-      await start();
-      if (!options.reference) tainted = true;
+      await prepare(options);
       const seconds = limits.runMs / 1000;
       return (await call({ op: 'client', source, setup }, limits.runMs, () => {
-        queueMicrotask(() => {
-          setStatus({ state: 'idle' });
-          start().catch(() => {});
-        });
+        replace();
         return new PythonTimeoutError(`Программа работала дольше ${seconds} с и была остановлена. Проверьте, нет ли бесконечного цикла.`);
       })) as ClientRun;
     },
