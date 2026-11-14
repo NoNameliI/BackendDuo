@@ -125,13 +125,15 @@ export function SetView({ course, cfg }: { course: Course; cfg: DrillConfig }) {
           </nav>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {current && view && (
-              <div className="mx-auto max-w-3xl space-y-4 p-5">
+              // One key for the whole number: its viewer and answer field start afresh together. (Sibling keys must be
+              // unique: the viewer and the field once both had key={n}, and React left old viewers in the page.)
+              <div key={current.n} className="mx-auto max-w-3xl space-y-4 p-5">
                 <h2 className="font-mono text-[12px] uppercase tracking-[0.14em] text-faint">
                   {cfg.labels.number} {current.n}
                 </h2>
                 <Markdown source={view.rendered.statement} className="text-[15px]" />
-                {view.files.length > 0 && <DataViewer key={current.n} files={view.files} captions={current.task.labels} />}
-                <AnswerField key={current.n} value={run.answers[current.n] ?? ''} onChange={(text) => setAnswer(current.n, text)} />
+                {view.files.length > 0 && <DataViewer files={view.files} captions={current.task.labels} />}
+                <AnswerField value={run.answers[current.n] ?? ''} onChange={(text) => setAnswer(current.n, text)} />
                 <div className="flex gap-2">
                   <Button variant="outline" disabled={ns.indexOf(current.n) <= 0} onClick={() => step(-1)} shortcut="Alt ←">
                     Назад

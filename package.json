@@ -16,6 +16,7 @@
     "dist": "node scripts/dist.mjs",
     "pack:private": "node scripts/run-pack-private.mjs",
     "audit:visual": "node scripts/audit-visual.mjs",
+    "check:drill-set": "node scripts/drill-set-check.mjs",
     "tauri": "tauri",
     "test:git-parity": "vitest run --config vitest.git-parity.config.ts"
   },

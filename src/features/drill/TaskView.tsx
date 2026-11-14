@@ -68,7 +68,7 @@ export function TaskView({ course, cfg }: { course: Course; cfg: DrillConfig }) 
         </div>
 
         <Markdown source={rendered.statement} className="text-[15px]" />
-        {files.length > 0 && <DataViewer files={files} captions={task.labels} />}
+        {files.length > 0 && <DataViewer key={`data:${p.instance.key}`} files={files} captions={task.labels} />}
 
         <AnswerField value={p.input} onChange={setInput} onCheck={check} disabled={finished} problem={p.problem} verdict={verdict} />
 
