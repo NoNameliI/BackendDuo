@@ -122,6 +122,66 @@
 - Middleware в Starlette: https://starlette.dev/middleware/
 - Глобальные зависимости: https://fastapi.tiangolo.com/tutorial/dependencies/global-dependencies/
 
+## Мир 4. База данных
+
+### Урок «SQLAlchemy и сессия» (`w4/01-sqlalchemy-session.md`)
+
+- Быстрый старт ORM: https://docs.sqlalchemy.org/en/20/orm/quickstart.html
+- Основы работы с сессией: https://docs.sqlalchemy.org/en/20/orm/session_basics.html
+- Движок и строка подключения: https://docs.sqlalchemy.org/en/20/core/engines.html
+- SQLite: база в памяти, `StaticPool`, `check_same_thread`: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html
+- Запросы `select()`: https://docs.sqlalchemy.org/en/20/orm/queryguide/select.html
+- SQL-базы в учебнике FastAPI (там используется SQLModel, в курсе вместо него SQLAlchemy): https://fastapi.tiangolo.com/tutorial/sql-databases/
+- Модель ответа `response_model`: https://fastapi.tiangolo.com/tutorial/response-model/
+
+### Урок «CRUD и транзакции» (`w4/02-crud-transactions.md`)
+
+- `add`, `commit`, `refresh`, `delete`, `rollback`: https://docs.sqlalchemy.org/en/20/orm/session_basics.html
+- `IntegrityError` и состояние сессии после ошибки: https://docs.sqlalchemy.org/en/20/errors.html
+- Обновление через `model_dump(exclude_unset=True)`: https://fastapi.tiangolo.com/tutorial/sql-databases/
+
+### Урок «Связи и проблема N+1» (`w4/03-relations-n-plus-1.md`)
+
+- `relationship`, `back_populates`: https://docs.sqlalchemy.org/en/20/orm/basic_relationships.html
+- Ленивая загрузка, `selectinload`, `joinedload`, `unique()`: https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html
+- Событие `before_cursor_execute`: https://docs.sqlalchemy.org/en/20/core/events.html
+
+### Урок «Пагинация, фильтры и миграции» (`w4/04-pagination-migrations.md`)
+
+- `limit`, `offset`, `order_by`: https://docs.sqlalchemy.org/en/20/orm/queryguide/select.html
+- Alembic: `init`, `revision`, `upgrade`, `downgrade`, `current`, `history`: https://alembic.sqlalchemy.org/en/latest/tutorial.html
+- Что умеет и чего не умеет автогенерация: https://alembic.sqlalchemy.org/en/latest/autogenerate.html
+- Пакетный режим для SQLite: https://alembic.sqlalchemy.org/en/latest/batch.html
+
+## Мир 5. Безопасность
+
+### Урок «Пароли: хеширование и вход» (`w5/01-password-hashing.md`)
+
+- Хеширование паролей, `pwdlib` и Argon2 в учебнике FastAPI: https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/
+- `bcrypt`: `hashpw`, `gensalt(rounds=)`, `checkpw`, предел 72 байта: https://pypi.org/project/bcrypt/
+- `sha256`: https://docs.python.org/3/library/hashlib.html
+
+### Урок «OAuth2 и JWT: вход по токену» (`w5/02-oauth2-jwt.md`)
+
+- Обзор безопасности: https://fastapi.tiangolo.com/tutorial/security/
+- `OAuth2PasswordRequestForm`, `OAuth2PasswordBearer`, `WWW-Authenticate`: https://fastapi.tiangolo.com/tutorial/security/simple-oauth2/
+- Выдача и проверка JWT: https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/
+- `jwt.encode`, `jwt.decode`, `algorithms`, исключения: https://pyjwt.readthedocs.io/en/stable/usage.html
+- Рекомендации по безопасности OAuth 2.0 (RFC 9700, поток «пароль» не рекомендован): https://datatracker.ietf.org/doc/rfc9700/
+
+### Урок «Текущий пользователь, роли и API-ключи» (`w5/03-roles-scopes-api-keys.md`)
+
+- `get_current_user` как зависимость: https://fastapi.tiangolo.com/tutorial/security/get-current-user/
+- Scopes (`Security`, `SecurityScopes`), только как идея: https://fastapi.tiangolo.com/advanced/security/oauth2-scopes/
+- `APIKeyHeader`: https://fastapi.tiangolo.com/reference/security/
+- `hmac.compare_digest`: https://docs.python.org/3/library/hmac.html
+
+### Урок «Безопасные модели и типичные уязвимости» (`w5/04-safe-models-vulns.md`)
+
+- OWASP API Security Top 10 (2023): https://api-security.owasp.org/editions/2023/en/0x11-t10/
+- `response_model`: https://fastapi.tiangolo.com/tutorial/response-model/
+- `ConfigDict(extra="forbid")`: https://docs.pydantic.dev/latest/api/config/
+
 ## Мир 7. Тестирование и качество
 
 ### Урок «Тесты: pytest и TestClient» (`w7/01-pytest-testclient.md`)

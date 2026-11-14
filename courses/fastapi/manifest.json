@@ -103,6 +103,58 @@
       ]
     },
     {
+      "id": "fa-w4",
+      "title": "Работа с базой данных",
+      "summary": "SQLAlchemy 2.0 на SQLite в памяти: сессия как зависимость, CRUD и транзакции, связи и проблема N+1, пагинация, миграции.",
+      "requires": [
+        "fa-w3"
+      ],
+      "lessons": [
+        {
+          "id": "fa-sqlalchemy",
+          "file": "w4/01-sqlalchemy-session.md"
+        },
+        {
+          "id": "fa-crud",
+          "file": "w4/02-crud-transactions.md"
+        },
+        {
+          "id": "fa-relations",
+          "file": "w4/03-relations-n-plus-1.md"
+        },
+        {
+          "id": "fa-pagination-migrations",
+          "file": "w4/04-pagination-migrations.md"
+        }
+      ]
+    },
+    {
+      "id": "fa-w5",
+      "title": "Безопасность",
+      "summary": "Хеширование паролей, OAuth2 и JWT, текущий пользователь, роли и API-ключи, безопасные модели ответа и поиск уязвимостей.",
+      "requires": [
+        "fa-w4"
+      ],
+      "lessons": [
+        {
+          "id": "fa-passwords",
+          "file": "w5/01-password-hashing.md"
+        },
+        {
+          "id": "fa-oauth2-jwt",
+          "file": "w5/02-oauth2-jwt.md"
+        },
+        {
+          "id": "fa-roles-keys",
+          "file": "w5/03-roles-scopes-api-keys.md"
+        },
+        {
+          "id": "fa-secure-models",
+          "file": "w5/04-safe-models-vulns.md"
+        }
+      ]
+    },
+    {
       "id": "fa-w7",
       "title": "Тестирование и качество",
       "summary": "Тесты pytest и TestClient, поиск ошибок по упавшему тесту, документация OpenAPI и проверка кода.",

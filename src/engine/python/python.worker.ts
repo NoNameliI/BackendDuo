@@ -1,5 +1,5 @@
 import { cutOff, noCodeFromStrings } from '../isolate';
-import { CONNECT, type PythonReply, type PythonRequest } from './protocol';
+import { CONNECT, isFatal, type PythonReply, type PythonRequest } from './protocol';
 import { setupRuntime, type PyodideLike, type PythonRuntime } from './runtime';
 
 const scope = self as unknown as {
@@ -73,7 +73,7 @@ function serve(port: MessagePort) {
       reply({ id: data.id, ok: true, value: await run(data.project, data.requests, { keep: data.keep }) });
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
-      reply({ id: data.id, ok: false, error, fatal: /fatal error/i.test(error) });
+      reply({ id: data.id, ok: false, error, fatal: isFatal(e, error) });
     }
   };
 }

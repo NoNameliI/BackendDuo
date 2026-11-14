@@ -41,10 +41,33 @@ _uvicorn = types.ModuleType("uvicorn")
 _uvicorn.run = lambda *args, **kwargs: print("uvicorn.run(...) здесь не нужен: учебная среда запускает приложение сама")
 sys.modules.setdefault("uvicorn", _uvicorn)
 
+# Deep recursion must end in RecursionError, not in a blown JS stack: learner code cannot raise the limit past this.
+_MAX_RECURSION = 2000
+_real_setrecursionlimit = sys.setrecursionlimit
+
+
+def _capped_setrecursionlimit(limit):
+    return _real_setrecursionlimit(min(int(limit), _MAX_RECURSION))
+
+
+sys.setrecursionlimit = _capped_setrecursionlimit
+if sys.getrecursionlimit() > _MAX_RECURSION:
+    _real_setrecursionlimit(_MAX_RECURSION)
+
+_ENV_SNAPSHOT = dict(os.environ)
+
+
+def _restore_environ():
+    """Environment variables a learner run set (or removed) never reach the next run."""
+    os.environ.clear()
+    os.environ.update(_ENV_SNAPSHOT)
+
+
 ROOT = "/project"
 _PREFIX = ROOT + "/"
 _RUN_LIMIT = 4000
 _OUTPUT_LIMIT = 20000
+_BODY_LIMIT = 1024 * 1024
 
 # --- import guard -----------------------------------------------------------------------------------------------
 
@@ -267,21 +290,22 @@ def _purge_project_modules():
 
 
 def _apply_project(files):
-    """Writes the files to /project when they differ from the last write, and drops the modules imported from there."""
+    """Rewrites /project from the files (a file database or stray file of an earlier run never survives) and drops
+    the modules imported from there; the environment goes back to its state at start."""
     _check_files(files)
-    if files != _written["files"]:
-        _written["files"] = None
-        shutil.rmtree(ROOT, ignore_errors=True)
-        os.makedirs(ROOT, exist_ok=True)
-        for name, text in files.items():
-            path = f"{ROOT}/{name}"
-            try:
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "wb") as handle:
-                    handle.write(text.encode("utf-8"))
-            except OSError:
-                raise LoadError(f"Файл «{name}» конфликтует с другим именем: имя не может быть и файлом, и папкой") from None
-        _written["files"] = dict(files)
+    _restore_environ()
+    _written["files"] = None
+    shutil.rmtree(ROOT, ignore_errors=True)
+    os.makedirs(ROOT, exist_ok=True)
+    for name, text in files.items():
+        path = f"{ROOT}/{name}"
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as handle:
+                handle.write(text.encode("utf-8"))
+        except OSError:
+            raise LoadError(f"Файл «{name}» конфликтует с другим именем: имя не может быть и файлом, и папкой") from None
+    _written["files"] = dict(files)
     os.makedirs(ROOT, exist_ok=True)
     _purge_project_modules()
     if sys.path[:1] != [ROOT]:
@@ -425,13 +449,17 @@ class _Session:
             # Deadlock (the app waits for an event that cannot come) or a stop the app asked for: this app is done.
             self.broken = True
             out, error = {"status": None, "headers": [], "body": [], "chunks": 0}, _error(exc, "request")
+        raw = b"".join(out["body"])
+        cut = len(raw) > _BODY_LIMIT
         result = {
             "status": out["status"] or 500,
             "headers": out["headers"],
-            "body": b"".join(out["body"]).decode("utf-8", "replace"),
+            "body": raw[:_BODY_LIMIT].decode("utf-8", "ignore" if cut else "replace"),
             "chunks": out["chunks"],
             "ms": round((time.perf_counter() - started) * 1000, 1),
         }
+        if cut:
+            result["cut"] = True
         if error:
             result["error"] = error
         return result
@@ -470,6 +498,49 @@ def _end_kept():
         session.close()
 
 
+_SAVE_HEADER = "x-studio-save"
+
+
+def _with_saved(request, saved):
+    """Hidden test requests may reuse fields of earlier answers of the same run: `{{name}}` is replaced by a saved
+    value, and the checker's `x-studio-save: name=field` header (never sent to the app) says what to save from this one."""
+
+    def fill(text):
+        from urllib.parse import quote
+
+        for name, value in saved.items():
+            text = text.replace("{{" + name + "}}", value).replace("%7B%7B" + name + "%7D%7D", quote(value, safe=""))
+        return text
+
+    saves = []
+    headers = []
+    for name, value in request["headers"]:
+        if name.lower() == _SAVE_HEADER:
+            for spec in value.split(","):
+                key, _, field = spec.partition("=")
+                if key.strip() and field.strip():
+                    saves.append((key.strip(), field.strip()))
+        else:
+            headers.append([name, fill(value)])
+    if not saved and not saves:
+        return request, saves
+    filled = dict(request, headers=headers, path=fill(request["path"]), query=fill(request["query"]), body=fill(request["body"]))
+    return filled, saves
+
+
+def _save_fields(response, saves, saved):
+    if not saves:
+        return
+    try:
+        data = json.loads(response.get("body") or "null")
+    except ValueError:
+        data = None
+    for name, field in saves:
+        if isinstance(data, dict) and field in data and data[field] is not None:
+            value = data[field]
+            saved[name] = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+
+
 def run(project_json, requests_json, keep=False):
     """Loads the project (or reuses the kept app for the same files) and answers the requests in order."""
     project = json.loads(project_json)
@@ -495,10 +566,15 @@ def run(project_json, requests_json, keep=False):
         except BaseException as exc:
             result["load"] = {"ok": False, "error": _error(exc, "load")}
         if session is not None:
+            saved = {}
             for request in requests:
+                request, saves = _with_saved(request, saved)
                 with _Capture() as each:
                     response = session.request(request)
+                _save_fields(response, saves, saved)
                 response["output"] = each.text()
+                if response.pop("cut", False):
+                    response["output"] = (response["output"] + "\n" if response["output"] else "") + "Тело ответа обрезано: показан первый 1 МБ."
                 result["responses"].append(response)
             if not keep:
                 session.close()
@@ -631,6 +707,7 @@ def script(source, files_json):
     global _scratch_count
 
     files = json.loads(files_json)
+    _restore_environ()
     _scratch_count += 1
     root = f"/scratch/{_scratch_count}"
     previous = os.getcwd()
@@ -697,6 +774,7 @@ def client(source):
     time.sleep moves the simulator's virtual clock instead of waiting. A stop at the sandbox horizon is reported
     as `stopped`, not as an error. The shims are imported afresh by every run.
     """
+    _restore_environ()
     output = io.StringIO()
     error = None
     stopped = False

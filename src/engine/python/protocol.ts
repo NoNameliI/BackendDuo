@@ -16,5 +16,11 @@ export type PythonRequest =
 /** `fatal`: Pyodide itself broke (for example, the WebAssembly stack overflowed) and the worker must be replaced. */
 export type PythonReply = { id: number; ok: true; value: unknown } | { id: number; ok: false; error: string; fatal?: boolean };
 
+/** A Pyodide fatal error, a blown JS stack or a runtime whose own calls stopped working: the worker is no use any more. */
+export function isFatal(e: unknown, message: string): boolean {
+  if (typeof e === 'object' && e !== null && 'pyodide_fatal_error' in e) return true;
+  return /fatal|can no longer be used|already fatally failed|Maximum call stack|is not a function/i.test(message);
+}
+
 /** The first and only message on the worker's own channel: it carries the port for everything else. */
 export const CONNECT = 'connect';

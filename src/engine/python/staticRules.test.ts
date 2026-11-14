@@ -160,6 +160,19 @@ describe('static rules', () => {
     expect(check({ ...app, 'tests/t.py': 'import time\n' }, [rule])).toHaveLength(1);
   });
 
+  it('tests-api-only: refuses attribute chains, dunders, getattr and MonkeyPatch', () => {
+    const rule: StaticRule = { rule: 'tests-api-only' };
+    const app = { 'main.py': 'app = 1\n' };
+    const bad = (body: string) => check({ ...app, 'tests/t.py': `import typing\nimport pytest\n\ndef test_x(fn):\n    ${body}\n` }, [rule]);
+    expect(bad('typing.sys.modules["builtins"].open("routers/items.py").read()').length).toBeGreaterThan(0);
+    expect(bad('getattr(fn, "__co" + "de__")').length).toBeGreaterThan(0);
+    expect(bad('pytest.MonkeyPatch()').length).toBeGreaterThan(0);
+    expect(bad('fn.__globals__')).toHaveLength(1);
+    expect(bad('fn.__class__.__mro__').length).toBeGreaterThan(0);
+    expect(bad('setattr(fn, "x", 1)').length).toBeGreaterThan(0);
+    expect(bad('monkeypatch.setattr("main.x", 1)\n    monkeypatch.setenv("A", "b")')).toEqual([]);
+  });
+
   it('never executes the project', () => {
     const files = { 'main.py': 'raise SystemExit(1)\nopen("/should-not-exist", "w")\n' };
     expect(check(files, [{ rule: 'uses', name: 'SystemExit' }])).toEqual([]);

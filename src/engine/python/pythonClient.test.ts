@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PythonReply, PythonRequest } from './protocol';
+import { isFatal, type PythonReply, type PythonRequest } from './protocol';
 import { createPythonClient, PythonTimeoutError, type PythonStatus, type PythonWorkerLike } from './pythonClient';
 
 /**
@@ -54,6 +54,34 @@ describe('python client', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(log).toEqual(['init', 'run', 'terminate', 'init']);
     expect(client.status().state).toBe('ready');
+  });
+
+  it('marks real Pyodide failures as fatal and ordinary errors as not', () => {
+    expect(isFatal(Object.assign(new Error('x'), { pyodide_fatal_error: true }), 'x')).toBe(true);
+    expect(isFatal(new RangeError('Maximum call stack size exceeded'), 'Maximum call stack size exceeded')).toBe(true);
+    expect(isFatal(null, 'Pyodide already fatally failed and can no longer be used.')).toBe(true);
+    expect(isFatal(null, 'runtime.run is not a function')).toBe(true);
+    expect(isFatal(null, 'Python ещё не запущен')).toBe(false);
+  });
+
+  it('respawns when the worker answers with a fatal-like error', async () => {
+    const log: string[] = [];
+    const worker = (): PythonWorkerLike => ({
+      onerror: null,
+      terminate: () => log.push('terminate'),
+      postMessage(_message, [port]) {
+        const p = port as MessagePort;
+        p.onmessage = ({ data: msg }: MessageEvent<PythonRequest>) => {
+          log.push(msg.op);
+          const error = 'Maximum call stack size exceeded';
+          p.postMessage((msg.op === 'run' ? { id: msg.id, ok: false, error, fatal: isFatal(new RangeError(error), error) } : { id: msg.id, ok: true, value: { loadMs: 1 } }) satisfies PythonReply);
+        };
+      },
+    });
+    const client = createPythonClient(worker);
+    await expect(client.run('x', [])).rejects.toThrow(/call stack/);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(log).toEqual(['init', 'run', 'terminate', 'init']);
   });
 });
 

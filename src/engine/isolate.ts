@@ -16,6 +16,12 @@ const OUTSIDE = [
   'navigator',
   'FontFace',
   'fonts',
+  // the sandboxed file system of Chromium workers, and desktop notifications
+  'webkitRequestFileSystem',
+  'webkitRequestFileSystemSync',
+  'webkitResolveLocalFileSystemURL',
+  'webkitResolveLocalFileSystemSyncURL',
+  'Notification',
 ];
 
 /**

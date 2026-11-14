@@ -75,11 +75,94 @@ const verdict = (problems: string[]): CheckResult => ({ passed: problems.length 
 /** The test requests of a task; a malformed one is a content bug. */
 export function testRequests(task: FastapiTask): ApiRequest[] {
   try {
-    return splitRequests(task.httpTests).map(parseRequest);
+    const marks = testMarks(task.httpTests);
+    return splitRequests(task.httpTests).map((text, i) => {
+      const req = parseRequest(text);
+      const save = marks[i]?.save ?? [];
+      // The runtime reads (and never forwards) this header; see _with_saved in studio_runtime.py.
+      return save.length ? { ...req, headers: [...req.headers, { name: 'x-studio-save', value: save.map(([n, f]) => `${n}=${f}`).join(',') }] } : req;
+    });
   } catch (e) {
     throw new SolutionError(`${task.id}: тестовый запрос не читается: ${(e as Error).message}`);
   }
 }
+
+/**
+ * What the body comparison skips for each test request, from the `###` line before it: `### ignore` skips the whole
+ * body, `### ignore: access_token, expires` drops those top-level keys (values that differ between runs, like tokens).
+ */
+export function ignoredFields(text: string): ('*' | string[] | null)[] {
+  return testMarks(text).map((m) => m.ignore);
+}
+
+export interface TestMark {
+  ignore: '*' | string[] | null;
+  /** `save token = access_token`: the field of this answer is kept as {{token}} for the later requests of the run. */
+  save: [name: string, field: string][];
+}
+
+/** Marks on the `###` line before each test request; parts are separated by `;`. */
+export function testMarks(text: string): TestMark[] {
+  const marks: TestMark[] = [];
+  let mark: TestMark = { ignore: null, save: [] };
+  let body = false;
+  for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
+    const sep = /^###(.*)$/.exec(line);
+    if (sep) {
+      if (body) marks.push(mark);
+      body = false;
+      mark = { ignore: null, save: [] };
+      for (const part of sep[1].split(';')) {
+        const ignore = /^\s*ignore\s*(?::\s*(.*))?$/.exec(part);
+        if (ignore) mark.ignore = ignore[1] ? ignore[1].split(',').map((k) => k.trim()).filter(Boolean) : '*';
+        const save = /^\s*save\s+(\w+)\s*=\s*(\w+)\s*$/.exec(part);
+        if (save) mark.save.push([save[1], save[2]]);
+      }
+    } else if (line.trim()) body = true;
+  }
+  if (body) marks.push(mark);
+  return marks;
+}
+
+/** Drops `#` comments (outside string literals) from Python source, so a code rule is not satisfied by a comment. */
+export function stripPythonComments(source: string): string {
+  let out = '';
+  let quote: string | null = null;
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    if (quote) {
+      if (c === '\\') {
+        out += c + (source[i + 1] ?? '');
+        i++;
+        continue;
+      }
+      if (source.startsWith(quote, i)) {
+        out += quote;
+        i += quote.length - 1;
+        quote = null;
+        continue;
+      }
+      out += c;
+    } else if (c === '#') {
+      while (i + 1 < source.length && source[i + 1] !== '\n') i++;
+    } else if (c === '"' || c === "'") {
+      quote = source.startsWith(c.repeat(3), i) ? c.repeat(3) : c;
+      out += quote;
+      i += quote.length - 1;
+    } else out += c;
+  }
+  return out;
+}
+
+/** The app's own code for `check.code` rules: files outside tests/, comments removed. */
+export const appCode = (files: Record<string, string>) =>
+  Object.entries(files)
+    .filter(([path]) => !path.startsWith('tests/'))
+    .map(([, text]) => stripPythonComments(text))
+    .join('\n');
+
+const dropKeys = (value: unknown, keys: string[]) =>
+  value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter(([k]) => !keys.includes(k))) : value;
 
 const label = (req: ApiRequest) => {
   const { path, query } = splitUrl(req.url);
@@ -92,7 +175,7 @@ const short = (v: unknown) => {
 };
 
 /** Why the learner's answer differs, in a sentence or two. */
-function difference(req: ApiRequest, want: PyResponse, got: PyResponse, task: FastapiTask): string | null {
+function difference(req: ApiRequest, want: PyResponse, got: PyResponse, task: FastapiTask, ignore: '*' | string[] | null = null): string | null {
   const at = `Запрос ${label(req)}`;
   if (got.error) return `${at}: ${explainPythonError(got.error)}`;
   if (want.status !== got.status) {
@@ -113,8 +196,13 @@ function difference(req: ApiRequest, want: PyResponse, got: PyResponse, task: Fa
     if (w.join() !== g.join()) return `${at}: проверка отклонила ${g.length ? g.map((x) => `«${x}»`).join(', ') : 'не те данные'}, а должна отклонить ${w.map((x) => `«${x}»`).join(', ')}`;
     return null;
   }
-  if (task.check.body === 'json' && !sameJson(json(want.body), json(got.body))) {
-    return `${at}: ответ ${short(json(got.body))}, а ожидается ${short(json(want.body))}`;
+  if (task.check.body === 'json' && ignore !== '*') {
+    const [w, g] = [json(want.body), json(got.body)].map((v) => (ignore ? dropKeys(v, ignore) : v));
+    if (ignore && g && typeof g === 'object' && !Array.isArray(g)) {
+      const missing = ignore.find((k) => !(k in (json(got.body) as object)));
+      if (missing) return `${at}: в ответе нет поля «${missing}»`;
+    }
+    if (!sameJson(w, g)) return `${at}: ответ ${short(g)}, а ожидается ${short(w)}`;
   }
   const [header] = differentHeaders(task.check.headers, want.headers, got.headers);
   if (header) return `${at}: заголовок ${header.name} ${header.got === undefined ? 'не передан' : `«${header.got}»`}, а ожидается «${header.want}»`;
@@ -151,7 +239,7 @@ export async function checkFastapi(task: FastapiTask, input: Project | string, r
   const learner = learnerProject(task, input);
   const entry = learner.entry ?? 'main.py';
   const problems: string[] = [];
-  const code = Object.entries(learner.files).filter(([path]) => !path.startsWith('tests/')).map(([, text]) => text).join('\n');
+  const code = appCode(learner.files);
   for (const rule of task.check.code) {
     const found = new RegExp(rule.pattern, 'm').test(code);
     if (found === rule.forbid) problems.push(rule.message);
@@ -164,8 +252,9 @@ export async function checkFastapi(task: FastapiTask, input: Project | string, r
   if (!learner.files[entry]?.trim()) return verdict([`${entry} пуст: напишите приложение FastAPI`]);
   const got = await run(learner, requests, { groups });
   if (!got.load.ok) return verdict([explainPythonError(got.load.error)]);
+  const ignore = ignoredFields(task.httpTests);
   requests.forEach((req, i) => {
-    const diff = difference(req, want.responses[i], got.responses[i], task);
+    const diff = difference(req, want.responses[i], got.responses[i], task, ignore[i] ?? null);
     if (diff && problems.length < 3) problems.push(diff);
   });
   return verdict(problems);

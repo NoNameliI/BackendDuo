@@ -13,7 +13,15 @@ import tokenize
 _OFFLOAD = {"to_thread", "run_in_executor", "run_in_threadpool", "run_sync"}
 _TEST_IMPORTS = ["pytest", "fastapi", "httpx", "starlette.testclient", "json", "typing", "datetime", "decimal", "uuid", "re", "enum", "dataclasses"]
 _TEST_NAMES = {"open", "exec", "eval", "compile", "__import__", "globals", "vars", "__builtins__", "builtins", "inspect", "sys", "os", "importlib", "__file__", "__code__"}
-_ROUTE_METHODS = {"get", "post", "put", "delete", "patch", "options", "head", "trace", "api_route", "route", "websocket"}
+_TEST_NAMES |= {"getattr", "setattr", "delattr", "dir", "locals", "MonkeyPatch", "__loader__", "__spec__"}
+_TEST_ATTRS = {"sys", "os", "builtins", "modules", "open", "path", "MonkeyPatch", "inspect", "importlib"}
+
+
+def _is_dunder(name):
+    return len(name) > 4 and name.startswith("__") and name.endswith("__")
+
+
+_ROUTE_METHODS ={"get", "post", "put", "delete", "patch", "options", "head", "trace", "api_route", "route", "websocket"}
 _DEFAULT_BLOCKING = [
     "time.sleep",
     "requests.*",
@@ -491,11 +499,8 @@ def _rule_tests_api_only(project, rule):
                 out.append("%s:%s: в тестах нельзя импортировать «%s»; используйте TestClient и публичный API приложения." % (path, node.lineno, m))
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in _TEST_NAMES:
                 out.append("%s:%s: в тестах нельзя использовать «%s»." % (path, node.lineno, node.id))
-            elif isinstance(node, ast.Attribute) and node.attr in ("__builtins__", "__code__", "__globals__", "__import__"):
+            elif isinstance(node, ast.Attribute) and (_is_dunder(node.attr) or node.attr in _TEST_ATTRS):
                 out.append("%s:%s: в тестах нельзя обращаться к «%s»." % (path, node.lineno, node.attr))
-            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("getattr", "setattr", "delattr"):
-                if node.args and isinstance(node.args[0], ast.Name) and node.args[0].id in imported:
-                    out.append("%s:%s: в тестах нельзя менять и читать модули через %s." % (path, node.lineno, node.func.id))
     out = list(dict.fromkeys(out))
     return [_msg(rule, out[0])] if rule.get("message") and out else out
 

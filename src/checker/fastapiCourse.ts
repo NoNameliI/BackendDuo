@@ -2,7 +2,7 @@ import type { PythonTask } from '@/content/loadCourse';
 import type { ApiRequest } from '@/engine/api/http';
 import { explainPythonError, explainPytest } from '@/engine/python/explain';
 import type { AnalyzeResult, AppRun, Project, ProjectFiles, PytestCase, PytestRun, StaticRule } from '@/engine/python/runtime';
-import { checkFastapi, learnerProject, pythonGroups, shadowProblems, solutionProject, type FastapiTask } from './fastapi';
+import { appCode, checkFastapi, learnerProject, pythonGroups, shadowProblems, solutionProject, type FastapiTask } from './fastapi';
 import { SolutionError, type CheckResult } from './index';
 import { compareOpenapi, routeSet } from './openapiCompare';
 
@@ -122,7 +122,7 @@ export async function checkPythonTask(task: PythonTask, input: Project | string,
   const groups = pythonGroups(task);
   switch (task.type) {
     case 'static': {
-      const code = Object.entries(learner.files).filter(([path]) => !underTests(path)).map(([, text]) => text).join('\n');
+      const code = appCode(learner.files);
       const problems = task.check.code.flatMap((r) => (new RegExp(r.pattern, 'm').test(code) === r.forbid ? [r.message] : []));
       return verdict(problems);
     }
