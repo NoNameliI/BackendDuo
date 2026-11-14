@@ -9,7 +9,7 @@ import { DataViewer } from './DataViewer';
 import { canShowSolution, taskFor, useDrill } from './drillStore';
 import { Explanation } from './Explanation';
 import { HintLadder } from './HintLadder';
-import { exportsOf, renderInstance } from './instanceView';
+import { exportsOf, renderInstance, scratchFilesOf } from './instanceView';
 import { LevelSwitch } from './Level';
 import { ScratchPanel } from './ScratchPanel';
 
@@ -19,6 +19,7 @@ export function TaskView({ course, cfg }: { course: Course; cfg: DrillConfig }) 
   const task = p?.instance ? taskFor(course, p.n, p.level, p.instance.seed) : null;
   const rendered = useMemo(() => (p?.instance && task ? renderInstance(task, p.instance) : null), [p?.instance, task]);
   const files = useMemo(() => (p?.instance && task ? exportsOf(p.instance, task) : []), [p?.instance, task]);
+  const scratch = useMemo(() => (p?.instance && task ? scratchFilesOf(p.instance, task) : []), [p?.instance, task]);
 
   const explanationRef = useRef<HTMLParagraphElement>(null);
   const finishedNow = !!p && (p.solved || p.solutionShown);
@@ -89,7 +90,7 @@ export function TaskView({ course, cfg }: { course: Course; cfg: DrillConfig }) 
 
         {finished && <Explanation headingRef={explanationRef} text={rendered.explanation} answer={p.instance.answer} shown={p.solutionShown} />}
 
-        <ScratchPanel key={p.instance.key} starter={rendered.starter} files={files} />
+        <ScratchPanel key={p.instance.key} starter={rendered.starter} files={scratch} />
       </div>
     </div>
   );

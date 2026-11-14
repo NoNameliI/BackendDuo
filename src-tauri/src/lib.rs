@@ -20,9 +20,9 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// Names allowed for exported files: `^[A-Za-z0-9_.-]{1,64}\.(csv|txt)$`, never a path.
+/// Names allowed for exported files: `^[A-Za-z0-9_.-]{1,64}\.<ext>$` with `ext` from `allowed`, never a path.
 /// Windows device names (CON, NUL, COM1, ...) are refused as well.
-fn valid_export_name(name: &str) -> Option<(&str, &str)> {
+fn valid_export_name<'a>(name: &'a str, allowed: &[&str]) -> Option<(&'a str, &'a str)> {
     if name.is_empty() || name.len() > 64 {
         return None;
     }
@@ -31,7 +31,7 @@ fn valid_export_name(name: &str) -> Option<(&str, &str)> {
     }
     let (stem, ext) = name.rsplit_once('.')?;
     // The pattern needs at least one character before the extension (and a dot never leads a name).
-    if stem.is_empty() || stem.starts_with('.') || !matches!(ext, "csv" | "txt") {
+    if stem.is_empty() || stem.starts_with('.') || !allowed.contains(&ext) {
         return None;
     }
     let device = stem.split('.').next().unwrap_or("").to_ascii_uppercase();
@@ -42,18 +42,28 @@ fn valid_export_name(name: &str) -> Option<(&str, &str)> {
     Some((stem, ext))
 }
 
-/// Saves a text export into the Downloads folder under a validated name and returns the full path.
+/// Saves a text export (csv, txt) into the Downloads folder under a validated name and returns the full path.
 /// An existing file is never overwritten: `-1`, `-2`, ... is appended to the name instead.
 #[tauri::command]
 fn save_export(app: AppHandle, name: String, text: String) -> Result<String, String> {
-    let (stem, ext) = valid_export_name(&name).ok_or("недопустимое имя файла")?;
+    write_export(&app, &name, &["csv", "txt"], text.as_bytes())
+}
+
+/// Same for a binary export; only `.xlsx` is accepted.
+#[tauri::command]
+fn save_export_bytes(app: AppHandle, name: String, bytes: Vec<u8>) -> Result<String, String> {
+    write_export(&app, &name, &["xlsx"], &bytes)
+}
+
+fn write_export(app: &AppHandle, name: &str, allowed: &[&str], data: &[u8]) -> Result<String, String> {
+    let (stem, ext) = valid_export_name(name, allowed).ok_or("недопустимое имя файла")?;
     let dir = app.path().download_dir().map_err(|e| e.to_string())?;
     for attempt in 0..1000u32 {
-        let file = if attempt == 0 { name.clone() } else { format!("{stem}-{attempt}.{ext}") };
+        let file = if attempt == 0 { name.to_string() } else { format!("{stem}-{attempt}.{ext}") };
         let path: PathBuf = dir.join(file);
         match OpenOptions::new().write(true).create_new(true).open(&path) {
             Ok(mut handle) => {
-                handle.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+                handle.write_all(data).map_err(|e| e.to_string())?;
                 return Ok(path.to_string_lossy().into_owned());
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -70,7 +80,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
-        .invoke_handler(tauri::generate_handler![save_export])
+        .invoke_handler(tauri::generate_handler![save_export, save_export_bytes])
         .setup(|app| {
             let open = MenuItem::with_id(app, "open", "Открыть студию", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Выйти", true, None::<&str>)?;
@@ -125,12 +135,22 @@ mod tests {
 
     #[test]
     fn export_names_are_strict() {
+        const TEXT: &[&str] = &["csv", "txt"];
         for ok in ["14_1a2b.csv", "14_1a2b_t1.txt", "a-b.c_d.csv"] {
-            assert!(valid_export_name(ok).is_some(), "{ok}");
+            assert!(valid_export_name(ok, TEXT).is_some(), "{ok}");
         }
-        for bad in ["", ".csv", "a.exe", "a.csv.exe", "../a.csv", "a/b.csv", "a\\b.csv", "a b.csv", "CON.txt", "nul.csv", "com1.txt", "ä.csv", ".hidden.csv"] {
-            assert!(valid_export_name(bad).is_none(), "{bad}");
+        for bad in ["", ".csv", "a.exe", "a.csv.exe", "../a.csv", "a/b.csv", "a\\b.csv", "a b.csv", "CON.txt", "nul.csv", "com1.txt", "ä.csv", ".hidden.csv", "3_6c09677e.xlsx"] {
+            assert!(valid_export_name(bad, TEXT).is_none(), "{bad}");
         }
-        assert!(valid_export_name(&format!("{}.csv", "a".repeat(61))).is_none());
+        assert!(valid_export_name(&format!("{}.csv", "a".repeat(61)), TEXT).is_none());
+    }
+
+    #[test]
+    fn workbook_names_allow_only_xlsx() {
+        const BOOK: &[&str] = &["xlsx"];
+        assert_eq!(valid_export_name("3_6c09677e.xlsx", BOOK), Some(("3_6c09677e", "xlsx")));
+        for bad in ["a.csv", "a.txt", "a.xlsx.exe", "a.xls", "../a.xlsx", "NUL.xlsx", ".xlsx", "a b.xlsx"] {
+            assert!(valid_export_name(bad, BOOK).is_none(), "{bad}");
+        }
     }
 }

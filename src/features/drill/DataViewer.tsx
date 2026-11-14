@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
+import { toTsv } from '@/engine/drill/data';
 import type { Cell, DataTable } from '@/engine/drill/types';
-import { saveTextFile } from '@/platform';
+import { saveBinaryFile, saveTextFile } from '@/platform';
 import { Button } from '@/ui/Button';
 import type { ExportFile } from './instanceView';
 
@@ -35,7 +36,7 @@ export function DataViewer({ files, captions }: { files: ExportFile[]; captions:
 
   const save = async () => {
     try {
-      const saved = await saveTextFile(file.name, file.text);
+      const saved = file.book ? await saveBinaryFile(file.name, file.book()) : await saveTextFile(file.name, file.text);
       setNote(saved.path ? `Сохранено: ${saved.path}` : `Файл ${file.name} скачан`);
       setPath(saved.path);
     } catch (e) {
@@ -52,10 +53,10 @@ export function DataViewer({ files, captions }: { files: ExportFile[]; captions:
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
         <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-faint">Данные</p>
         {files.length > 1 && (
-          <div role="group" aria-label="Файл" className="flex gap-1">
+          <div role="group" aria-label={files.every((f) => f.book) ? 'Листы книги' : 'Файл'} className="flex gap-1">
             {files.map((f, i) => (
               <button
-                key={f.name}
+                key={`${i}:${f.label}`}
                 type="button"
                 aria-pressed={i === index}
                 onClick={() => {
@@ -75,12 +76,15 @@ export function DataViewer({ files, captions }: { files: ExportFile[]; captions:
           <Button variant="outline" onClick={() => void save()}>
             Сохранить как {file.ext.toUpperCase()}
           </Button>
-          <Button variant="outline" onClick={() => copy(file.text.replace(/^﻿/, ''), 'Скопировано в буфер обмена')}>
+          <Button
+            variant="outline"
+            onClick={() => copy(file.table ? toTsv(file.table, captions) : file.text, file.table ? `Лист «${file.label}» скопирован: вставьте в Excel` : 'Скопировано в буфер обмена')}
+          >
             Копировать
           </Button>
         </div>
       </header>
-      {file.table ? <TableView key={file.name} table={file.table} captions={captions} /> : <TextView key={file.name} text={file.text} />}
+      {file.table ? <TableView key={`${index}:${file.label}`} table={file.table} captions={captions} /> : <TextView key={`${index}:${file.label}`} text={file.text} />}
       <div role="status" className="flex min-h-[1.75rem] items-center gap-2 border-t border-line px-3 text-[12px] text-dim">
         {note}
         {path && (

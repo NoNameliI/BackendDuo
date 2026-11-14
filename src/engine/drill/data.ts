@@ -17,12 +17,28 @@ export function toCsv(table: DataTable, captions: Readonly<Record<string, string
   return `${BOM}${lines.join('\r\n')}\r\n`;
 }
 
+/** Caption row text of a table as the viewer shows it (a grid shows spreadsheet letters instead, so it has no caption row). */
+export function headerOf(table: DataTable, captions: Readonly<Record<string, string>> = {}): string[] | null {
+  return table.header === false ? null : table.columns.map((c) => captions[`${table.key}.${c}`] ?? c);
+}
+
+const tsvCell = (value: Cell): string => {
+  const text = typeof value === 'number' && !Number.isInteger(value) ? String(value).replace('.', ',') : String(value);
+  return /[\t"\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
+
+/** Tab-separated rows for the clipboard (Excel splits them into cells); decimal comma as in the viewer. */
+export function toTsv(table: DataTable, captions: Readonly<Record<string, string>> = {}): string {
+  const header = headerOf(table, captions);
+  return [...(header ? [header.map(tsvCell)] : []), ...table.rows.map((row) => row.map(tsvCell))].map((row) => row.join('\t')).join('\r\n');
+}
+
 /** UTF-8 without BOM, LF. */
 export function toText(text: string): string {
   return text.replace(new RegExp(`^${BOM}`), '').replace(/\r\n?/g, '\n');
 }
 
-/** `<n>_<seedHex>[_<tableKey>].<ext>` */
-export function fileName(n: number, seed: number, ext: 'csv' | 'txt', tableKey?: string): string {
+/** `<n>_<seedHex>[_<tableKey>].<ext>`; the workbook has no key (`<n>_<seedHex>.xlsx`). */
+export function fileName(n: number, seed: number, ext: 'csv' | 'txt' | 'xlsx', tableKey?: string): string {
   return `${n}_${seedHex(seed)}${tableKey ? `_${tableKey}` : ''}.${ext}`;
 }

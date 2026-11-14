@@ -64,7 +64,24 @@ export async function saveTextFile(name: string, text: string): Promise<{ path: 
     const { invoke } = await import('@tauri-apps/api/core');
     return { path: await invoke<string>('save_export', { name, text }) };
   }
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  download(name, new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  return { path: null };
+}
+
+export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** Saves a binary export (an `.xlsx` workbook), same rules as `saveTextFile`. */
+export async function saveBinaryFile(name: string, bytes: Uint8Array): Promise<{ path: string | null }> {
+  if (isDesktop) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return { path: await invoke<string>('save_export_bytes', { name, bytes: Array.from(bytes) }) };
+  }
+  download(name, new Blob([bytes as BlobPart], { type: XLSX_MIME }));
+  return { path: null };
+}
+
+function download(name: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = name;
@@ -72,5 +89,4 @@ export async function saveTextFile(name: string, text: string): Promise<{ path: 
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  return { path: null };
 }

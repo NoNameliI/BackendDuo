@@ -4,14 +4,14 @@ import { pythonClient } from '@/engine/python/pythonClient';
 import type { ScriptRun } from '@/engine/python/runtime';
 import { Button } from '@/ui/Button';
 import { PlayIcon } from '@/ui/icons';
-import type { ExportFile } from './instanceView';
+import type { ScratchFile } from './instanceView';
 
 const CodeEditor = lazy(() => import('@/features/api/CodeEditor'));
 
 type Outcome = ScriptRun | { output: string; failure: string };
 
-/** Collapsed Python scratch pad: the data files of the task are there under their saved names. Mount with key = instance. */
-export function ScratchPanel({ starter, files }: { starter: string; files: ExportFile[] }) {
+/** Collapsed Python scratch pad: every sheet of the workbook is there as a CSV file (text files as they are). Mount with key = instance. */
+export function ScratchPanel({ starter, files }: { starter: string; files: ScratchFile[] }) {
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState(starter);
   const [busy, setBusy] = useState(false);
@@ -59,7 +59,7 @@ export function ScratchPanel({ starter, files }: { starter: string; files: Expor
               {busy ? 'Выполняю…' : 'Выполнить'}
             </Button>
             <PythonStatusLine />
-            {files.length > 0 && <span className="truncate font-mono text-[11.5px] text-faint">файлы: {files.map((f) => f.name).join(', ')}</span>}
+            {files.length > 0 && <span className="truncate font-mono text-[11.5px] text-faint">{files.some((f) => f.name.endsWith('.csv')) ? 'листы книги как CSV' : 'файлы'}: {files.map((f) => f.name).join(', ')}</span>}
           </div>
           <div className="h-56 border-y border-line">
             <Suspense fallback={null}>
