@@ -129,6 +129,18 @@ describe('python client groups', () => {
     expect(log.slice(-4)).toEqual(['run', 'terminate', 'init', 'run']);
   });
 
+  it('analyze respawns a tainted worker for a reference and never taints', async () => {
+    const { log, client } = setup();
+    await client.analyze(project, [], { reference: true });
+    await client.analyze(project, []);
+    expect(log).toEqual(['init', 'analyze', 'analyze']);
+    await client.run(project, []); // learner code ran
+    await client.analyze(project, [], { reference: true });
+    expect(log.slice(-4)).toEqual(['run', 'terminate', 'init', 'analyze']);
+    await client.analyze(project, [], { reference: true }); // analyze itself left the worker clean
+    expect(log.slice(-2)).toEqual(['analyze', 'analyze']);
+  });
+
   it('does not count the group load against the run limit', async () => {
     const { client } = setup(300, { startMs: 2000, runMs: 150, scriptMs: 150 });
     expect((await client.run(project, [], { groups: ['client'] })).load).toEqual({ ok: true });

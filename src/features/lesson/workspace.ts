@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { checkChoice, createChecker, SolutionError, type Answer, type Checker, type CheckResult } from '@/checker';
 import { checkApiTask, freshServer, readCorsConfig } from '@/checker/api';
+import { pythonGroups } from '@/checker/fastapi';
 import { createGitChecker } from '@/checker/git';
 import { createApiSandboxStore, readJsonObject } from '@/features/api/apiStore';
 import { schemaClient } from '@/engine/api/schemaClient';
@@ -8,7 +9,7 @@ import { pythonClient } from '@/engine/python/pythonClient';
 import { SetupError } from '@/engine/git/GitSandboxEngine';
 import { createGitSandboxStore } from '@/features/git/gitSandbox';
 import { courseById } from '@/content/courses';
-import { allTasks, errorHint, type BrokerTask, type Lesson, type Task } from '@/content/loadCourse';
+import { allTasks, errorHint, type BrokerTask, type Lesson, type PythonTask, type Task } from '@/content/loadCourse';
 import { createBrokerStore } from '@/features/broker/brokerStore';
 import type { ClientRun } from '@/engine/python/runtime';
 import { parseScenario, type Scenario } from '@/engine/sim/scenario';
@@ -140,8 +141,8 @@ async function runClientProgram(): Promise<void> {
   lessonBroker.getState().playClient(run);
 }
 
-/** The entry file of the learner's FastAPI project (checks run on it until tasks bring whole projects). */
-const pythonSourceOf = (python: { files: Record<string, string>; entry: string } | null): string => (python ? (python.files[python.entry] ?? '') : '');
+/** Tasks about a Python project (fastapi, fix-bug, refactor, pytest, openapi, static). */
+export const isPythonTask = (task: Task | null): task is PythonTask => task !== null && 'project' in task;
 
 /** Fresh server (with the task's setup requests) and, for CORS tasks, the starting settings. */
 function prepareApi(task: Extract<Task, { httpSolution: string }>): string | null {
@@ -151,7 +152,7 @@ function prepareApi(task: Extract<Task, { httpSolution: string }>): string | nul
     const def = task.server ? courseById(task.courseId).servers[task.server] : undefined;
     const graphql = task.type === 'graphql' ? { query: task.graphqlStarter, variables: task.variables, sdl: def?.graphql ?? '', collections: def?.collections ?? {} } : undefined;
     const proto = task.type === 'proto' ? { source: task.protoStarter, collections: def?.collections ?? {} } : undefined;
-    const python = task.type === 'fastapi' ? { files: { 'main.py': task.pythonStarter }, entry: 'main.py', tree: false, groups: [] } : undefined;
+    const python = isPythonTask(task) ? { files: task.project.starter, entry: task.project.entry, tree: task.tree, groups: pythonGroups(task), readonly: task.readonly } : undefined;
     lessonApi.getState().reset(task.httpStarter, { server: python ? null : server, cors, graphql, proto, python });
     return null;
   } catch (e) {
@@ -426,11 +427,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
               variables: readJsonObject(graphql?.variables ?? '', 'Переменные'),
             });
           } else if (task.type === 'proto') verdict = await schemaClient().checkProto(task, proto?.source ?? '');
-          else if (task.type === 'fastapi') {
-            const { checkFastapi } = await import('@/checker/fastapi');
-            verdict = await checkFastapi(task, pythonSourceOf(lessonApi.getState().python), (source, requests, options) => pythonClient().run(source, requests, options));
-          }
-          else verdict = checkApiTask(task, servers, { draft, cors: cors?.config ?? null });
+          else if (isPythonTask(task)) {
+            const { checkPythonTask } = await import('@/checker/fastapiCourse');
+            const python = lessonApi.getState().python;
+            verdict = await checkPythonTask(task, { files: python?.files ?? {}, entry: python?.entry }, pythonClient());
+          } else verdict = checkApiTask(task, servers, { draft, cors: cors?.config ?? null });
         } catch (e) {
           verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };
         } finally {

@@ -32,7 +32,7 @@ export interface RawLesson {
 export class LessonParseError extends Error {}
 
 const TASK_HEADING = /^## task[ \t]+(\S+)[ \t]*$/;
-const FENCE = /^```([\w-]+)(?:[ \t]+(\w+))?[ \t]*\n([\s\S]*?)^```[ \t]*$\n?/gm;
+const FENCE = /^```([\w-]+)(?:[ \t]+(\w+))?((?:[ \t]+[\w-]+=\S+)*)[ \t]*\n([\s\S]*?)^```[ \t]*$\n?/gm;
 
 const SHELL_ROLES: Record<string, string> = { setup: 'shellSetup', solution: 'shellSolution' };
 
@@ -71,11 +71,62 @@ export function parseLesson(source: string): RawLesson {
   return { title, theory, tasks };
 }
 
+/**
+ * FastAPI course: ```python starter|solution [path=<p>] — files of the project (no path: main.py);
+ * ```python wrong id=<id> [path=<p>] and ```python mutant id=<id> [path=<p>] — overlays on the solution files.
+ * Plain ```python starter / solution keep the old keys (pythonStarter, pythonSolution).
+ */
+const PYTHON_PROJECT_ROLES = new Set(['starter', 'solution', 'wrong', 'mutant']);
+
+function parseAttributes(taskId: string, role: string, text: string): { path?: string; id?: string } {
+  const out: { path?: string; id?: string } = {};
+  for (const [, key, value] of text.matchAll(/([\w-]+)=(\S+)/g)) {
+    if (key !== 'path' && key !== 'id') throw new LessonParseError(`задание ${taskId}: неизвестный атрибут «${key}» у блока python ${role} (допустимы path и id)`);
+    if (key in out) throw new LessonParseError(`задание ${taskId}: атрибут «${key}» повторяется в блоке python ${role}`);
+    out[key] = value;
+  }
+  const overlay = role === 'wrong' || role === 'mutant';
+  if (overlay && !out.id) throw new LessonParseError(`задание ${taskId}: блоку python ${role} нужен атрибут id=…`);
+  if (!overlay && out.id) throw new LessonParseError(`задание ${taskId}: атрибут id допустим только у блоков wrong и mutant`);
+  return out;
+}
+
+const fileText = (content: string) => {
+  const text = content.replace(/^\n+/, '').trimEnd();
+  return text ? `${text}\n` : '';
+};
+
+function addPythonBlock(task: Record<string, unknown>, taskId: string, role: string, attrs: { path?: string; id?: string }, content: string): void {
+  if ((role === 'starter' || role === 'solution') && !attrs.path) {
+    const key = role === 'starter' ? 'pythonStarter' : 'pythonSolution';
+    if (key in task) throw new LessonParseError(`задание ${taskId}: блок «python ${role}» встречается дважды`);
+    task[key] = content.trim();
+    return;
+  }
+  const path = attrs.path ?? 'main.py';
+  const key = role === 'starter' ? 'pythonStarterFiles' : role === 'solution' ? 'pythonSolutionFiles' : role === 'wrong' ? 'pythonWrong' : 'pythonMutants';
+  let files = task[key] as Record<string, unknown> | undefined;
+  if (!files) task[key] = files = {};
+  if (attrs.id) {
+    const variant = ((files[attrs.id] as Record<string, string> | undefined) ??= {});
+    if (path in variant) throw new LessonParseError(`задание ${taskId}: файл «${path}» варианта «${attrs.id}» (python ${role}) задан дважды`);
+    variant[path] = fileText(content);
+    return;
+  }
+  if (path in files) throw new LessonParseError(`задание ${taskId}: файл «${path}» (python ${role}) задан дважды`);
+  files[path] = fileText(content);
+}
+
 function parseTask(id: string, body: string): Record<string, unknown> {
   const task: Record<string, unknown> = { id };
   let meta: Record<string, unknown> | null = null;
 
-  const prompt = body.replace(FENCE, (block, lang: string, role: string | undefined, content: string) => {
+  const prompt = body.replace(FENCE, (block, lang: string, role: string | undefined, attrText: string, content: string) => {
+    if (lang === 'python' && role && PYTHON_PROJECT_ROLES.has(role)) {
+      addPythonBlock(task, id, role, parseAttributes(id, role, attrText), content);
+      return '';
+    }
+    if (attrText) return block; // attributes mean something only on the python project blocks
     if (lang === 'json' && !role && meta === null) {
       try {
         meta = JSON.parse(content) as Record<string, unknown>;

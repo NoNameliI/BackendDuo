@@ -3,6 +3,7 @@
     "postgres",
     "git",
     "api",
+    "fastapi",
     "rabbitmq",
     "kafka",
     "brokers"

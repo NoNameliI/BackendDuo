@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadPyodide } from 'pyodide';
+import type { CourseRuntime } from '@/checker/fastapiCourse';
 import { setupRuntime, type PyodideLike } from '@/engine/python/runtime';
 
 const dir = join(process.cwd(), 'public', 'pyodide').replaceAll('\\', '/');
@@ -30,4 +31,27 @@ export async function freshNodePythonWith(groups: string[]): Promise<ReturnType<
 export async function nodePython(): Promise<ReturnType<typeof setupRuntime>> {
   shared ??= await freshNodePython();
   return shared;
+}
+
+/** The runtime as the course checks use it (src/checker/fastapiCourse.ts): lazy groups are unpacked before a run, one interpreter serves all. */
+export async function nodeCourseRuntime(): Promise<CourseRuntime> {
+  const runtime = await nodePython();
+  const loaded = new Set<string>();
+  const ensure = (groups: string[] = []) => {
+    const missing = groups.filter((g) => !loaded.has(g));
+    if (missing.length === 0) return;
+    runtime.addPackages(nodeGroups(missing));
+    missing.forEach((g) => loaded.add(g));
+  };
+  return {
+    run: async (project, requests, options = {}) => {
+      ensure(options.groups);
+      return runtime.run(project, requests, { keep: options.keep });
+    },
+    test: async (project, options = {}) => {
+      ensure(options.groups);
+      return runtime.test(project);
+    },
+    analyze: async (project, rules) => runtime.analyze(project, rules),
+  };
 }

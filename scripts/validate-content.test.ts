@@ -9,9 +9,10 @@ import { checkApiTask, readCorsConfig, readRequest } from '@/checker/api';
 import { checkGraphql, checkProto } from '@/checker/apiSchema';
 import { checkBrokerExamples, checkBrokerTask, checkClientTask, lintBrokerTask, type ClientRunner } from '@/checker/broker';
 import { schemaOps } from '@/engine/api/schemaOps';
-import { checkFastapi } from '@/checker/fastapi';
+import { solutionProject, starterProject, wrongProject } from '@/checker/fastapi';
+import { checkPythonTask } from '@/checker/fastapiCourse';
 import { splitPythonExample } from '@/engine/python/example';
-import { nodePython } from './pyodide/node';
+import { nodeCourseRuntime, nodePython } from './pyodide/node';
 import { HttpSimServer, sendTo, splitRequests, type ServerDef } from '@/engine/api/server';
 import { createGitChecker, runReference, stoppedOnConflict } from '@/checker/git';
 import { parseRequest } from '@/engine/api/http';
@@ -33,6 +34,8 @@ function readTree(dir: string): Record<string, string> {
   }
   return files;
 }
+
+const pythonGroups = JSON.parse(readFileSync(join(process.cwd(), 'public', 'pyodide', 'groups.json'), 'utf8')) as Record<string, unknown>;
 
 const engine = new PostgresEngine();
 const checker = createChecker(engine);
@@ -70,10 +73,15 @@ async function validateTask(task: Task, servers: Record<string, ServerDef>, scen
     }
     return;
   }
-  if (task.type === 'fastapi') {
-    const { run } = await nodePython();
-    expect((await checkFastapi(task, task.pythonSolution, run)).problems, 'reference must pass its own check').toEqual([]);
-    expect((await checkFastapi(task, task.pythonStarter, run)).passed, 'the starter must not pass the check').toBe(false);
+  if ('project' in task) {
+    // Python project tasks: packages exist, the solution passes (pytest: its tests catch every mutant), the starter and each wrong variant fail.
+    for (const group of task.packages) expect(Object.keys(pythonGroups), `package group «${group}» is not in public/pyodide/groups.json`).toContain(group);
+    const runtime = await nodeCourseRuntime();
+    expect((await checkPythonTask(task, solutionProject(task), runtime)).problems, 'reference must pass its own check').toEqual([]);
+    expect((await checkPythonTask(task, starterProject(task), runtime)).passed, 'the starter must not pass the check').toBe(false);
+    for (const id of Object.keys(task.pythonWrong)) {
+      expect((await checkPythonTask(task, wrongProject(task, id), runtime)).passed, `wrong variant «${id}» must not pass the check`).toBe(false);
+    }
     return;
   }
   if (task.type === 'graphql') {
@@ -142,9 +150,11 @@ for (const course of catalog?.courses ?? []) {
               }
               if (course.engine === 'api') {
                 const def = lesson.exampleServer ? course.servers[lesson.exampleServer] : undefined;
-                expect(def, 'http examples need a server (a task of the lesson with "server")').toBeDefined();
-                const server = new HttpSimServer(def!);
-                let collections = structuredClone(def!.collections ?? {});
+                if (examples.length > 0 && theoryExampleBlocks(lesson.theory).some((b) => b.lang === 'http')) {
+                  expect(def, 'http examples need a server (a task of the lesson with "server")').toBeDefined();
+                }
+                const server = def ? new HttpSimServer(def) : null;
+                let collections = structuredClone(def?.collections ?? {});
                 for (const { lang, code } of theoryExampleBlocks(lesson.theory)) {
                   if (lang === 'graphql') {
                     expect(def!.graphql, 'graphql examples need a server with graphqlFile').toBeDefined();
@@ -166,7 +176,7 @@ ${code}`).toEqual([]);
 ${code}`).toEqual([]);
                   } else {
                     for (const text of splitRequests(code)) {
-                      const res = sendTo(server, parseRequest(text));
+                      const res = sendTo(server!, parseRequest(text));
                       expect(typeof res === 'string' ? res : null, `example failed:
 ${text}`).toBeNull();
                     }

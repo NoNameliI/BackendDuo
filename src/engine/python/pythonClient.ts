@@ -1,7 +1,7 @@
 import type { ApiRequest } from '@/engine/api/http';
 import { CONNECT, type PythonReply, type PythonRequest } from './protocol';
 import type { ClientSetup } from './brokerBridge';
-import { asProject, type AppRun, type ClientRun, type Project, type PytestRun, type ScriptRun } from './runtime';
+import { asProject, type AnalyzeResult, type AppRun, type ClientRun, type Project, type PytestRun, type ScriptRun, type StaticRule } from './runtime';
 
 /** The subset of the Worker API the client relies on (lets tests substitute a fake). */
 export interface PythonWorkerLike {
@@ -43,6 +43,11 @@ export interface PythonClient {
   run(project: Project | string, requests: ApiRequest[], options?: { keep?: boolean; reference?: boolean; groups?: string[] }): Promise<AppRun>;
   /** Runs pytest over the project (limited like a script). `test` taints the worker unless it is a `reference`. */
   test(project: Project, options?: { reference?: boolean; groups?: string[]; args?: string[] }): Promise<PytestRun>;
+  /**
+   * Static rules over the project (ast only, nothing of it runs, so the worker is not marked used). `reference`:
+   * runs in a worker that has not run learner code, respawning it if needed.
+   */
+  analyze(project: Project, rules: StaticRule[], options?: { reference?: boolean }): Promise<AnalyzeResult>;
   /** Loads lazy package groups into the current worker (each once per worker; resent after a respawn). */
   ensure(groups: string[]): Promise<void>;
   /** Runs a standalone script with the given text files in a scratch directory; a stuck script is terminated. */
@@ -235,6 +240,21 @@ export function createPythonClient(
         replace();
         return new PythonTimeoutError(`Тесты выполнялись дольше ${seconds} с и были остановлены. Проверьте, нет ли бесконечного цикла.`);
       })) as PytestRun;
+    },
+    async analyze(project, rules, options = {}) {
+      for (;;) {
+        if (options.reference && tainted) {
+          stop(new Error('Python перезапущен'));
+          setStatus({ state: 'idle' });
+        }
+        await start();
+        // Learner code may have reached this worker while it was starting.
+        if (!options.reference || !tainted) break;
+      }
+      return (await call({ op: 'analyze', project, rules }, limits.runMs, () => {
+        replace();
+        return new PythonTimeoutError('Разбор кода занял слишком много времени и был остановлен.');
+      })) as AnalyzeResult;
     },
     ensure,
     async script(source, files) {

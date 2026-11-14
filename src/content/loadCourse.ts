@@ -18,6 +18,7 @@ import {
   serverDefSchema,
   drillConfigSchema,
   type DrillConfig,
+  type PythonSpec,
   type GitOnboardingData,
 } from './schema';
 
@@ -33,6 +34,8 @@ export type SqlTask = Extract<Task, { solution: string }>;
 export type ChoiceTask = Extract<Task, { type: 'choice' | 'review' }>;
 export type GitTask = Extract<Task, { shellSolution: string }>;
 export type ApiTask = Extract<Task, { httpSolution: string }>;
+/** An API-course task about a Python project (fastapi, fix-bug, refactor, pytest, openapi, static): it has a normalized `project`. */
+export type PythonTask = Extract<Task, { project: PythonSpec }>;
 /** A broker task with its simulator resolved (task `sim`, else the course `flavor`). */
 export type BrokerTask = Extract<Task, { brokerSolution: string }> & { sim: Flavor };
 export type { DrillConfig };

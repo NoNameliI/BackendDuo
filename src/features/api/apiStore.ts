@@ -47,6 +47,8 @@ export const PYTHON_LOG_LIMIT = 200;
 export interface PythonProject extends ProjectState {
   tree: boolean;
   groups: string[];
+  /** Files the learner cannot edit (the editor shows them locked). */
+  readonly: string[];
 }
 
 /** What a FastAPI task starts with; `files` and `tree` let a task bring a whole project. */
@@ -55,6 +57,7 @@ export interface PythonStart {
   entry: string;
   tree: boolean;
   groups: string[];
+  readonly?: string[];
 }
 
 export interface PythonDocs {
@@ -162,6 +165,8 @@ export interface ApiSandboxState {
   python: PythonProject | null;
   /** Replaces the text of the active file. */
   setPythonSource: (source: string) => void;
+  /** Replaces all files of the project (the solution inserted from the task panel); the entry and the read-only list stay. */
+  setPythonProject: (files: ProjectFiles) => void;
   openPythonFile: (path: string) => void;
   closePythonTab: (path: string) => void;
   /** File operations answer with an error message in Russian, or null when done. */
@@ -268,8 +273,13 @@ export function createApiSandboxStore(): ApiSandboxStore {
       python: null,
       setPythonSource: (source) => {
         const python = get().python;
-        if (!python) return;
+        if (!python || python.readonly.includes(python.active)) return;
         set({ python: { ...python, files: { ...python.files, [python.active]: source } }, docs: { ...get().docs, stale: true } });
+      },
+      setPythonProject: (files) => {
+        const python = get().python;
+        if (!python) return;
+        set({ python: { ...python, files, active: python.entry, open: [python.entry] }, docs: { ...get().docs, stale: true } });
       },
       openPythonFile: (path) => {
         const python = get().python;
@@ -280,8 +290,8 @@ export function createApiSandboxStore(): ApiSandboxStore {
         if (python) set({ python: { ...python, ...closeTab(python, path) } });
       },
       createPythonFile: (path) => changeProject(createFile(get().python as PythonProject, path)),
-      renamePythonFile: (from, to) => changeProject(renameFile(get().python as PythonProject, from, to)),
-      deletePythonFile: (path) => changeProject(deleteFile(get().python as PythonProject, path)),
+      renamePythonFile: (from, to) => (get().python?.readonly.includes(from) ? `Файл «${from}» только для чтения` : changeProject(renameFile(get().python as PythonProject, from, to))),
+      deletePythonFile: (path) => (get().python?.readonly.includes(path) ? `Файл «${path}» только для чтения` : changeProject(deleteFile(get().python as PythonProject, path))),
       pythonLog: [],
       clearPythonLog: () => set({ pythonLog: [] }),
       docs: NO_DOCS,
@@ -444,7 +454,7 @@ export function createApiSandboxStore(): ApiSandboxStore {
       reset: (starter, options = {}) => {
         const server = options.server ?? null;
         const graphql = options.graphql;
-        const python: PythonProject | null = options.python ? { ...options.python, active: options.python.entry, open: [options.python.entry] } : null;
+        const python: PythonProject | null = options.python ? { ...options.python, readonly: options.python.readonly ?? [], active: options.python.entry, open: [options.python.entry] } : null;
         generation++;
         set({
           sending: false,

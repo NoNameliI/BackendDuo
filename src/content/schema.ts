@@ -280,26 +280,141 @@ const protoTask = z.object({
     .prefault({}),
 });
 
-/** FastAPI tasks: the learner writes main.py; hidden requests (```http tests) go to it and to the reference app. */
-const fastapiTask = z.object({
+// FastAPI course: the learner works on a Python project (files by path). Blocks ```python starter | solution [path=…],
+// overlays ```python wrong | mutant id=… [path=…]; see parseLesson.ts. Every such task gets a normalized `project`.
+const pythonPath = z
+  .string()
+  .regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$/, 'путь файла: латинские буквы, цифры, _ . - и «/» между папками')
+  .refine((p) => !p.includes('..'), { message: 'в пути не должно быть «..»' });
+const pythonFiles = z.record(pythonPath, z.string());
+
+const staticRuleBase = { message: z.string().min(1).optional() };
+/** Rules of `check.static` (Python `ast` only, see src/engine/python/static_rules.py); the shape of StaticRule in runtime.ts. */
+export const staticRuleSchema = z.discriminatedUnion('rule', [
+  z.object({ ...staticRuleBase, rule: z.literal('uses'), name: z.string().min(1), file: pythonPath.optional() }),
+  z.object({ ...staticRuleBase, rule: z.literal('imports'), module: z.string().min(1), name: z.string().min(1).optional() }),
+  z.object({ ...staticRuleBase, rule: z.literal('no-blocking-in-async'), calls: z.array(z.string().min(1)).optional(), file: pythonPath.optional() }),
+  z.object({ ...staticRuleBase, rule: z.literal('router'), file: pythonPath }),
+  z.object({ ...staticRuleBase, rule: z.literal('response-model-hides'), field: z.string().min(1) }),
+  z.object({ ...staticRuleBase, rule: z.literal('no-literal-secret'), names: z.array(z.string().min(1)).min(1) }),
+  z.object({ ...staticRuleBase, rule: z.literal('tests-api-only') }),
+  z.object({ ...staticRuleBase, rule: z.literal('pattern'), regex: z.string().min(1), forbid: z.boolean().optional() }),
+]);
+
+const pythonTaskBase = {
   ...apiTaskBase,
-  type: z.literal('fastapi'),
   /** The composer's starting request (sent to the learner's own app). */
   httpSolution: z.string().default('GET /'),
+  /** Plain ```python starter / solution blocks: the text of main.py. */
   pythonStarter: z.string().default(''),
-  pythonSolution: z.string().trim().min(1),
+  pythonSolution: z.string().default(''),
+  /** Blocks with `path=`: files of the project. */
+  pythonStarterFiles: pythonFiles.default({}),
+  pythonSolutionFiles: pythonFiles.default({}),
+  /** Overlays on the solution files: wrong solutions (must fail) and, in pytest tasks, mutants of the app (tests must catch). */
+  pythonWrong: z.record(slug, pythonFiles).default({}),
+  pythonMutants: z.record(slug, pythonFiles).default({}),
+  /** Why a wrong variant is wrong (optional); what a mutant breaks (required, shown to the learner). */
+  wrong: z.record(slug, z.string()).default({}),
+  mutants: z.record(slug, z.string().min(1)).default({}),
+  /** The module that defines `app` ('app/main.py' is the module app.main). */
+  entry: pythonPath.default('main.py'),
+  /** Lazy package groups of public/pyodide/groups.json the project needs (pytest tasks add client and pytest). */
+  packages: z.array(z.string().min(1)).default([]),
+  /** Show the file tree; by default when the project has more than one file. */
+  tree: z.boolean().optional(),
+  /** Files the learner cannot edit; checks use the solution's copies. */
+  readonly: z.array(pythonPath).default([]),
   /** Test requests separated by lines `###`; the answers of the reference app are the expected ones. */
-  httpTests: z.string().trim().min(1),
-  check: z
-    .object({
-      body: z.enum(['json', 'ignore']).default('json'),
-      /** Response headers that must match the reference. */
-      headers: z.array(z.string().min(1)).default([]),
-      /** Rules on the code itself: `pattern` (a regular expression) must be found, or with `forbid` must not. */
-      code: z.array(z.object({ pattern: z.string().min(1), message: z.string().min(1), forbid: z.boolean().default(false) })).default([]),
-    })
-    .prefault({}),
-});
+  httpTests: z.string().trim().default(''),
+};
+
+const codeRules = z.array(z.object({ pattern: z.string().min(1), message: z.string().min(1), forbid: z.boolean().default(false) })).default([]);
+
+const appCheck = z
+  .object({
+    body: z.enum(['json', 'ignore']).default('json'),
+    /** Response headers that must match the reference. */
+    headers: z.array(z.string().min(1)).default([]),
+    /** Rules on the code itself: `pattern` (a regular expression) must be found, or with `forbid` must not. */
+    code: codeRules,
+    static: z.array(staticRuleSchema).default([]),
+  })
+  .prefault({});
+
+export interface PythonSpec {
+  entry: string;
+  starter: Record<string, string>;
+  solution: Record<string, string>;
+}
+
+type ProjectSource = {
+  pythonStarter: string;
+  pythonSolution: string;
+  pythonStarterFiles: Record<string, string>;
+  pythonSolutionFiles: Record<string, string>;
+  entry: string;
+  tree?: boolean | undefined;
+};
+
+/** One file set from the plain block (main.py) and the `path=` blocks; an empty plain block counts only when nothing else is given. */
+const mergeFiles = (plain: string, files: Record<string, string>): Record<string, string> => (plain.trim() || Object.keys(files).length === 0 ? { 'main.py': plain, ...files } : { ...files });
+
+/** A plain ```python block (main.py) and a block with path=main.py are two texts for one file. */
+function plainConflicts(task: ProjectSource, ctx: z.RefinementCtx): void {
+  if (task.pythonStarter.trim() && 'main.py' in task.pythonStarterFiles) ctx.addIssue({ code: 'custom', path: ['pythonStarterFiles'], message: 'main.py задан дважды: блоком без path и блоком path=main.py (заготовка)' });
+  if (task.pythonSolution.trim() && 'main.py' in task.pythonSolutionFiles) ctx.addIssue({ code: 'custom', path: ['pythonSolutionFiles'], message: 'main.py задан дважды: блоком без path и блоком path=main.py (решение)' });
+}
+
+/** Adds `project` (entry, starter, solution) and `tree`; pythonStarter / pythonSolution become the entry file's text. */
+function withProject<T extends ProjectSource>(task: T): T & { project: PythonSpec; tree: boolean } {
+  const starter = mergeFiles(task.pythonStarter, task.pythonStarterFiles);
+  const solution = mergeFiles(task.pythonSolution, task.pythonSolutionFiles);
+  const tree = task.tree ?? (Object.keys(starter).length > 1 || Object.keys(task.pythonStarterFiles).length > 0 || Object.keys(task.pythonSolutionFiles).length > 0);
+  return { ...task, pythonStarter: starter[task.entry] ?? '', pythonSolution: solution[task.entry] ?? '', tree, project: { entry: task.entry, starter, solution } };
+}
+
+/** FastAPI tasks: the learner writes the project (main.py by default); hidden requests (```http tests) go to it and to the reference app. */
+const fastapiTask = z.object({ ...pythonTaskBase, type: z.literal('fastapi'), check: appCheck }).superRefine(plainConflicts).transform((t) => withProject(t));
+
+/** The starter is a broken project; the learner finds and fixes the bug (a failing test or a wrong answer shows where). */
+const fixBugTask = z.object({ ...pythonTaskBase, type: z.literal('fix-bug'), check: appCheck }).superRefine(plainConflicts).transform((t) => withProject(t));
+
+/** Same behavior as the reference, and the same routes; `check.static` rules say how the code must be organized. */
+const refactorTask = z.object({ ...pythonTaskBase, type: z.literal('refactor'), check: appCheck }).superRefine(plainConflicts).transform((t) => withProject(t));
+
+/** The learner writes tests under tests/; they must pass on the reference app and fail on every mutant. */
+const pytestTask = z
+  .object({
+    ...pythonTaskBase,
+    type: z.literal('pytest'),
+    check: z.object({ minTests: z.number().int().positive().default(1), static: z.array(staticRuleSchema).default([]) }).prefault({}),
+  })
+  .superRefine(plainConflicts).transform((t) => withProject(t));
+
+/** The learner's /openapi.json must match the reference's: routes always, `compare` adds aspects. */
+const openapiTask = z
+  .object({
+    ...pythonTaskBase,
+    type: z.literal('openapi'),
+    check: z
+      .object({
+        compare: z.array(z.enum(['operationId', 'tags', 'summary', 'responses', 'params', 'schemas'])).default([]),
+        static: z.array(staticRuleSchema).default([]),
+      })
+      .prefault({}),
+  })
+  .superRefine(plainConflicts).transform((t) => withProject(t));
+
+/** Only code rules; nothing is sent to the app. */
+const staticTask = z
+  .object({
+    ...pythonTaskBase,
+    type: z.literal('static'),
+    check: z.object({ code: codeRules, static: z.array(staticRuleSchema).default([]) }).prefault({}),
+  })
+  .superRefine(plainConflicts).transform((t) => withProject(t));
+
 
 
 // Broker courses (RabbitMQ, Kafka): console scripts for the simulators in ```broker setup | starter | solution blocks,
@@ -428,9 +543,40 @@ const drillTask = z.object({
 
 export const corsConfigSchema = corsConfig;
 
+type PythonTaskOutput = z.output<typeof fastapiTask> | z.output<typeof fixBugTask> | z.output<typeof refactorTask> | z.output<typeof pytestTask> | z.output<typeof openapiTask> | z.output<typeof staticTask>;
+
+/** Cross-field rules of the Python project tasks. */
+function pythonIssues(task: PythonTaskOutput, ctx: z.RefinementCtx): void {
+  const bad = (path: string, message: string) => ctx.addIssue({ code: 'custom', path: [path], message });
+  const { starter, solution, entry } = task.project;
+  if (Object.keys(solution).length === 0 || Object.values(solution).every((t) => !t.trim())) bad('pythonSolution', 'нужен блок ```python solution');
+  if (!(entry in solution)) bad('entry', `в решении нет файла «${entry}» (поле entry)`);
+  if (!(entry in starter)) bad('entry', `в заготовке нет файла «${entry}» (поле entry): добавьте блок python starter path=${entry}`);
+  for (const path of task.readonly) if (!(path in starter)) bad('readonly', `readonly: в заготовке нет файла «${path}»`);
+  if (['fastapi', 'fix-bug', 'refactor'].includes(task.type) && !task.httpTests) bad('httpTests', 'нужен блок ```http tests с проверочными запросами');
+  if (task.type === 'refactor' && task.check.static.length === 0) bad('check', 'заданию refactor нужно хотя бы одно правило check.static: иначе нечего менять в устройстве кода');
+  if (task.type === 'static' && task.check.static.length === 0 && task.check.code.length === 0) bad('check', 'нужно хотя бы одно правило: check.static или check.code');
+  if (task.type === 'pytest') {
+    if (!Object.keys(solution).some((p) => p.startsWith('tests/'))) bad('pythonSolution', 'в решении нет тестов: добавьте блок python solution path=tests/test_….py');
+    for (const [id, files] of Object.entries(task.pythonMutants)) {
+      if (!(id in task.mutants)) bad('mutants', `у мутанта «${id}» нет описания в поле mutants`);
+      if (Object.keys(files).some((p) => p.startsWith('tests/'))) bad('pythonMutants', `мутант «${id}» меняет файл в tests/: мутации касаются только кода приложения`);
+    }
+    for (const id of Object.keys(task.mutants)) if (!(id in task.pythonMutants)) bad('mutants', `у описания мутанта «${id}» нет блока python mutant id=${id}`);
+    if (Object.keys(task.pythonMutants).length === 0) bad('pythonMutants', 'заданию pytest нужен хотя бы один мутант (python mutant id=…)');
+  } else {
+    if (Object.keys(task.pythonMutants).length || Object.keys(task.mutants).length) bad('pythonMutants', 'мутанты бывают только у заданий pytest');
+  }
+  for (const id of Object.keys(task.wrong)) if (!(id in task.pythonWrong)) bad('wrong', `у описания «${id}» нет блока python wrong id=${id}`);
+}
+
 export const taskSchema = z
-  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask, drillTask, topologyTask, routingTask, consoleTask, scenarioTask, clientTask])
+  .discriminatedUnion('type', [resultTask, stateTask, schemaTask, planTask, choiceTask, reviewTask, graphTask, worktreeTask, commandsTask, hostingTask, ciTask, requestTask, responseTask, corsTask, graphqlTask, protoTask, fastapiTask, fixBugTask, refactorTask, pytestTask, openapiTask, staticTask, drillTask, topologyTask, routingTask, consoleTask, scenarioTask, clientTask])
   .superRefine((task, ctx) => {
+    if ('project' in task) {
+      pythonIssues(task, ctx);
+      return;
+    }
     if (task.type === 'client') {
       if (!task.pythonSolution.trim()) ctx.addIssue({ code: 'custom', path: ['pythonSolution'], message: 'нужен блок ```python solution' });
       if (task.check.compare.length === 0 && task.check.require.length === 0 && !task.scenario) {
@@ -470,7 +616,7 @@ export const worldSchema = z.object({
   lessons: z.array(lessonRefSchema),
 });
 
-const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi', 'drill', 'topology', 'routing', 'console', 'scenario', 'client']);
+const taskType = z.enum(['result', 'state', 'schema', 'plan', 'choice', 'review', 'graph', 'worktree', 'commands', 'hosting', 'ci', 'request', 'response', 'cors', 'graphql', 'proto', 'fastapi', 'fix-bug', 'refactor', 'pytest', 'openapi', 'static', 'drill', 'topology', 'routing', 'console', 'scenario', 'client']);
 
 export const badgeRuleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tasksSolved'), count: z.number().int().positive() }),

@@ -125,7 +125,7 @@ export function FastapiPanel() {
   };
   const editor = (
     <Suspense fallback={null}>
-      <CodeEditor language={languageOf(python.active)} path={python.tree ? python.active : undefined} ariaLabel={`Редактор ${python.active}`} value={python.files[python.active] ?? ''} onChange={setPythonSource} />
+      <CodeEditor language={languageOf(python.active)} path={python.tree ? python.active : undefined} ariaLabel={`Редактор ${python.active}${python.readonly.includes(python.active) ? ' (только чтение)' : ''}`} readOnly={python.readonly.includes(python.active)} value={python.files[python.active] ?? ''} onChange={setPythonSource} />
     </Suspense>
   );
   return (

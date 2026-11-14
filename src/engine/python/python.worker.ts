@@ -44,7 +44,7 @@ function serve(port: MessagePort) {
         return;
       }
       if (!runtime) throw new Error('Python ещё не запущен');
-      const { run, forget, script, client, test, addPackages } = await runtime;
+      const { run, forget, script, client, test, analyze, addPackages } = await runtime;
       if (data.op === 'forget') {
         forget();
         reply({ id: data.id, ok: true, value: null });
@@ -56,6 +56,10 @@ function serve(port: MessagePort) {
       }
       if (data.op === 'test') {
         reply({ id: data.id, ok: true, value: test(data.project, data.args) });
+        return;
+      }
+      if (data.op === 'analyze') {
+        reply({ id: data.id, ok: true, value: analyze(data.project, data.rules) });
         return;
       }
       if (data.op === 'script') {

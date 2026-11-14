@@ -4,6 +4,7 @@ import confluentKafkaShim from './shims/confluent_kafka.py?raw';
 import pikaShim from './shims/pika.py?raw';
 import inlineLoopSource from './inline_loop.py?raw';
 import runtimeSource from './studio_runtime.py?raw';
+import staticRulesSource from './static_rules.py?raw';
 
 /** The part of a Pyodide instance the runtime uses (the worker and Node pass the real one). */
 export interface PyodideLike {
@@ -17,6 +18,7 @@ export interface PyodideLike {
     script(source: string, files: string): string;
     client(source: string): string;
     test(project: string, args: string): string;
+    analyze(project: string, rules: string): string;
   };
 }
 
@@ -103,6 +105,25 @@ export type ScriptRunner = (source: string, files: Record<string, string>) => Sc
 
 export type AppRunner = (project: Project | string, requests: ApiRequest[], options?: { keep?: boolean; reference?: boolean }) => Promise<AppRun>;
 
+/** Rules of `check.static`; every rule may carry its own Russian `message`. */
+export type StaticRule = { message?: string } & (
+  | { rule: 'uses'; name: string; file?: string }
+  | { rule: 'imports'; module: string; name?: string }
+  | { rule: 'no-blocking-in-async'; calls?: string[]; file?: string }
+  | { rule: 'router'; file: string }
+  | { rule: 'response-model-hides'; field: string }
+  | { rule: 'no-literal-secret'; names: string[] }
+  | { rule: 'pattern'; regex: string; forbid?: boolean }
+  | { rule: 'tests-api-only' }
+);
+
+export interface AnalyzeResult {
+  /** Russian problems naming file:line; empty when every rule holds. */
+  problems: string[];
+}
+
+export type Analyzer = (project: Project, rules: StaticRule[]) => AnalyzeResult;
+
 export type TestRunner = (project: Project, args?: string[]) => PytestRun;
 
 export interface PythonRuntime {
@@ -111,6 +132,8 @@ export interface PythonRuntime {
   script: ScriptRunner;
   client: ClientRunner;
   test: TestRunner;
+  /** Parses the project with ast and applies the rules; learner code is never executed. */
+  analyze: Analyzer;
   /** Unpacks lazy package groups (name → archive) once each; returns the names added by this call. */
   addPackages: (archives: Record<string, Uint8Array>) => string[];
 }
@@ -132,6 +155,7 @@ export function setupRuntime(pyodide: PyodideLike, siteArchive: Uint8Array): Pyt
   pyodide.unpackArchive(siteArchive, 'gztar', { extractDir: sitePackages });
   pyodide.FS.writeFile(`${sitePackages}/inline_loop.py`, inlineLoopSource);
   pyodide.FS.writeFile(`${sitePackages}/studio_runtime.py`, runtimeSource);
+  pyodide.FS.writeFile(`${sitePackages}/static_rules.py`, staticRulesSource);
   pyodide.FS.writeFile(`${sitePackages}/pika.py`, pikaShim);
   pyodide.FS.writeFile(`${sitePackages}/confluent_kafka.py`, confluentKafkaShim);
   // The shims reach the simulator of the run in progress through this one function.
@@ -139,6 +163,8 @@ export function setupRuntime(pyodide: PyodideLike, siteArchive: Uint8Array): Pyt
   pyodide.registerJsModule('_studio_broker', { call: (json: string) => (current ? current.call(json) : JSON.stringify({ stop: true })) });
   pyodide.runPython('import importlib; importlib.invalidate_caches()');
   const runtime = pyodide.pyimport('studio_runtime');
+  // Imported before any learner code runs: the module keeps its own references to ast, json and re.
+  const rules = pyodide.pyimport('static_rules');
   const loaded = new Set<string>();
   return {
     async run(project, requests, options = {}) {
@@ -149,6 +175,7 @@ export function setupRuntime(pyodide: PyodideLike, siteArchive: Uint8Array): Pyt
     forget: () => runtime.forget(),
     script: (source, files) => JSON.parse(runtime.script(source, JSON.stringify(files))) as ScriptRun,
     test: (project, args = []) => JSON.parse(runtime.test(JSON.stringify(project), JSON.stringify(args))) as PytestRun,
+    analyze: (project, list) => JSON.parse(rules.analyze(JSON.stringify(asProject(project)), JSON.stringify(list))) as AnalyzeResult,
     addPackages(archives) {
       const added = Object.keys(archives).filter((name) => !loaded.has(name));
       for (const name of added) {

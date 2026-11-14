@@ -1,13 +1,69 @@
-import type { ApiTask } from '@/content/loadCourse';
+import type { PythonTask } from '@/content/loadCourse';
 import { explain422 } from '@/engine/api/explain';
 import { sameJson } from './api';
 import { bodyValue as json, differentHeaders, parseRequest, splitUrl, type ApiRequest } from '@/engine/api/http';
 import { splitRequests } from '@/engine/api/server';
 import { explainPythonError } from '@/engine/python/explain';
-import type { AppRun, AppRunner, PyResponse } from '@/engine/python/runtime';
+import { asProject, type AppRun, type Project, type ProjectFiles, type PyResponse } from '@/engine/python/runtime';
 import { SolutionError, type CheckResult } from './index';
 
-export type FastapiTask = Extract<ApiTask, { type: 'fastapi' }>;
+/** Tasks whose check sends the hidden requests to the learner's project and to the reference. */
+export type FastapiTask = Extract<PythonTask, { type: 'fastapi' | 'fix-bug' | 'refactor' }>;
+
+/** Runs a project with the lazy package groups it needs; `reference` = the course's own code (a clean worker). */
+export type ProjectRunner = (project: Project | string, requests: ApiRequest[], options?: { keep?: boolean; reference?: boolean; groups?: string[] }) => Promise<AppRun>;
+
+/** The files of the task's project as the content gives them (tests built by hand may only have `pythonSolution`). */
+const specOf = (task: PythonTask) => task.project ?? { entry: 'main.py', starter: { 'main.py': task.pythonStarter ?? '' }, solution: { 'main.py': task.pythonSolution } };
+
+/** Paths the learner cannot edit take the solution's text, whatever the submitted project says. */
+export function lockReadonly(task: PythonTask, files: ProjectFiles): ProjectFiles {
+  const out = { ...files };
+  const { solution } = specOf(task);
+  for (const path of task.readonly ?? []) {
+    if (path in solution) out[path] = solution[path];
+    else delete out[path];
+  }
+  return out;
+}
+
+/** Modules the learner's files would shadow: a package next to a read-only module, or a module next to a read-only package. */
+export function shadowProblems(task: PythonTask, files: ProjectFiles): string[] {
+  const locked = task.readonly ?? [];
+  const out: string[] = [];
+  for (const own of Object.keys(files)) {
+    if (locked.includes(own)) continue;
+    for (const ro of locked) {
+      const dirs = ro.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'));
+      const asModule = ro.endsWith('.py') && !ro.endsWith('/__init__.py') ? ro.slice(0, -3) : null;
+      const clash = (asModule !== null && own.startsWith(`${asModule}/`)) || (own.endsWith('.py') && dirs.includes(own.slice(0, -3)));
+      if (clash) out.push(`Файл «${own}» перекрывает модуль «${ro}», который менять нельзя: переименуйте или удалите «${own}»`);
+    }
+  }
+  return out.slice(0, 3);
+}
+
+/** The reference project. */
+export const solutionProject = (task: PythonTask): Project => ({ files: specOf(task).solution, entry: specOf(task).entry });
+
+/** What the learner starts with (the read-only files as in the solution). */
+export const starterProject = (task: PythonTask): Project => ({ files: lockReadonly(task, specOf(task).starter), entry: specOf(task).entry });
+
+/** The solution with the files of a wrong variant replaced or added. */
+export const wrongProject = (task: PythonTask, id: string): Project => ({ files: { ...specOf(task).solution, ...task.pythonWrong[id] }, entry: specOf(task).entry });
+
+/** Package groups a task needs: its `packages`, plus pytest and TestClient for pytest tasks and projects with tests/. */
+export function pythonGroups(task: PythonTask): string[] {
+  const { starter, solution } = specOf(task);
+  const tests = task.type === 'pytest' || [...Object.keys(starter), ...Object.keys(solution)].some((p) => p.startsWith('tests/'));
+  return [...new Set([...(task.packages ?? []), ...(tests ? ['client', 'pytest'] : [])])];
+}
+
+/** The learner's project as the check sees it: read-only files restored, the entry kept. */
+export function learnerProject(task: PythonTask, input: Project | string): Project {
+  const project = asProject(input);
+  return { files: lockReadonly(task, project.files), entry: project.entry ?? specOf(task).entry };
+}
 
 const verdict = (problems: string[]): CheckResult => ({ passed: problems.length === 0, problems });
 
@@ -63,21 +119,11 @@ function difference(req: ApiRequest, want: PyResponse, got: PyResponse, task: Fa
 // The reference app's answers do not change: computed once per task and solution text.
 const expected = new Map<string, Promise<AppRun>>();
 
-/**
- * `fastapi` task: the learner's main.py answers the hidden test requests exactly like the reference app
- * (status, JSON body, listed headers); code rules come first, so a forbidden shortcut is named as such.
- */
-export async function checkFastapi(task: FastapiTask, source: string, run: AppRunner): Promise<CheckResult> {
-  const problems: string[] = [];
-  for (const rule of task.check.code) {
-    const found = new RegExp(rule.pattern, 'm').test(source);
-    if (found === rule.forbid) problems.push(rule.message);
-  }
-  if (problems.length) return verdict(problems);
-
-  const requests = testRequests(task);
-  const key = `${task.id}\n${task.pythonSolution}`;
-  if (!expected.has(key)) expected.set(key, run(task.pythonSolution, requests, { reference: true }));
+/** Reference answers of the hidden requests (cached); a broken reference is a content bug. */
+async function referenceRun(task: FastapiTask, requests: ApiRequest[], run: ProjectRunner, groups: string[]): Promise<AppRun> {
+  const project = solutionProject(task);
+  const key = `${task.id}\n${JSON.stringify(project.files)}`;
+  if (!expected.has(key)) expected.set(key, run(project, requests, { reference: true, groups }));
   let want: AppRun;
   try {
     want = await expected.get(key)!;
@@ -88,9 +134,30 @@ export async function checkFastapi(task: FastapiTask, source: string, run: AppRu
   if (!want.load.ok) throw new SolutionError(`${task.id}: эталонное приложение не запускается: ${want.load.error.type}: ${want.load.error.message}`);
   const broken = want.responses.findIndex((r) => r.error);
   if (broken !== -1) throw new SolutionError(`${task.id}: эталон падает на ${label(requests[broken])}: ${want.responses[broken].error!.message}`);
+  return want;
+}
 
-  if (!source.trim()) return verdict(['main.py пуст: напишите приложение FastAPI']);
-  const got = await run(source, requests);
+/**
+ * `fastapi`, `fix-bug` and `refactor` tasks: the learner's project answers the hidden test requests exactly like the
+ * reference (status, JSON body, listed headers); code rules come first, so a forbidden shortcut is named as such.
+ */
+export async function checkFastapi(task: FastapiTask, input: Project | string, run: ProjectRunner, options: { groups?: string[] } = {}): Promise<CheckResult> {
+  const groups = options.groups ?? pythonGroups(task);
+  const learner = learnerProject(task, input);
+  const entry = learner.entry ?? 'main.py';
+  const problems: string[] = [];
+  const code = Object.entries(learner.files).filter(([path]) => !path.startsWith('tests/')).map(([, text]) => text).join('\n');
+  for (const rule of task.check.code) {
+    const found = new RegExp(rule.pattern, 'm').test(code);
+    if (found === rule.forbid) problems.push(rule.message);
+  }
+  if (problems.length) return verdict(problems);
+
+  const requests = testRequests(task);
+  const want = await referenceRun(task, requests, run, groups);
+
+  if (!learner.files[entry]?.trim()) return verdict([`${entry} пуст: напишите приложение FastAPI`]);
+  const got = await run(learner, requests, { groups });
   if (!got.load.ok) return verdict([explainPythonError(got.load.error)]);
   requests.forEach((req, i) => {
     const diff = difference(req, want.responses[i], got.responses[i], task);

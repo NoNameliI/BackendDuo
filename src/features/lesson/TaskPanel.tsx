@@ -30,6 +30,11 @@ export const TASK_KIND: Record<Task['type'], string> = {
   graphql: 'GraphQL',
   proto: 'Protobuf',
   fastapi: 'FastAPI',
+  'fix-bug': 'Найдите и исправьте ошибку',
+  refactor: 'FastAPI · рефакторинг',
+  pytest: 'FastAPI · тесты',
+  openapi: 'FastAPI · документация',
+  static: 'FastAPI · качество кода',
   drill: 'Тренажёр',
   topology: 'Брокер · схема',
   routing: 'Брокер · маршрутизация',
@@ -162,7 +167,7 @@ function TaskView({ task }: { task: Task }) {
             <Button variant="outline" onClick={() => setCode(task.solution)}>Вставить в редактор</Button>
           </div>
         )}
-        {'httpSolution' in task && progress.solutionShown && <ApiSolution task={task} />}
+        {'httpSolution' in task && progress.solutionShown && ('project' in task ? <PythonSolution task={task} /> : <ApiSolution task={task} />)}
         {'brokerSolution' in task && progress.solutionShown && <BrokerSolution task={task} />}
         {'shellSolution' in task && progress.solutionShown && (
           <div className="space-y-2">
@@ -283,8 +288,6 @@ function ApiSolution({ task }: { task: ApiTask }) {
       ? ['Эталонный запрос', task.graphqlSolution, () => api.setGraphql({ query: task.graphqlSolution }), 'Вставить в редактор']
       : task.type === 'proto'
         ? ['Эталонный .proto', task.protoSolution, () => void api.setProtoSource(task.protoSolution), 'Вставить в редактор']
-        : task.type === 'fastapi'
-          ? ['Эталонный main.py', task.pythonSolution, () => api.setPythonSource(task.pythonSolution), 'Вставить в редактор']
         : task.type === 'cors'
           ? ['Эталонные настройки', task.jsonSolution, () => api.setCorsConfig(readCorsConfig(task.jsonSolution)), 'Применить']
           : ['Эталонный запрос', task.httpSolution, () => api.setDraftText(task.httpSolution), 'Вставить в композер'];
@@ -294,6 +297,26 @@ function ApiSolution({ task }: { task: ApiTask }) {
       <pre className="md-code whitespace-pre-wrap">{text}</pre>
       <Button variant="outline" onClick={insert}>
         {action}
+      </Button>
+    </div>
+  );
+}
+
+/** The reference project of a Python task: its files, and a button that replaces the learner's project with them. */
+function PythonSolution({ task }: { task: Extract<Task, { project: unknown }> }) {
+  const api = lessonApi.getState();
+  const files = Object.entries(task.project.solution).sort(([a], [b]) => a.localeCompare(b));
+  return (
+    <div className="space-y-2">
+      <SectionLabel>{files.length > 1 ? 'Эталонный проект' : `Эталонный ${files[0]?.[0] ?? 'main.py'}`}</SectionLabel>
+      {files.map(([path, text]) => (
+        <div key={path}>
+          {files.length > 1 && <p className="mb-1 font-mono text-[11px] text-faint">{path}</p>}
+          <pre className="md-code whitespace-pre-wrap">{text}</pre>
+        </div>
+      ))}
+      <Button variant="outline" onClick={() => api.setPythonProject(task.project.solution)}>
+        Вставить в редактор
       </Button>
     </div>
   );

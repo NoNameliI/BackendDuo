@@ -1,0 +1,34 @@
+{
+  "id": "fastapi",
+  "title": "FastAPI: проекты, тесты и качество",
+  "description": "Настоящие проекты на FastAPI: несколько файлов, тесты pytest, документация OpenAPI, поиск ошибок и рефакторинг. Python работает прямо в приложении.",
+  "engine": "api",
+  "errors": "errors.json",
+  "solutionAfterAttempts": 3,
+  "worlds": [
+    {
+      "id": "fa-w7",
+      "title": "Тестирование и качество",
+      "summary": "Тесты pytest и TestClient, поиск ошибок по упавшему тесту, документация OpenAPI и проверка кода.",
+      "lessons": [
+        {
+          "id": "fa-pytest-testclient",
+          "file": "w7/01-pytest-testclient.md"
+        }
+      ]
+    }
+  ],
+  "levels": [
+    { "xp": 0, "title": "Новичок" },
+    { "xp": 100, "title": "Практик" }
+  ],
+  "badges": [
+    {
+      "id": "first-project",
+      "title": "Первый проект",
+      "description": "Решено первое задание курса FastAPI",
+      "glyph": "py",
+      "rule": { "kind": "tasksSolved", "count": 1 }
+    }
+  ]
+}
