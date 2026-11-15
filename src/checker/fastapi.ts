@@ -154,12 +154,50 @@ export function stripPythonComments(source: string): string {
   return out;
 }
 
-/** The app's own code for `check.code` rules: files outside tests/, comments removed. */
-export const appCode = (files: Record<string, string>) =>
-  Object.entries(files)
-    .filter(([path]) => !path.startsWith('tests/'))
+const importedFiles = (files: Record<string, string>, path: string) => {
+  const found = new Set<string>();
+  const add = (module: string) => {
+    const parts = module.split('.').filter(Boolean);
+    for (let i = 1; i <= parts.length; i++) {
+      const base = parts.slice(0, i).join('/');
+      for (const candidate of [`${base}.py`, `${base}/__init__.py`]) if (candidate in files) found.add(candidate);
+    }
+  };
+  const source = stripPythonComments(files[path] ?? '');
+  for (const m of source.matchAll(/^[ \t]*import[ \t]+([^\n]+)/gm)) {
+    for (const part of m[1].split(',')) add(part.trim().split(/\s+as\s+/)[0]);
+  }
+  for (const m of source.matchAll(/^[ \t]*from[ \t]+(\.*)([\w.]*)[ \t]+import[ \t]+([^\n]+)/gm)) {
+    const dots = m[1].length;
+    const pkg = path.split('/').slice(0, -1);
+    const base = [...(dots > 1 ? pkg.slice(0, pkg.length - (dots - 1)) : dots ? pkg : []), ...(m[2] ? [m[2]] : [])].join('.');
+    add(base);
+    for (const name of m[3].replace(/[()]/g, '').split(',')) add(`${base}${base ? '.' : ''}${name.trim().split(/\s+as\s+/)[0]}`);
+  }
+  return found;
+};
+
+/** The app's own code for `check.code` rules: files outside tests/ plus tests/ files the entry imports, comments removed. */
+export const appCode = (files: Record<string, string>, entry = 'main.py') => {
+  const seen = new Set(Object.keys(files).filter((path) => !path.startsWith('tests/')));
+  const queue = [...seen];
+  if (entry in files && !seen.has(entry)) {
+    seen.add(entry);
+    queue.push(entry);
+  }
+  for (let i = 0; i < queue.length; i++) {
+    for (const next of importedFiles(files, queue[i])) {
+      if (!seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return Object.entries(files)
+    .filter(([path]) => seen.has(path))
     .map(([, text]) => stripPythonComments(text))
     .join('\n');
+};
 
 const dropKeys = (value: unknown, keys: string[]) =>
   value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter(([k]) => !keys.includes(k))) : value;
@@ -239,7 +277,7 @@ export async function checkFastapi(task: FastapiTask, input: Project | string, r
   const learner = learnerProject(task, input);
   const entry = learner.entry ?? 'main.py';
   const problems: string[] = [];
-  const code = appCode(learner.files);
+  const code = appCode(learner.files, entry);
   for (const rule of task.check.code) {
     const found = new RegExp(rule.pattern, 'm').test(code);
     if (found === rule.forbid) problems.push(rule.message);

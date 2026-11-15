@@ -15,6 +15,8 @@ _TEST_IMPORTS = ["pytest", "fastapi", "httpx", "starlette.testclient", "json", "
 _TEST_NAMES = {"open", "exec", "eval", "compile", "__import__", "globals", "vars", "__builtins__", "builtins", "inspect", "sys", "os", "importlib", "__file__", "__code__"}
 _TEST_NAMES |= {"getattr", "setattr", "delattr", "dir", "locals", "MonkeyPatch", "__loader__", "__spec__"}
 _TEST_ATTRS = {"sys", "os", "builtins", "modules", "open", "path", "MonkeyPatch", "inspect", "importlib"}
+_TEST_ATTRS |= {"importorskip", "config", "rootpath", "rootdir", "read_text", "read_bytes", "fspath"}
+_TEST_NAMES |= {"Path", "PurePath"}
 
 
 def _is_dunder(name):
@@ -160,7 +162,7 @@ class _Project:
         return out
 
     def reachable(self):
-        """Files reachable from the entry module by project-local imports, tests excluded (all non-test files without an entry)."""
+        """Files reachable from the entry module by project-local imports, tests only when the entry imports them (all non-test files without an entry)."""
         if self.entry not in self.trees:
             return [p for p in self.trees if not _is_test_path(p)]
         seen = [self.entry]
@@ -168,7 +170,7 @@ class _Project:
             for nxt in sorted(self.imported(path)):
                 if nxt not in seen:
                     seen.append(nxt)
-        return [p for p in seen if not _is_test_path(p)]
+        return seen
 
     def scope(self, file):
         return self.select(file) if file else self.reachable()

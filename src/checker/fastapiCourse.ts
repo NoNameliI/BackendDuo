@@ -133,7 +133,7 @@ export async function checkPythonTask(task: PythonTask, input: Project | string,
   const groups = pythonGroups(task);
   switch (task.type) {
     case 'static': {
-      const code = appCode(learner.files);
+      const code = appCode(learner.files, learner.entry);
       const problems = task.check.code.flatMap((r) => (new RegExp(r.pattern, 'm').test(code) === r.forbid ? [r.message] : []));
       return verdict(problems);
     }

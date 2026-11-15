@@ -173,6 +173,21 @@ describe('static rules', () => {
     expect(bad('monkeypatch.setattr("main.x", 1)\n    monkeypatch.setenv("A", "b")')).toEqual([]);
   });
 
+  it('tests-api-only: refuses importorskip, config.rootpath and Path reads', () => {
+    const rule: StaticRule = { rule: 'tests-api-only' };
+    const bad = (body: string) => check({ 'main.py': 'app = 1\n', 'tests/t.py': `import pytest\n\ndef test_x(request):\n    ${body}\n` }, [rule]);
+    expect(bad('(request.config.rootpath / "routers" / "items.py").read_text()').length).toBeGreaterThan(0);
+    expect(bad('pytest.importorskip("pathlib")').length).toBeGreaterThan(0);
+    expect(bad('request.fspath')).toHaveLength(1);
+    expect(check({ 'main.py': 'app = 1\n', 'tests/t.py': 'from pathlib import Path\n' }, [rule]).length).toBeGreaterThan(0);
+  });
+
+  it('files imported by the entry from tests/ are app code', () => {
+    const files = { 'main.py': 'from tests.h import f\napp = f()\n', 'tests/__init__.py': '', 'tests/h.py': 'import hashlib\ndef f():\n    return hashlib.md5(b"x")\n' };
+    expect(check(files, [{ rule: 'imports', module: 'hashlib' }], 'main.py')).toEqual([]);
+    expect(check({ ...files, 'main.py': 'app = 1\n' }, [{ rule: 'imports', module: 'hashlib' }], 'main.py')).toHaveLength(1);
+  });
+
   it('never executes the project', () => {
     const files = { 'main.py': 'raise SystemExit(1)\nopen("/should-not-exist", "w")\n' };
     expect(check(files, [{ rule: 'uses', name: 'SystemExit' }])).toEqual([]);

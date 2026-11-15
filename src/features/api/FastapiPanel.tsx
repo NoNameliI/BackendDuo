@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
 import type { ApiRequest } from '@/engine/api/http';
 import { pythonClient, type PythonStatus } from '@/engine/python/pythonClient';
 import { FileTree } from '@/features/fastapi/FileTree';
@@ -47,6 +47,9 @@ export type Side = 'request' | 'docs' | 'tests' | 'log';
 
 const languageOf = (path: string) => (path.endsWith('.py') ? 'python' : path.endsWith('.json') ? 'json' : 'plaintext');
 
+const EDITOR_PANEL_ID = 'fastapi-editor-panel';
+const editorTabId = (index: number) => `fastapi-editor-tab-${index}`;
+
 /** Editor tabs of the open files: select, close (the last one stays). */
 function EditorTabs() {
   const useStore = useApiSandbox();
@@ -54,18 +57,29 @@ function EditorTabs() {
   const openFile = useStore((s) => s.openPythonFile);
   const closeTab = useStore((s) => s.closePythonTab);
   if (!python) return null;
+  const move = (e: KeyboardEvent<HTMLElement>, index: number) => {
+    const last = python.open.length - 1;
+    const target = e.key === 'ArrowRight' ? (index + 1) % (last + 1) : e.key === 'ArrowLeft' ? (index + last) % (last + 1) : e.key === 'Home' ? 0 : e.key === 'End' ? last : -1;
+    if (target < 0) return;
+    e.preventDefault();
+    openFile(python.open[target]);
+    requestAnimationFrame(() => document.getElementById(editorTabId(target))?.focus());
+  };
   return (
     <div role="tablist" aria-label="Открытые файлы" data-audit-allow="scroll-x-element" className="flex h-9 shrink-0 items-stretch overflow-x-auto border-b border-line">
-      {python.open.map((path) => {
+      {python.open.map((path, index) => {
         const selected = path === python.active;
         return (
           <div key={path} className={`relative flex shrink-0 items-center border-r border-line ${selected ? 'bg-raised' : ''}`}>
             <button
               type="button"
               role="tab"
+              id={editorTabId(index)}
               aria-selected={selected}
+              aria-controls={EDITOR_PANEL_ID}
               tabIndex={selected ? 0 : -1}
               onClick={() => openFile(path)}
+              onKeyDown={(e) => move(e, index)}
               className={`h-full pl-3 font-mono text-[12px] ${python.open.length > 1 ? 'pr-1' : 'pr-3'} ${selected ? 'text-fg' : 'text-dim hover:text-fg'}`}
             >
               {path}
@@ -139,7 +153,9 @@ export function FastapiPanel({ initialSide = 'request' }: { initialSide?: Side }
             </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <EditorTabs />
-              <div className="min-h-0 flex-1">{editor}</div>
+              <div id={EDITOR_PANEL_ID} role="tabpanel" aria-labelledby={editorTabId(Math.max(0, python.open.indexOf(python.active)))} className="min-h-0 flex-1">
+                {editor}
+              </div>
               <div className="flex h-7 shrink-0 items-center border-t border-line px-3">
                 <PythonStatusLine />
               </div>

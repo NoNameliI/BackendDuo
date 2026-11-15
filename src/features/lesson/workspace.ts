@@ -61,7 +61,8 @@ interface WorkspaceState {
   plan: QueryPlan | null;
   tab: ResultTab;
   /** An API task is being checked (FastAPI checks take seconds): a second check would count as another attempt. */
-  checking: boolean;
+  /** Task whose check is running (the python client serializes checks; a check of another task queues behind it). */
+  checkingTaskId: string | null;
   /** What a long Python check is doing now (empty outside such a check). */
   checkProgress: string;
 
@@ -237,7 +238,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
 
   return {
     status: 'off',
-    checking: false,
+    checkingTaskId: null,
     checkProgress: '',
     task: null,
     lesson: null,
@@ -418,8 +419,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       }
 
       if ('httpSolution' in task) {
-        if (get().checking) return;
-        set({ checking: true, checkProgress: '' });
+        if (get().checkingTaskId === task.id) return;
+        set({ checkingTaskId: task.id, checkProgress: '' });
         let verdict: CheckResult;
         try {
           const { draft, cors, graphql, proto } = lessonApi.getState();
@@ -433,12 +434,14 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
           else if (isPythonTask(task)) {
             const { checkPythonTask } = await import('@/checker/fastapiCourse');
             const python = lessonApi.getState().python;
-            verdict = await checkPythonTask(task, { files: python?.files ?? {}, entry: python?.entry }, pythonClient(), (checkProgress) => set({ checkProgress }));
+            verdict = await checkPythonTask(task, { files: python?.files ?? {}, entry: python?.entry }, pythonClient(), (checkProgress) => {
+              if (get().checkingTaskId === task.id) set({ checkProgress });
+            });
           } else verdict = checkApiTask(task, servers, { draft, cors: cors?.config ?? null });
         } catch (e) {
           verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };
         } finally {
-          set({ checking: false, checkProgress: '' });
+          if (get().checkingTaskId === task.id) set({ checkingTaskId: null, checkProgress: '' });
         }
         if (get().task?.id !== task.id) return;
         const reward = progress.recordAttempt(task, verdict.passed);
@@ -448,8 +451,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       }
 
       if ('brokerSolution' in task) {
-        if (get().checking) return;
-        set({ checking: true });
+        if (get().checkingTaskId === task.id) return;
+        set({ checkingTaskId: task.id, checkProgress: '' });
         let verdict: CheckResult;
         try {
           const broker = await import('@/checker/broker');
@@ -461,7 +464,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         } catch (e) {
           verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };
         } finally {
-          set({ checking: false });
+          if (get().checkingTaskId === task.id) set({ checkingTaskId: null, checkProgress: '' });
         }
         if (get().task?.id !== task.id) return;
         const reward = progress.recordAttempt(task, verdict.passed);

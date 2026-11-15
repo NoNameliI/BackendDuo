@@ -112,6 +112,21 @@ describe('pytest runner', () => {
     expect(some.counts.passed).toBe(2);
   });
 
+  it('refuses reading app files from a test, but lazy imports and the app itself still work', () => {
+    const reads = [
+      'def test_a():\n    from pathlib import Path\n    Path("/project/main.py").read_text()\n',
+      'def test_b():\n    open("main.py").read()\n',
+      'def test_c():\n    import os\n    os.listdir("/project")\n',
+    ];
+    const run = py.test(project({ 'tests/test_r.py': reads.join('\n') }));
+    expect(run.counts).toMatchObject({ failed: 3, passed: 0 });
+    expect(run.tests.every((t) => t.message.includes('не чтением его файлов'))).toBe(true);
+    const lazy = 'def test_lazy(client):\n    import lazymod\n    assert lazymod.X == 1\n    assert client.get("/data").json() == {"v": "ok"}\n';
+    const main = `${MAIN}\n@app.get("/data")\ndef data():\n    return {"v": open("/project/data.txt").read()}\n`;
+    const files = project({ 'tests/test_l.py': lazy, 'lazymod.py': 'X = 1\n', 'data.txt': 'ok', 'main.py': main });
+    expect(py.test(files).counts).toMatchObject({ passed: 1, failed: 0, error: 0 });
+  });
+
   it('returns an error output for an invalid project instead of throwing', () => {
     const run = py.test({ files: { '../x.py': '' } });
     expect(run.exit).toBe(4);

@@ -660,6 +660,66 @@ class _Collector:
             self._add(report, "error")
 
 
+_TESTS_PREFIX = ROOT + "/tests/"
+_NO_APP_FILES = "Тесты проверяют приложение через запросы, а не чтением его файлов"
+_guard = {"on": False}
+
+
+def _audit_project_files(event, args):
+    """While a test runs: code of tests/ may not open or list the app's files (only the app itself and the import system may)."""
+    if not _guard["on"] or event not in ("open", "os.listdir", "os.scandir") or not args:
+        return
+    target = args[0]
+    if not isinstance(target, (str, bytes, os.PathLike)):
+        return
+    try:
+        path = os.path.normpath(os.path.join(os.getcwd(), os.fsdecode(target)))
+    except Exception:
+        return
+    if not (path == ROOT or path.startswith(_PREFIX)) or path.startswith(_TESTS_PREFIX) or path == _TESTS_PREFIX[:-1]:
+        return
+    frame = sys._getframe(1)
+    while frame is not None:
+        name = frame.f_code.co_filename
+        if name in ("<frozen importlib._bootstrap_external>", "<frozen importlib._bootstrap>"):
+            return
+        if name.startswith(_TESTS_PREFIX):
+            raise PermissionError(_NO_APP_FILES)
+        if name.startswith(_PREFIX):
+            return
+        frame = frame.f_back
+
+
+sys.addaudithook(_audit_project_files)
+
+
+def _guard_plugin(pytest):
+    """pytest plugin: the file guard is on only while a test body, its fixtures and teardown run (collection imports freely)."""
+
+    class Guard:
+        @staticmethod
+        def _wrap():
+            _guard["on"] = True
+            try:
+                yield
+            finally:
+                _guard["on"] = False
+
+        @pytest.hookimpl(hookwrapper=True)
+        def pytest_runtest_setup(self, item):
+            yield from self._wrap()
+
+        @pytest.hookimpl(hookwrapper=True)
+        def pytest_runtest_call(self, item):
+            yield from self._wrap()
+
+        @pytest.hookimpl(hookwrapper=True)
+        def pytest_runtest_teardown(self, item, nextitem):
+            yield from self._wrap()
+
+    return Guard()
+
+
 def test(project_json, args_json="[]"):
     """Runs pytest over the project (cwd /project) with the real TestClient; returns exit code, cases and the output."""
     project = json.loads(project_json)
@@ -679,7 +739,7 @@ def test(project_json, args_json="[]"):
                 print("pytest в этом уроке не подключён", file=sys.stderr)
             else:
                 try:
-                    code = int(pytest.main(["-q", "-p", "no:cacheprovider", "--color=no", "-rfE", *args], plugins=[collector]))
+                    code = int(pytest.main(["-q", "-p", "no:cacheprovider", "--color=no", "-rfE", *args], plugins=[collector, _guard_plugin(pytest)]))
                 except SystemExit as exc:
                     code = exc.code if isinstance(exc.code, int) else 4
         except LoadError as exc:
@@ -687,9 +747,10 @@ def test(project_json, args_json="[]"):
         except BaseException as exc:
             print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         finally:
+            _guard["on"] = False
             sys.path[:] = paths_before
             _purge_project_modules()
-    tests = list(collector.cases.values())
+    tests =list(collector.cases.values())
     counts = {kind: sum(1 for t in tests if t["outcome"] == kind) for kind in ("passed", "failed", "error", "skipped")}
     return json.dumps({"exit": code, "counts": counts, "tests": tests, "output": cap.text(_OUTPUT_LIMIT), "ms": round((time.perf_counter() - started) * 1000, 1)}, ensure_ascii=False)
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Button } from '@/ui/Button';
 import { buildTree, pathError, visibleNodes } from './project';
 
@@ -101,70 +101,100 @@ export function FileTree({ paths, entry, readonly = [], active, onOpen, onCreate
     }
   };
 
+  const renderRow = ({ node, depth }: { node: { path: string; name: string; kind: 'file' | 'dir' }; depth: number }, groupId?: string) => {
+    const isDir = node.kind === 'dir';
+    const open = isDir && !collapsed.has(node.path);
+    const editing = renaming?.path === node.path;
+    return (
+      <div role="none" style={{ paddingLeft: `${depth * 12 + 8}px` }} className="pr-1">
+        {editing ? (
+          <div className="flex items-center gap-1 py-0.5">
+            <input
+              autoFocus
+              aria-label={`Новое имя для ${node.path}`}
+              aria-invalid={Boolean(error)}
+              className={input}
+              value={renaming.text}
+              spellCheck={false}
+              onChange={(e) => {
+                setRenaming({ path: renaming.path, text: e.target.value });
+                setError(e.target.value && e.target.value !== renaming.path ? pathError(e.target.value) : null);
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') submitRename();
+                if (e.key === 'Escape') {
+                  setRenaming(null);
+                  setError(null);
+                  focusRow(node.path);
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            role="treeitem"
+            data-path={node.path}
+            aria-level={depth + 1}
+            aria-selected={!isDir && node.path === active}
+            aria-expanded={isDir ? open : undefined}
+            aria-owns={open ? groupId : undefined}
+            tabIndex={node.path === current ? 0 : -1}
+            onFocus={() => setFocused(node.path)}
+            onClick={() => (isDir ? toggle(node.path, !open) : onOpen(node.path))}
+            onKeyDown={(e) => onKeyDown(e, node)}
+            className={`flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left font-mono text-[12.5px] transition ${
+              !isDir && node.path === active ? 'bg-raised text-fg' : 'text-dim hover:bg-raised hover:text-fg'
+            }`}
+          >
+            <span aria-hidden className="w-3 shrink-0 text-[11px] text-faint">
+              {isDir ? (open ? '▾' : '▸') : ''}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate" title={node.name}>
+                {node.name}
+              </span>
+              {!isDir && readonly.includes(node.path) && <span className="block text-[11px] leading-tight text-dim">только чтение</span>}
+            </span>
+            {node.path === entry && <span className="shrink-0 text-[11px] uppercase tracking-wider text-dim">вход</span>}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  /** Rows of one level; the children of an open directory go into a role=group. */
+  const renderLevel = (from: number, depth: number): [ReactNode[], number] => {
+    const out: ReactNode[] = [];
+    let i = from;
+    while (i < rows.length && rows[i].depth === depth) {
+      const row = rows[i++];
+      const groupId = `tree-group-${row.node.path}`;
+      let kids: ReactNode = null;
+      if (row.node.kind === 'dir' && i < rows.length && rows[i].depth > depth) {
+        const [list, next] = renderLevel(i, depth + 1);
+        kids = (
+          <div role="group" id={groupId}>
+            {list}
+          </div>
+        );
+        i = next;
+      }
+      out.push(
+        <Fragment key={row.node.path}>
+          {renderRow(row, groupId)}
+          {kids}
+        </Fragment>,
+      );
+    }
+    return [out, i];
+  };
+
   return (
     <div ref={root} className="flex h-full min-h-0 flex-col">
       <div role="tree" aria-label="Файлы проекта" className="min-h-0 flex-1 overflow-auto py-1">
-        {rows.map(({ node, depth }) => {
-          const isDir = node.kind === 'dir';
-          const open = isDir && !collapsed.has(node.path);
-          const editing = renaming?.path === node.path;
-          return (
-            <div key={node.path} role="none" style={{ paddingLeft: `${depth * 12 + 8}px` }} className="pr-1">
-              {editing ? (
-                <div className="flex items-center gap-1 py-0.5">
-                  <input
-                    autoFocus
-                    aria-label={`Новое имя для ${node.path}`}
-                    aria-invalid={Boolean(error)}
-                    className={input}
-                    value={renaming.text}
-                    spellCheck={false}
-                    onChange={(e) => {
-                      setRenaming({ path: renaming.path, text: e.target.value });
-                      setError(e.target.value && e.target.value !== renaming.path ? pathError(e.target.value) : null);
-                    }}
-                    onKeyDown={(e) => {
-                      e.stopPropagation();
-                      if (e.key === 'Enter') submitRename();
-                      if (e.key === 'Escape') {
-                        setRenaming(null);
-                        setError(null);
-                        focusRow(node.path);
-                      }
-                    }}
-                  />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  role="treeitem"
-                  data-path={node.path}
-                  aria-level={depth + 1}
-                  aria-selected={!isDir && node.path === active}
-                  aria-expanded={isDir ? open : undefined}
-                  tabIndex={node.path === current ? 0 : -1}
-                  onFocus={() => setFocused(node.path)}
-                  onClick={() => (isDir ? toggle(node.path, !open) : onOpen(node.path))}
-                  onKeyDown={(e) => onKeyDown(e, node)}
-                  className={`flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left font-mono text-[12.5px] transition ${
-                    !isDir && node.path === active ? 'bg-raised text-fg' : 'text-dim hover:bg-raised hover:text-fg'
-                  }`}
-                >
-                  <span aria-hidden className="w-3 shrink-0 text-[11px] text-faint">
-                    {isDir ? (open ? '▾' : '▸') : ''}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate" title={node.name}>
-                      {node.name}
-                    </span>
-                    {!isDir && readonly.includes(node.path) && <span className="block text-[11px] leading-tight text-dim">только чтение</span>}
-                  </span>
-                  {node.path === entry && <span className="shrink-0 text-[11px] uppercase tracking-wider text-dim">вход</span>}
-                </button>
-              )}
-            </div>
-          );
-        })}
+        {renderLevel(0, 0)[0]}
       </div>
       <div className="shrink-0 space-y-1 border-t border-line p-2">
         {confirm && (

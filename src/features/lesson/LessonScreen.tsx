@@ -28,7 +28,7 @@ export function LessonScreen() {
   const { task, code, error, status, setCode, run, check, explain, resetDatabase, clearLog, openTask, goRelative, toggleOption } =
     useWorkspace();
   const busy = status === 'busy' || status === 'starting';
-  const checking = useWorkspace((s) => s.checking);
+  const checking = useWorkspace((s) => s.checkingTaskId !== null && s.checkingTaskId === s.task?.id);
   const progress = useWorkspace((s) => s.checkProgress);
   const trace = useWorkspace((s) => s.verdict?.trace);
 

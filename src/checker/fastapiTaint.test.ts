@@ -41,7 +41,7 @@ function setup() {
       },
     };
     return worker;
-  });
+  }, { startMs: 90_000, runMs: 30_000, scriptMs: 30_000 });
   return { client, spawns: () => spawns };
 }
 
