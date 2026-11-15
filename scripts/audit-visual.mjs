@@ -1,7 +1,8 @@
-// Visual audit: `npm run audit:visual [-- --suite drill|broker|all]` (default all) renders the suites in headless Chromium
+// Visual audit: `npm run audit:visual [-- --suite drill|broker|fastapi|all]` (default all) renders the suites in headless Chromium
 // at several window sizes and themes. drill = every number, level and a set of seeds of the private trainer course with
 // the real number view (report.md); skipped with a message when there is no private course. broker = fixture screens of
-// the public lab primitives, no private files (report-broker.md). Reports go to private/audit/.
+// the public lab primitives, no private files (report-broker.md). fastapi = the FastAPI panel (tree, tabs, docs, tests, log,
+// check progress) over fixed data, no Python started (report-fastapi.md). Reports go to private/audit/.
 // `--check-dist` instead proves that no course text is in the production build. Env: AUDIT_ONLY=1,6 (screen numbers)
 // AUDIT_SEEDS=10 AUDIT_LIMIT_MIN=5 AUDIT_COURSE=fixture AUDIT_PRIVATE_DIR=dir AUDIT_CHROMIUM=path. Writes only under private/audit/.
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -22,6 +23,7 @@ const PROFILES = [
 const SUITES = {
   drill: { title: 'Визуальный аудит тренажёра', subject: 'Курс', report: 'report.md', results: 'results.json', shots: '' },
   broker: { title: 'Визуальный аудит лаборатории', subject: 'Набор', report: 'report-broker.md', results: 'results-broker.json', shots: 'broker-' },
+  fastapi: { title: 'Визуальный аудит панели FastAPI', subject: 'Набор', report: 'report-fastapi.md', results: 'results-fastapi.json', shots: 'fastapi-' },
 };
 
 function suitesFromArgs() {
@@ -30,7 +32,7 @@ function suitesFromArgs() {
   const value = at < 0 ? 'all' : argv[at].includes('=') ? argv[at].split('=')[1] : argv[at + 1];
   if (value === 'all') return Object.keys(SUITES);
   if (value in SUITES) return [value];
-  console.error(`unknown suite "${value}": use drill, broker or all`);
+  console.error(`unknown suite "${value}": use drill, broker, fastapi or all`);
   process.exit(2);
 }
 
@@ -173,9 +175,9 @@ function render(meta, groups, totals) {
 
 async function runSuite(suite, { context, started }) {
   const spec = SUITES[suite];
-  const root = suite === 'drill' ? auditCourseRoot() : 'src/audit/brokerSuite.tsx (fixtures of src/features/broker)';
+  const root = suite === 'drill' ? auditCourseRoot() : suite === 'fastapi' ? 'src/audit/fastapiSuite.tsx (fixtures of src/features/fastapi and api)' : 'src/audit/brokerSuite.tsx (fixtures of src/features/broker)';
   for (const f of readdirSync(OUT)) {
-    const own = suite === 'drill' ? !f.startsWith('broker-') && /\.png$|^report\.md$|^results\.json$/.test(f) : f.startsWith('broker-') || f === spec.report || f === spec.results;
+    const own = suite === 'drill' ? /^(?!broker-|fastapi-).*\.png$|^report\.md$|^results\.json$/.test(f) : (spec.shots !== '' && f.startsWith(spec.shots)) || f === spec.report || f === spec.results;
     if (own) rmSync(safe(join(OUT, f)));
   }
   const url = (theme) => `http://127.0.0.1:${PORT}/src/audit/audit.html?suite=${suite}&theme=${theme}`;

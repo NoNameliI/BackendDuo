@@ -24,13 +24,13 @@ export function LogPanel({ lines, onClear }: { lines: LogLine[]; onClear: () => 
           Очистить
         </Button>
       </header>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div role="region" aria-label="Строки лога" tabIndex={0} data-audit-allow="bad-wrap" className="min-h-0 flex-1 overflow-auto">
         {lines.length === 0 ? (
           <EmptyState>Лог пуст. Отправьте запрос: здесь появятся его строка INFO и всё, что приложение напечатало.</EmptyState>
         ) : (
           <div role="log" aria-label="Лог приложения" className="p-3 font-mono text-[12.5px] leading-relaxed">
             {lines.map((l) => (
-              <pre key={l.id} className={`whitespace-pre-wrap break-words ${TONE[l.kind]}`}>
+              <pre key={l.id} className={`whitespace-pre-wrap [overflow-wrap:anywhere] ${TONE[l.kind]}`}>
                 {l.text}
               </pre>
             ))}

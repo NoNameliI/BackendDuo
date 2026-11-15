@@ -62,6 +62,8 @@ interface WorkspaceState {
   tab: ResultTab;
   /** An API task is being checked (FastAPI checks take seconds): a second check would count as another attempt. */
   checking: boolean;
+  /** What a long Python check is doing now (empty outside such a check). */
+  checkProgress: string;
 
   setCode: (code: string) => void;
   setTab: (tab: ResultTab) => void;
@@ -236,6 +238,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
   return {
     status: 'off',
     checking: false,
+    checkProgress: '',
     task: null,
     lesson: null,
     taskTab: 'theory',
@@ -416,7 +419,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
 
       if ('httpSolution' in task) {
         if (get().checking) return;
-        set({ checking: true });
+        set({ checking: true, checkProgress: '' });
         let verdict: CheckResult;
         try {
           const { draft, cors, graphql, proto } = lessonApi.getState();
@@ -430,12 +433,12 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
           else if (isPythonTask(task)) {
             const { checkPythonTask } = await import('@/checker/fastapiCourse');
             const python = lessonApi.getState().python;
-            verdict = await checkPythonTask(task, { files: python?.files ?? {}, entry: python?.entry }, pythonClient());
+            verdict = await checkPythonTask(task, { files: python?.files ?? {}, entry: python?.entry }, pythonClient(), (checkProgress) => set({ checkProgress }));
           } else verdict = checkApiTask(task, servers, { draft, cors: cors?.config ?? null });
         } catch (e) {
           verdict = { passed: false, problems: [e instanceof SolutionError ? `Ошибка в самом задании: ${e.message}` : e instanceof Error ? e.message : String(e)] };
         } finally {
-          set({ checking: false });
+          set({ checking: false, checkProgress: '' });
         }
         if (get().task?.id !== task.id) return;
         const reward = progress.recordAttempt(task, verdict.passed);

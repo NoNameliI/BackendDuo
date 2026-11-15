@@ -3,6 +3,7 @@ import { loadCatalog } from '@/content/catalog';
 import { theoryExampleBlocks } from '@/content/theory';
 import type { BrokerTask } from '@/content/loadCourse';
 import { SolutionError } from './index';
+import { budget } from '../../scripts/timing';
 
 import { checkBrokerExamples, checkBrokerTask, createRabbitSandbox, lintBrokerTask, splitScript, type BrokerInput } from './broker';
 import { fixtureCourse, fixtureFiles, fixtureTask } from './brokerFixture';
@@ -136,7 +137,7 @@ describe('scenario', () => {
     const t = task('fx-scenario');
     const t0 = performance.now();
     const a = check(t, starter(t));
-    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(performance.now() - t0).toBeLessThan(budget(1000));
     expect(check(t, starter(t))).toEqual(a);
   });
 });

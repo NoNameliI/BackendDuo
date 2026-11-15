@@ -5,6 +5,7 @@ import { LEVELS } from '../../types';
 import { drawing, g01, type P01 } from '../g01';
 import { layoutGraph, layoutProblems, NODE_R, placeLabels, type LayoutEdge } from './graphLayout';
 import { boxCircleDist, boxGap, boxSegDist, segCross, segDist, type Box, type Pt } from './plane';
+import { budget } from '../../../../../scripts/timing';
 
 const SEEDS = Array.from({ length: 200 }, (_, i) => i + 1);
 
@@ -61,8 +62,8 @@ describe('g01 picture invariants', { timeout: 120000 }, () => {
     const p = draw(g01, { seed: 7, level: 'hard', shape: 'path', vocab: {} }).params;
     expect(JSON.stringify(drawing(p))).toBe(JSON.stringify(drawing(p)));
     times.sort((x, y) => x - y);
-    expect(times[Math.floor(times.length * 0.95)], 'p95 ms').toBeLessThanOrEqual(40);
-    expect(times[times.length - 1], 'max ms').toBeLessThanOrEqual(400);
+    expect(times[Math.floor(times.length * 0.95)], 'p95 ms').toBeLessThanOrEqual(budget(40));
+    expect(times[times.length - 1], 'max ms').toBeLessThanOrEqual(budget(400));
   });
 });
 

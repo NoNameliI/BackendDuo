@@ -5,6 +5,8 @@ import { buildTree, pathError, visibleNodes } from './project';
 interface Props {
   paths: string[];
   entry: string;
+  /** Files the task does not let change: marked with text in the tree. */
+  readonly?: readonly string[];
   active: string;
   onOpen: (path: string) => void;
   /** Each returns an error message in Russian, or null when the change was made. */
@@ -16,7 +18,7 @@ interface Props {
 const input = 'min-w-0 flex-1 rounded border border-line bg-well px-1.5 py-0.5 font-mono text-[12px] text-fg outline-none focus:border-nav';
 
 /** The files of the project as a tree: arrows move, Enter opens, F2 renames, Delete deletes (after a confirmation). */
-export function FileTree({ paths, entry, active, onOpen, onCreate, onRename, onDelete }: Props) {
+export function FileTree({ paths, entry, readonly = [], active, onOpen, onCreate, onRename, onDelete }: Props) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [focused, setFocused] = useState(active);
   const [renaming, setRenaming] = useState<{ path: string; text: string } | null>(null);
@@ -144,15 +146,20 @@ export function FileTree({ paths, entry, active, onOpen, onCreate, onRename, onD
                   onFocus={() => setFocused(node.path)}
                   onClick={() => (isDir ? toggle(node.path, !open) : onOpen(node.path))}
                   onKeyDown={(e) => onKeyDown(e, node)}
-                  className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left font-mono text-[12.5px] transition ${
+                  className={`flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left font-mono text-[12.5px] transition ${
                     !isDir && node.path === active ? 'bg-raised text-fg' : 'text-dim hover:bg-raised hover:text-fg'
                   }`}
                 >
                   <span aria-hidden className="w-3 shrink-0 text-[11px] text-faint">
                     {isDir ? (open ? '▾' : '▸') : ''}
                   </span>
-                  <span className="min-w-0 truncate">{node.name}</span>
-                  {node.path === entry && <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-faint">вход</span>}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate" title={node.name}>
+                      {node.name}
+                    </span>
+                    {!isDir && readonly.includes(node.path) && <span className="block text-[11px] leading-tight text-dim">только чтение</span>}
+                  </span>
+                  {node.path === entry && <span className="shrink-0 text-[11px] uppercase tracking-wider text-dim">вход</span>}
                 </button>
               )}
             </div>

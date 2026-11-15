@@ -56,6 +56,12 @@ function toRgba(css: string): Rgba {
 
 type Ctx = ReturnType<typeof makeCtx>;
 
+/** The inside of a code editor (Monaco) is its own widget: the page's layout is judged by the editor's box. */
+const insideEditor = (el: Element): boolean => !el.classList.contains('monaco-editor') && el.closest('.monaco-editor') !== null;
+
+/** Content of a collapsed <details> is not on screen, even though the browser still lays it out. */
+const insideClosedDetails = (el: Element): boolean => el.parentElement instanceof HTMLDetailsElement && !el.parentElement.open && el.tagName !== 'SUMMARY';
+
 function makeCtx() {
   const styles = new Map<Element, CSSStyleDeclaration>();
   const hiddenMap = new Map<Element, boolean>();
@@ -69,7 +75,7 @@ function makeCtx() {
     const known = hiddenMap.get(el);
     if (known !== undefined) return known;
     const s = style(el);
-    const own = SKIP_TAGS.has(el.tagName) || el.hasAttribute('data-audit-overlay') || el.classList.contains('sr-only') || s.visibility === 'hidden' || s.opacity === '0' || s.display === 'none';
+    const own = SKIP_TAGS.has(el.tagName) || el.hasAttribute('data-audit-overlay') || el.classList.contains('sr-only') || s.visibility === 'hidden' || s.opacity === '0' || s.display === 'none' || insideEditor(el) || insideClosedDetails(el);
     const result = own || hidden(el.parentElement);
     hiddenMap.set(el, result);
     return result;
@@ -127,7 +133,8 @@ function visibleBox(ctx: Ctx, from: Element | null, r: Box): Box | null {
   for (const a of ancestors(from)) {
     const s = ctx.style(a);
     const ax = scrolls(s.overflowX) || abbreviated(a, s);
-    const ay = scrolls(s.overflowY) && a.matches('[role=region]');
+    // Vertical scrolling is judged by what is on screen in regions and in the lists and panels that scroll by design.
+    const ay = scrolls(s.overflowY) && a.matches('[role=region],[role=tree],[role=tabpanel]');
     if (!ax && !ay) continue;
     const p = paddingBox(a);
     const x0 = ax ? Math.max(x, p.x) : x;

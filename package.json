@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "pretest": "node scripts/pyodide/prepare.mjs",
     "test": "vitest run",
+    "test:timing": "node scripts/test-timing.mjs",
     "prevalidate:content": "node scripts/pyodide/prepare.mjs",
     "validate:content": "vitest run --config vitest.content.config.ts",
     "dist": "node scripts/dist.mjs",

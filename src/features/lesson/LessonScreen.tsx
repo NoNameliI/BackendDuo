@@ -9,6 +9,7 @@ import { Panel } from '@/ui/Panel';
 import { Split } from '@/ui/Split';
 import { DdlPanel } from '@/features/erd/DdlPanel';
 import { ErdCanvas } from '@/features/erd/ErdCanvas';
+import { CheckProgress } from './CheckProgress';
 import { QuizPanel } from './QuizPanel';
 import { ResultPanel } from './ResultPanel';
 import { TaskPanel } from './TaskPanel';
@@ -28,6 +29,7 @@ export function LessonScreen() {
     useWorkspace();
   const busy = status === 'busy' || status === 'starting';
   const checking = useWorkspace((s) => s.checking);
+  const progress = useWorkspace((s) => s.checkProgress);
   const trace = useWorkspace((s) => s.verdict?.trace);
 
   useEffect(() => {
@@ -74,6 +76,7 @@ export function LessonScreen() {
             prefix="api-lesson"
             actions={
               <>
+                <CheckProgress checking={checking} progress={progress} />
                 <Button aria-label="Вернуть запрос к началу задания" title="Сбросить" icon={<ResetIcon />} onClick={() => void resetDatabase()} />
                 <Button variant="check" icon={<CheckIcon />} shortcut="Ctrl ⇧ ↵" disabled={checking} onClick={() => void check()}>
                   {checking ? 'Проверяю…' : 'Проверить'}

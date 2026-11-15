@@ -80,7 +80,11 @@ function OperationRow({ op, onTry }: { op: Operation; onTry: (req: ApiRequest) =
         <span className={`w-16 shrink-0 rounded-sm border px-1 text-center font-mono text-[11px] font-semibold ${methodTone[op.method] ?? 'text-dim border-line'}`}>{op.method}</span>
         <span className={`min-w-0 break-all font-mono text-[12.5px] ${op.deprecated ? 'text-faint line-through' : 'text-fg'}`}>{op.path}</span>
         {op.deprecated && <span className="shrink-0 text-[11px] text-amber">устарел</span>}
-        {op.summary && <span className="min-w-0 truncate text-dim">{op.summary}</span>}
+        {op.summary && (
+          <span className="min-w-0 truncate text-dim" title={op.summary}>
+            {op.summary}
+          </span>
+        )}
       </button>
       {open && (
         <div id={id} className="space-y-3 px-3 pb-3 pl-8 text-[13px]">
@@ -158,9 +162,9 @@ function OperationRow({ op, onTry }: { op: Operation; onTry: (req: ApiRequest) =
 export function OpenApiViewer({ spec, loading, error, onReload, onTry }: Props) {
   const header = (
     <header className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2">
-      <h3 className="min-w-0 truncate text-[13px] font-semibold text-fg">{spec ? spec.title : 'Документация'}</h3>
-      {spec?.version && <span className="font-mono text-[12px] text-faint">v{spec.version}</span>}
-      <div className="ml-auto">
+      <h3 className="min-w-0 break-words text-[13px] font-semibold text-fg">{spec ? spec.title : 'Документация'}</h3>
+      {spec?.version && <span className="shrink-0 whitespace-nowrap font-mono text-[12px] text-faint">v{spec.version}</span>}
+      <div className="ml-auto shrink-0">
         <Button variant="outline" onClick={onReload} disabled={loading}>
           Обновить
         </Button>
@@ -170,7 +174,7 @@ export function OpenApiViewer({ spec, loading, error, onReload, onTry }: Props) 
   return (
     <div className="flex h-full flex-col">
       {header}
-      <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading}>
+      <div role="region" aria-label="Операции и схемы" tabIndex={0} className="min-h-0 flex-1 overflow-auto" aria-busy={loading}>
         <div role="status" className="sr-only">
           {loading ? 'Загрузка документации' : ''}
         </div>

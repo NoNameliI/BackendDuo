@@ -5,10 +5,10 @@ import '../styles/index.css';
 import { applyTheme } from '../app/theme';
 import { createAuditApi } from './driver';
 
-// ?suite=drill (default, the private trainer course) or ?suite=broker (public lab fixtures, no private files).
+// ?suite=drill (default, the private trainer course), ?suite=broker or ?suite=fastapi (public fixtures, no private files).
 const params = new URLSearchParams(location.search);
 const theme = params.get('theme') === 'light' ? 'light' : 'dark';
-const suiteId = params.get('suite') === 'broker' ? 'broker' : 'drill';
+const suiteId = params.get('suite') === 'broker' ? 'broker' : params.get('suite') === 'fastapi' ? 'fastapi' : 'drill';
 applyTheme(theme);
 
 const root = document.getElementById('root')!;
@@ -17,6 +17,16 @@ const nothing = () => {
 };
 
 async function start() {
+  if (suiteId === 'fastapi') {
+    const { FastapiAuditPage, fastapiSuite } = await import('./fastapiSuite');
+    createRoot(root).render(
+      <StrictMode>
+        <FastapiAuditPage />
+      </StrictMode>,
+    );
+    window.__audit = createAuditApi(fastapiSuite, { id: 'fastapi', numbers: () => fastapiSuite.plan({ seeds: 0, scan: 0, bad: 0 }).map((c) => c.n) });
+    return;
+  }
   if (suiteId === 'broker') {
     const { BrokerAuditPage, brokerSuite } = await import('./brokerSuite');
     createRoot(root).render(

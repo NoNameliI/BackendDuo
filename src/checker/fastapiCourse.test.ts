@@ -97,6 +97,23 @@ describe('messages', () => {
 
 const TESTS_FAIL = 'from fastapi.testclient import TestClient\nfrom main import app\n\nclient = TestClient(app)\n\n\ndef test_found():\n    assert client.get("/items/9").status_code == 200\n\n\ndef test_missing():\n    assert client.get("/items/9").status_code == 404\n';
 
+describe('progress', () => {
+  it('a pytest check reports each stage and every mutant', async () => {
+    const t = task('fa-pytest');
+    const seen: string[] = [];
+    const out = await checkPythonTask(t, solutionProject(t), runtime, (text) => seen.push(text));
+    expect(out.problems).toEqual([]);
+    expect(seen[0]).toBe('Перезапускаю Python…');
+    const mutants = Object.keys(t.pythonMutants).length;
+    for (let i = 1; i <= mutants; i++) expect(seen).toContain(`Тесты на копии с ошибкой ${i} из ${mutants}…`);
+  }, 120_000);
+
+  it('works without a callback', async () => {
+    const t = task('fa-static');
+    expect((await checkPythonTask(t, solutionProject(t), runtime)).problems).toEqual([]);
+  }, 60_000);
+});
+
 describe('lesson format', () => {
   const wrap = (fences: string) => `# L\n\n## task a\n\`\`\`json\n{"type":"static","title":"t","hints":["h"]}\n\`\`\`\nP\n${fences}`;
   it('old forms keep the old keys', () => {

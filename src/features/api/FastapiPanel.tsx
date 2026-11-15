@@ -43,7 +43,7 @@ export function PythonStatusLine() {
   );
 }
 
-type Side = 'request' | 'docs' | 'tests' | 'log';
+export type Side = 'request' | 'docs' | 'tests' | 'log';
 
 const languageOf = (path: string) => (path.endsWith('.py') ? 'python' : path.endsWith('.json') ? 'json' : 'plaintext');
 
@@ -55,7 +55,7 @@ function EditorTabs() {
   const closeTab = useStore((s) => s.closePythonTab);
   if (!python) return null;
   return (
-    <div role="tablist" aria-label="Открытые файлы" className="flex h-9 shrink-0 items-stretch overflow-x-auto border-b border-line">
+    <div role="tablist" aria-label="Открытые файлы" data-audit-allow="scroll-x-element" className="flex h-9 shrink-0 items-stretch overflow-x-auto border-b border-line">
       {python.open.map((path) => {
         const selected = path === python.active;
         return (
@@ -69,9 +69,10 @@ function EditorTabs() {
               className={`h-full pl-3 font-mono text-[12px] ${python.open.length > 1 ? 'pr-1' : 'pr-3'} ${selected ? 'text-fg' : 'text-dim hover:text-fg'}`}
             >
               {path}
+              {python.readonly.includes(path) && <span className="ml-2 text-[11px] text-dim">только чтение</span>}
             </button>
             {python.open.length > 1 && (
-              <button type="button" aria-label={`Закрыть вкладку ${path}`} onClick={() => closeTab(path)} className="mr-1 rounded px-1 text-faint hover:text-err">
+              <button type="button" aria-label={`Закрыть вкладку ${path}`} onClick={() => closeTab(path)} className="mr-1 rounded px-1 text-dim hover:text-err">
                 ×
               </button>
             )}
@@ -84,7 +85,7 @@ function EditorTabs() {
 }
 
 /** FastAPI tasks: the code on the left (a file tree and tabs for a multi-file project), requests, docs, tests and log on the right. */
-export function FastapiPanel() {
+export function FastapiPanel({ initialSide = 'request' }: { initialSide?: Side } = {}) {
   const useStore = useApiSandbox();
   const python = useStore((s) => s.python);
   const setPythonSource = useStore((s) => s.setPythonSource);
@@ -99,7 +100,7 @@ export function FastapiPanel() {
   const createFile = useStore((s) => s.createPythonFile);
   const renameFile = useStore((s) => s.renamePythonFile);
   const deleteFile = useStore((s) => s.deletePythonFile);
-  const [side, setSide] = useState<Side>('request');
+  const [side, setSide] = useState<Side>(initialSide);
   const withTests = python ? hasTests(python.files) : false;
   const paths = useMemo(() => Object.keys(python?.files ?? {}), [python?.files]);
 
@@ -129,12 +130,12 @@ export function FastapiPanel() {
     </Suspense>
   );
   return (
-    <div className="grid h-full min-h-0 grid-rows-[3fr_2fr] @3xl:grid-cols-[3fr_2fr] @3xl:grid-rows-1">
+    <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)] grid-rows-[3fr_2fr] @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @3xl:grid-rows-1">
       <section aria-label={`Код приложения ${python.entry}`} className="flex min-h-0 flex-col border-b border-line @3xl:border-r @3xl:border-b-0">
         {python.tree ? (
           <div className="flex min-h-0 flex-1">
             <div className="w-44 shrink-0 border-r border-line">
-              <FileTree paths={paths} entry={python.entry} active={python.active} onOpen={openFile} onCreate={createFile} onRename={renameFile} onDelete={deleteFile} />
+              <FileTree paths={paths} entry={python.entry} readonly={python.readonly} active={python.active} onOpen={openFile} onCreate={createFile} onRename={renameFile} onDelete={deleteFile} />
             </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <EditorTabs />
@@ -148,6 +149,7 @@ export function FastapiPanel() {
           <>
             <div className="flex h-9 shrink-0 items-center gap-3 border-b border-line px-3">
               <span className="font-mono text-[12px] text-dim">{python.active}</span>
+              {python.readonly.includes(python.active) && <span className="text-[11px] text-dim">только чтение</span>}
               <PythonStatusLine />
             </div>
             <div className="min-h-0 flex-1">{editor}</div>

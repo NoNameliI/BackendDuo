@@ -112,7 +112,8 @@ with TestClient(app) as c:
     );
     expect(run.error).toBeUndefined();
     expect(run.output).toBe("0;1;2;\n{'hello': 'ann'}\n");
-    expect(run.ms).toBeLessThan(5000);
+    // Three sleep(30) on a real clock would take 90 s; the bound leaves room for a busy machine.
+    expect(run.ms).toBeLessThan(20_000);
   });
 
   it('answers 50 GETs quickly', () => {

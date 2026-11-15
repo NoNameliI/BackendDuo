@@ -5,6 +5,8 @@
   "engine": "api",
   "errors": "errors.json",
   "solutionAfterAttempts": 3,
+  "onboarding": "onboarding.json",
+  "placement": "placement.json",
   "worlds": [
     {
       "id": "fa-w0",
@@ -155,6 +157,32 @@
       ]
     },
     {
+      "id": "fa-w6",
+      "title": "Асинхронность и фоновая работа",
+      "summary": "Блокировка цикла событий, BackgroundTasks, потоковые ответы и SSE, WebSocket, связь с брокерами сообщений.",
+      "requires": [
+        "fa-w5"
+      ],
+      "lessons": [
+        {
+          "id": "fa-async-blocking",
+          "file": "w6/01-async-blocking.md"
+        },
+        {
+          "id": "fa-background",
+          "file": "w6/02-background-tasks.md"
+        },
+        {
+          "id": "fa-streaming",
+          "file": "w6/03-streaming-sse.md"
+        },
+        {
+          "id": "fa-websocket-brokers",
+          "file": "w6/04-websocket-brokers.md"
+        }
+      ]
+    },
+    {
       "id": "fa-w7",
       "title": "Тестирование и качество",
       "summary": "Тесты pytest и TestClient, поиск ошибок по упавшему тесту, документация OpenAPI и проверка кода.",
@@ -162,10 +190,48 @@
         {
           "id": "fa-pytest-testclient",
           "file": "w7/01-pytest-testclient.md"
+        },
+        {
+          "id": "fa-test-db",
+          "file": "w7/02-test-db-fixtures.md"
+        },
+        {
+          "id": "fa-errors-logging",
+          "file": "w7/03-errors-logging.md"
+        },
+        {
+          "id": "fa-openapi-versioning",
+          "file": "w7/04-openapi-versioning.md"
         }
       ],
       "requires": [
-        "fa-w3"
+        "fa-w6"
+      ]
+    },
+    {
+      "id": "fa-w8",
+      "title": "В продакшен",
+      "summary": "Конфигурация и секреты, uvicorn и воркеры, Docker и обратный прокси, health-check и наблюдаемость, производительность и чек-лист выпуска.",
+      "requires": [
+        "fa-w7"
+      ],
+      "lessons": [
+        {
+          "id": "fa-prod-config",
+          "file": "w8/01-config-secrets.md"
+        },
+        {
+          "id": "fa-prod-servers",
+          "file": "w8/02-uvicorn-docker-proxy.md"
+        },
+        {
+          "id": "fa-prod-health",
+          "file": "w8/03-health-observability.md"
+        },
+        {
+          "id": "fa-prod-performance",
+          "file": "w8/04-performance-checklist.md"
+        }
       ]
     }
   ],
@@ -177,6 +243,26 @@
     {
       "xp": 100,
       "title": "Практик"
+    },
+    {
+      "xp": 300,
+      "title": "Разработчик"
+    },
+    {
+      "xp": 650,
+      "title": "Уверенный разработчик"
+    },
+    {
+      "xp": 1100,
+      "title": "Мастер тестов"
+    },
+    {
+      "xp": 1600,
+      "title": "Инженер качества"
+    },
+    {
+      "xp": 2000,
+      "title": "Эксперт FastAPI"
     }
   ],
   "badges": [
@@ -188,6 +274,78 @@
       "rule": {
         "kind": "tasksSolved",
         "count": 1
+      }
+    },
+    {
+      "id": "refactorer",
+      "title": "Многофайловый проект",
+      "description": "Выполнено два задания на рефакторинг: код разложен по файлам",
+      "glyph": "REF",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "refactor",
+        "count": 2
+      }
+    },
+    {
+      "id": "project-builder",
+      "title": "Строитель проектов",
+      "description": "Пройден мир «Структура и зависимости»",
+      "glyph": "DEP",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "fa-w3"
+      }
+    },
+    {
+      "id": "guardian",
+      "title": "Страж данных",
+      "description": "Пройден мир «Безопасность»",
+      "glyph": "JWT",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "fa-w5"
+      }
+    },
+    {
+      "id": "test-writer",
+      "title": "Автор тестов",
+      "description": "Написаны тесты, которые поймали ошибки в трёх приложениях",
+      "glyph": "TEST",
+      "rule": {
+        "kind": "tasksOfType",
+        "type": "pytest",
+        "count": 3
+      }
+    },
+    {
+      "id": "quality-gate",
+      "title": "Контроль качества",
+      "description": "Пройден мир «Тестирование и качество»",
+      "glyph": "QA",
+      "rule": {
+        "kind": "worldCompleted",
+        "world": "fa-w7"
+      }
+    },
+    {
+      "id": "steady-rhythm",
+      "title": "Ровный ритм",
+      "description": "Занятия три дня подряд",
+      "glyph": "3d",
+      "rule": {
+        "kind": "streak",
+        "days": 3
+      }
+    },
+    {
+      "id": "first-try-ten",
+      "title": "С первого раза",
+      "description": "Десять заданий решено с первой попытки",
+      "glyph": "1x",
+      "rule": {
+        "kind": "firstTry",
+        "count": 10
       }
     }
   ]

@@ -13,6 +13,9 @@ export interface CourseRuntime {
   analyze(project: Project, rules: StaticRule[], options?: { reference?: boolean }): Promise<AnalyzeResult>;
 }
 
+/** Reports what a long check is doing now (shown to the learner while the check runs). */
+export type CheckProgress = (text: string) => void;
+
 const verdict = (problems: string[]): CheckResult => ({ passed: problems.length === 0, problems });
 const OPENAPI: ApiRequest = { method: 'GET', url: '/openapi.json', headers: [], body: '' };
 const underTests = (path: string) => path.startsWith('tests/');
@@ -80,15 +83,17 @@ function testProblems(run: PytestRun, minTests: number): string[] {
  * `pytest` task: the learner's tests (files under tests/) run against the reference app (the solution's files outside
  * tests/); they must pass, and fail on every mutant of the app.
  */
-async function checkPytest(task: Extract<PythonTask, { type: 'pytest' }>, learner: Project, runtime: CourseRuntime): Promise<CheckResult> {
+async function checkPytest(task: Extract<PythonTask, { type: 'pytest' }>, learner: Project, runtime: CourseRuntime, progress: CheckProgress): Promise<CheckResult> {
   const groups = pythonGroups(task);
   const reference = solutionProject(task);
   const app = pick(reference.files, (p) => !underTests(p));
   const tests = pick(learner.files, underTests);
   const entry = reference.entry;
   // Tests may only talk to the app through its API (not read its source): such tests would "catch" every mutant.
+  progress('Проверяю, что тесты обращаются к приложению только через API…');
   const api = await runtime.analyze({ files: { ...app, ...tests }, entry }, [{ rule: 'tests-api-only' } as unknown as StaticRule], { reference: true });
   if (api.problems.length) return verdict(api.problems);
+  progress('Запускаю ваши тесты на эталонном приложении…');
   const base = await runtime.test({ files: { ...app, ...tests }, entry }, { groups });
   const problems = testProblems(base, task.check.minTests);
   if (problems.length) return verdict(problems);
@@ -97,9 +102,12 @@ async function checkPytest(task: Extract<PythonTask, { type: 'pytest' }>, learne
   // would let the first run pass and make every later one "catch" a mutant.
   const order = 'Тесты зависят от порядка запуска или прошлых запусков: после запуска на мутанте они перестали проходить на исходном приложении';
   const missed: string[] = [];
-  for (const [id, overlay] of Object.entries(task.pythonMutants)) {
+  const mutants = Object.entries(task.pythonMutants);
+  for (const [index, [id, overlay]] of mutants.entries()) {
+    progress(`Тесты на копии с ошибкой ${index + 1} из ${mutants.length}…`);
     const run = await runtime.test({ files: { ...app, ...overlay, ...tests }, entry }, { groups });
     if (run.exit === 0) missed.push(task.mutants[id] ?? id);
+    progress(`Возвращаю исходное приложение (${index + 1} из ${mutants.length})…`);
     const again = await runtime.test({ files: { ...app, ...tests }, entry }, { groups });
     if (testProblems(again, task.check.minTests).length) return verdict([order]);
   }
@@ -110,12 +118,15 @@ async function checkPytest(task: Extract<PythonTask, { type: 'pytest' }>, learne
  * Checks a learner's project against a Python project task. Static rules run first and stop the check; then the
  * type's own check. Every run of the course's own code (reference app, analysis) uses `reference: true`.
  */
-export async function checkPythonTask(task: PythonTask, input: Project | string, runtime: CourseRuntime): Promise<CheckResult> {
+export async function checkPythonTask(task: PythonTask, input: Project | string, runtime: CourseRuntime, onProgress?: CheckProgress): Promise<CheckResult> {
+  const progress: CheckProgress = onProgress ?? (() => {});
+  progress('Перезапускаю Python…');
   const learner = learnerProject(task, input);
   const shadow = shadowProblems(task, learner.files);
   if (shadow.length) return verdict(shadow);
   const rules = task.check.static as StaticRule[];
   if (rules.length) {
+    progress('Проверяю код правилами…');
     const found = await runtime.analyze(learner, rules, { reference: true });
     if (found.problems.length) return verdict(found.problems);
   }
@@ -127,15 +138,19 @@ export async function checkPythonTask(task: PythonTask, input: Project | string,
       return verdict(problems);
     }
     case 'pytest':
-      return checkPytest(task, learner, runtime);
+      return checkPytest(task, learner, runtime, progress);
     case 'openapi': {
+      progress('Эталон…');
       const want = await referenceSpec(task, runtime, groups);
+      progress('Читаю документацию вашего приложения…');
       const got = await readSpec(learner, runtime, groups, false);
       if ('problems' in got) return verdict(got.problems);
       return verdict(compareOpenapi(want, got.spec, task.check.compare));
     }
     case 'refactor': {
+      progress('Эталон…');
       const want = await referenceSpec(task, runtime, groups);
+      progress('Читаю документацию вашего приложения…');
       const got = await readSpec(learner, runtime, groups, false);
       if ('problems' in got) return verdict(got.problems);
       const wantRoutes = routeSet(want);
@@ -145,9 +160,11 @@ export async function checkPythonTask(task: PythonTask, input: Project | string,
         ...gotRoutes.filter((r) => !wantRoutes.includes(r)).map((r) => `Появился лишний маршрут ${r}`),
       ];
       if (problems.length) return verdict(problems.slice(0, 3));
+      progress('Сравниваю ответы с эталоном…');
       return checkFastapi(task as FastapiTask, learner, (project, requests, options) => runtime.run(asProjectOnly(project), requests, options));
     }
     default:
+      progress('Сравниваю ответы с эталоном…');
       return checkFastapi(task as FastapiTask, learner, (project, requests, options) => runtime.run(asProjectOnly(project), requests, options));
   }
 }

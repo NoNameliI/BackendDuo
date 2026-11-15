@@ -38,18 +38,18 @@ export function TestsPanel({ running, run, error, onRun }: Props) {
   return (
     <div className="flex h-full flex-col">
       <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2">
-        <Button variant="run" icon={<PlayIcon />} onClick={onRun} disabled={running}>
+        <Button className="shrink-0" variant="run" icon={<PlayIcon />} onClick={onRun} disabled={running}>
           Запустить тесты
         </Button>
-        <p role="status" aria-live="polite" className={`min-w-0 truncate font-mono text-[12.5px] ${running ? 'text-amber' : clean ? 'text-ok' : 'text-dim'}`}>
+        <p role="status" aria-live="polite" title={status || undefined} className={`min-w-0 truncate font-mono text-[12.5px] ${running ? 'text-amber' : clean ? 'text-ok' : 'text-dim'}`}>
           {status}
         </p>
       </header>
-      <div className="min-h-0 flex-1 overflow-auto" aria-busy={running}>
+      <div role="region" aria-label="Результаты тестов" tabIndex={0} data-audit-allow="bad-wrap" className="min-h-0 flex-1 overflow-auto" aria-busy={running}>
         {error ? (
           <div role="alert" className="p-3 text-[13px]">
             <p className="font-semibold text-err">Тесты не выполнились</p>
-            <p className="mt-1 break-words font-mono text-[12px] text-dim">{error}</p>
+            <p className="mt-1 font-mono text-[12px] text-dim [overflow-wrap:anywhere]">{error}</p>
           </div>
         ) : !run ? (
           <EmptyState>Нажмите «Запустить тесты»: pytest выполнит файлы из папки tests/ против вашего приложения.</EmptyState>
@@ -66,7 +66,7 @@ export function TestsPanel({ running, run, error, onRun }: Props) {
                       <span className={`w-20 shrink-0 font-mono text-[12px] font-semibold ${view.tone}`}>{view.text}</span>
                       <span className="min-w-0 break-all font-mono text-[12.5px] text-fg">{t.nodeid}</span>
                     </p>
-                    {t.message && <pre className="mt-1 whitespace-pre-wrap break-words pl-[88px] font-mono text-[12px] text-dim">{t.message}</pre>}
+                    {t.message && <pre className="mt-1 whitespace-pre-wrap pl-[88px] font-mono text-[12px] text-dim [overflow-wrap:anywhere]">{t.message}</pre>}
                     {advice && <p className="mt-1 pl-[88px] text-[12.5px] text-amber">{advice}</p>}
                   </li>
                 );
@@ -75,7 +75,7 @@ export function TestsPanel({ running, run, error, onRun }: Props) {
             {run.output.trim() && (
               <details className="border-t border-line px-3 py-2 text-[12.5px]">
                 <summary className="cursor-pointer text-dim">Вывод pytest целиком</summary>
-                <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[12px] text-dim">{run.output}</pre>
+                <pre className="mt-1 whitespace-pre-wrap font-mono text-[12px] text-dim [overflow-wrap:anywhere]">{run.output}</pre>
               </details>
             )}
           </>

@@ -1,0 +1,65 @@
+{
+  "questions": "placement.md",
+  "passThreshold": 2,
+  "blocks": [
+    {
+      "id": "basics",
+      "title": "Основы",
+      "questions": [
+        "fa-pl-path-int",
+        "fa-pl-query-default",
+        "fa-pl-route-order"
+      ],
+      "unlocks": [
+        "fa-asgi-basics",
+        "fa-path-query",
+        "fa-enum-routes"
+      ]
+    },
+    {
+      "id": "models",
+      "title": "Данные и модели",
+      "questions": [
+        "fa-pl-body-422",
+        "fa-pl-response-model",
+        "fa-pl-http-exception"
+      ],
+      "unlocks": [
+        "fa-pydantic-v2",
+        "fa-in-out-models",
+        "fa-forms-files",
+        "fa-errors"
+      ]
+    },
+    {
+      "id": "structure",
+      "title": "Зависимости и структура",
+      "questions": [
+        "fa-pl-depends",
+        "fa-pl-yield-dep",
+        "fa-pl-router-prefix"
+      ],
+      "unlocks": [
+        "fa-depends",
+        "fa-routers",
+        "fa-lifespan-settings",
+        "fa-middleware"
+      ]
+    },
+    {
+      "id": "python-bridge",
+      "title": "Python для FastAPI",
+      "questions": [
+        "fa-pl-annotated",
+        "fa-pl-decorator",
+        "fa-pl-blocking"
+      ],
+      "unlocks": [
+        "fa-py-types",
+        "fa-py-generators",
+        "fa-py-decorators",
+        "fa-py-async"
+      ]
+    }
+  ]
+}

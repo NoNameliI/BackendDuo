@@ -84,7 +84,7 @@ export interface Placement {
 
 export type SqlOnboarding = Omit<OnboardingData, 'firstQuery'> & { kind: 'sql'; firstQuery: Extract<Task, { type: 'result' }> };
 export type GitOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'git'; firstTask: GitTask };
-/** API course: the same concept cards, then a first request in the composer (a request or response task). */
+/** API course: the same concept cards, then a first request in the composer (a request or response task) or a first route in Python (a fastapi task). */
 export type ApiOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'api'; firstTask: ApiTask };
 /** Broker course: concept cards, then a first publication in the lab (a topology, routing or console task). */
 export type BrokerOnboarding = Omit<GitOnboardingData, 'firstTask'> & { kind: 'broker'; firstTask: BrokerTask };
@@ -422,8 +422,8 @@ export function loadCourse(files: Record<string, string>, root: string): Course 
       return { ...data, kind: 'broker', firstTask: firstTask as BrokerTask };
     }
     if (manifest.engine === 'api') {
-      if (firstTask.type !== 'request' && firstTask.type !== 'response') {
-        problems.push(`${path} › firstTask: ожидается задание request или response`);
+      if (firstTask.type !== 'request' && firstTask.type !== 'response' && !('project' in firstTask && firstTask.type === 'fastapi')) {
+        problems.push(`${path} › firstTask: ожидается задание request, response или fastapi`);
         return null;
       }
       return { ...data, kind: 'api', firstTask: firstTask as ApiTask };

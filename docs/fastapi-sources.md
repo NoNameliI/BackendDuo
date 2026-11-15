@@ -1,6 +1,6 @@
 # Источники курса FastAPI
 
-Официальные страницы, на которые опирается содержание уроков. Адреса проверены запросом (ответ 200) 2026-11-14; текст страниц не копируется, задания и примеры написаны заново.
+Официальные страницы, на которые опирается содержание уроков. Адреса проверены запросом (ответ 200) 2026-11-15; текст страниц не копируется, задания и примеры написаны заново.
 
 ## Мир 0. Мост от Python к FastAPI
 
@@ -182,6 +182,36 @@
 - `response_model`: https://fastapi.tiangolo.com/tutorial/response-model/
 - `ConfigDict(extra="forbid")`: https://docs.pydantic.dev/latest/api/config/
 
+## Мир 6. Асинхронность и фоновая работа
+
+### Урок «Блокировка цикла событий» (`w6/01-async-blocking.md`)
+
+- `def` и `async def`, пул потоков, что блокирует: https://fastapi.tiangolo.com/async/
+- `asyncio.gather`, `asyncio.wait_for`, `asyncio.to_thread`, `TimeoutError`: https://docs.python.org/3/library/asyncio-task.html
+
+### Урок «Фоновые задачи» (`w6/02-background-tasks.md`)
+
+- `BackgroundTasks`, `add_task`, задачи в зависимостях, когда нужна очередь: https://fastapi.tiangolo.com/tutorial/background-tasks/
+- Справочник по `BackgroundTasks`: https://fastapi.tiangolo.com/reference/background/
+- Запуск после ответа, порядок задач, исключения в задачах: https://starlette.dev/background/
+
+### Урок «Потоковые ответы и SSE» (`w6/03-streaming-sse.md`)
+
+- `EventSourceResponse` и `ServerSentEvent` (`data`, `raw_data`, `event`, `id`, `retry`, `comment`), заголовки `Cache-Control` и `X-Accel-Buffering`, пинг; появились в FastAPI 0.135.0: https://fastapi.tiangolo.com/tutorial/server-sent-events/
+- `StreamingResponse`, `media_type`: https://fastapi.tiangolo.com/advanced/custom-response/
+- `StreamingResponse` в Starlette: https://starlette.dev/responses/
+- Потоки данных в FastAPI: https://fastapi.tiangolo.com/advanced/stream-data/
+- Формат событий (`event`, `data`, `id`, `retry`, комментарии, пустая строка как конец события): https://html.spec.whatwg.org/multipage/server-sent-events.html
+
+### Урок «WebSocket и брокеры сообщений» (`w6/04-websocket-brokers.md`)
+
+- `@app.websocket`, `accept`, `receive_text`, `send_text`, `WebSocketDisconnect`, менеджер подключений: https://fastapi.tiangolo.com/advanced/websockets/
+- Тесты WebSocket (`TestClient.websocket_connect`): https://fastapi.tiangolo.com/advanced/testing-websockets/
+- `WebSocketException`: https://fastapi.tiangolo.com/reference/exceptions/
+- Коды закрытия, объект соединения: https://starlette.dev/websockets/
+- Приём outbox: https://microservices.io/patterns/data/transactional-outbox.html
+- Внутри платформы: курсы «RabbitMQ» (урок «Outbox и saga»), «Apache Kafka», «Kafka или RabbitMQ».
+
 ## Мир 7. Тестирование и качество
 
 ### Урок «Тесты: pytest и TestClient» (`w7/01-pytest-testclient.md`)
@@ -198,3 +228,76 @@
 - pytest, фикстуры и `conftest.py`: https://docs.pytest.org/en/stable/how-to/fixtures.html
 - pytest, `parametrize`: https://docs.pytest.org/en/stable/how-to/parametrize.html
 - pytest, `assert`: https://docs.pytest.org/en/stable/how-to/assert.html
+
+### Урок «Тестовая база и фикстуры» (`w7/02-test-db-fixtures.md`)
+
+- Подмена зависимостей (`dependency_overrides`): https://fastapi.tiangolo.com/advanced/testing-dependencies/
+- `with TestClient(app)` запускает lifespan, без `with` не запускает: https://fastapi.tiangolo.com/advanced/testing-events/
+- Фикстуры, `yield`, `scope`, фабрики, `ScopeMismatch`: https://docs.pytest.org/en/stable/how-to/fixtures.html
+- `parametrize` с несколькими именами: https://docs.pytest.org/en/stable/how-to/parametrize.html
+- SQLite: база в памяти, `StaticPool`, `check_same_thread`: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html
+- Сессия, `add`, `commit`, `delete`: https://docs.sqlalchemy.org/en/20/orm/session_basics.html
+- Зависимости с `yield`: https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/
+
+### Урок «Ошибки и логирование» (`w7/03-errors-logging.md`)
+
+- `exception_handler`, свои исключения, `HTTPException`: https://fastapi.tiangolo.com/tutorial/handling-errors/
+- Обработчики по классу исключения (базовый класс и наследники), обработчик `Exception`: https://starlette.dev/exceptions/
+- `raise_server_exceptions`: https://starlette.dev/testclient/
+- `TestClient`: https://fastapi.tiangolo.com/tutorial/testing/
+- Уровни, `getLogger`, `basicConfig`, `exception`: https://docs.python.org/3/library/logging.html
+- Основы логирования, подстановка `%s`: https://docs.python.org/3/howto/logging.html
+- Фикстура `caplog` (`set_level`, `text`, `records`): https://docs.pytest.org/en/stable/how-to/logging.html
+
+### Урок «OpenAPI: описание и версии API» (`w7/04-openapi-versioning.md`)
+
+- `title`, `summary`, `version`, `openapi_tags`: https://fastapi.tiangolo.com/tutorial/metadata/
+- `summary`, `description`, строка документации, `response_description`, `deprecated`: https://fastapi.tiangolo.com/tutorial/path-operation-configuration/
+- `json_schema_extra`, `Field(examples=...)`: https://fastapi.tiangolo.com/tutorial/schema-extra-example/
+- `json_schema_extra` и `examples` в схеме: https://docs.pydantic.dev/latest/concepts/json_schema/
+- `Field(description=, examples=)`: https://docs.pydantic.dev/latest/concepts/fields/
+- `operationId`, `generate_unique_id_function`: https://fastapi.tiangolo.com/advanced/path-operation-advanced-configuration/
+- `APIRouter`, `include_router(prefix=)`: https://fastapi.tiangolo.com/tutorial/bigger-applications/
+- `mount` как альтернатива: https://fastapi.tiangolo.com/advanced/sub-applications/
+- Заголовок `Sunset`: https://www.rfc-editor.org/rfc/rfc8594
+- Заголовок `Deprecation`: https://www.rfc-editor.org/rfc/rfc9745
+
+## Мир 8. В продакшен
+
+### Урок «Настройки по окружениям и секреты» (`w8/01-config-secrets.md`)
+
+- Настройки, `BaseSettings`, `lru_cache`: https://fastapi.tiangolo.com/advanced/settings/
+- `secrets_dir`, приоритет источников: https://docs.pydantic.dev/latest/concepts/pydantic_settings/
+- `docs_url`, `redoc_url`, `openapi_url`: https://fastapi.tiangolo.com/tutorial/metadata/
+- Принцип «конфигурация в окружении»: https://12factor.net/config
+
+### Урок «Запуск в продакшене: uvicorn, Docker, прокси» (`w8/02-uvicorn-docker-proxy.md`)
+
+- Обзор развёртывания: https://fastapi.tiangolo.com/deployment/
+- `fastapi run --workers`, `uvicorn --workers`, один процесс на контейнер в Kubernetes: https://fastapi.tiangolo.com/deployment/server-workers/
+- Пример Dockerfile: https://fastapi.tiangolo.com/deployment/docker/
+- Запуск вручную: https://fastapi.tiangolo.com/deployment/manually/
+- `fastapi dev` и `fastapi run`: https://fastapi.tiangolo.com/fastapi-cli/
+- `root_path`, `--root-path`, `--proxy-headers`, `--forwarded-allow-ips`, блок `servers`: https://fastapi.tiangolo.com/advanced/behind-a-proxy/
+- Gunicorn, устаревший `uvicorn.workers`, пакет `uvicorn-worker`, `--reload` и `--workers`, `--proxy-headers`: https://uvicorn.dev/deployment/
+- Пакет `uvicorn-worker`: https://github.com/Kludex/uvicorn-worker
+- Инструкции Dockerfile (`FROM`, `WORKDIR`, `COPY`, `RUN`, `USER`, `EXPOSE`, `CMD`): https://docs.docker.com/reference/dockerfile/
+- `proxy_pass` с адресом и слэшем: https://nginx.org/en/docs/http/ngx_http_proxy_module.html
+
+### Урок «Проверки здоровья, request-id и журналы» (`w8/03-health-observability.md`)
+
+- `JSONResponse`, `Response`: https://fastapi.tiangolo.com/advanced/custom-response/
+- Middleware, `call_next`: https://fastapi.tiangolo.com/tutorial/middleware/
+- Логгеры, уровни, `extra`, `Formatter`, `StreamHandler`: https://docs.python.org/3/library/logging.html
+- Основы `logging`: https://docs.python.org/3/howto/logging.html
+- `uuid.uuid4()`: https://docs.python.org/3/library/uuid.html
+- Проверки liveness и readiness: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+
+### Урок «Производительность и чек-лист выпуска» (`w8/04-performance-checklist.md`)
+
+- `ETag` и условные запросы: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/ETag
+- `Cache-Control` (`max-age`, `no-store`, `private`, `no-cache`): https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control
+- `If-None-Match` и `304`: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/If-None-Match
+- `GZipMiddleware`: https://fastapi.tiangolo.com/advanced/middleware/
+- `asyncio.wait_for`, `TimeoutError`: https://docs.python.org/3/library/asyncio-task.html#asyncio.wait_for
+- `Query(ge=, le=)`: https://fastapi.tiangolo.com/tutorial/query-params-str-validations/

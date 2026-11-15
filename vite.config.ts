@@ -44,6 +44,9 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Many test files boot their own Pyodide (≈170 MB, seconds of CPU each): half the cores keeps them under their timeouts.
+    maxWorkers: '50%',
+    testTimeout: 30_000,
     include: ['src/**/*.test.ts', 'scripts/pack-private.test.ts', 'scripts/pyodide/groups.test.ts'],
   },
 });

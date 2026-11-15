@@ -3,6 +3,7 @@ import type { BrokerTask } from '@/content/loadCourse';
 import { theoryExampleBlocks } from '@/content/theory';
 import { checkBrokerExamples, checkBrokerTask, createKafkaSandbox, lintBrokerTask, type BrokerInput } from './broker';
 import { kafkaFixtureCourse, fixtureTask } from './brokerFixture';
+import { budget } from '../../scripts/timing';
 
 const course = kafkaFixtureCourse();
 const task = (id: string) => fixtureTask(course, id);
@@ -122,7 +123,7 @@ describe('kafka scenario', () => {
     const t = task('kx-scenario');
     const t0 = performance.now();
     const a = check(t, starter(t));
-    expect(performance.now() - t0).toBeLessThan(1500);
+    expect(performance.now() - t0).toBeLessThan(budget(1500));
     expect(check(t, starter(t))).toEqual(a);
   });
 
